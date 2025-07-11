@@ -1,0 +1,92 @@
+---
+title:  "Getting started: static bilinear network model"
+author: "Tosin Salau & Shahryar Minhas"
+date:   "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Getting started: static bilinear network model}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.align = "center",
+  fig.width = 6, fig.height = 4,
+  message   = FALSE, warning = FALSE
+)
+library(dbn)
+library(ggplot2)      # needed for visualization functions
+```
+
+## 1  Simulate a small static network
+
+```{r simulate-data}
+set.seed(1)
+sim <- simulate_static_dbn(n = 15,            # network size: 15 actors
+                          p   =  1,            # single relation type
+                          time  =  1)            # static model = one time period
+Y <- sim$Y
+dim(Y)
+```
+
+## 2  Fit a *very* short MCMC chain
+
+```{r fit-model, cache = TRUE}
+fit_static <- dbn(sim$Y,
+                  model = 'static',
+                  nscan = 600,    # mcmc iterations after burn-in
+                  burn = 200,     # initial burn-in iterations
+                  odens = 1      # save every iteration (no thinning)
+                  )
+```
+
+## 3  Step #1 - Assess convergence
+
+```{r convergence}
+check_convergence(fit_static)
+plot_trace(fit_static, pars = c("s2", "t2", "g2"))
+```
+
+## 4  Inspect posterior summaries
+
+```{r summaries}
+summary(fit_static)                 # model summary via s3 method
+plot(fit_static)                    # default plots via s3 dispatch
+```
+
+## 5  Posterior-predictive checks
+
+Generate 100 replicated networks and overlay the ECDFs:
+
+```{r ppc-ecdf, cache = TRUE}
+ppd <- posterior_predict_dbn(fit_static, ndraws = 100, seed = 42)
+plot_ppc_ecdf(fit_static, ppd, ndraws_plot = 30, alpha = 0.2, Y_obs = Y)
+```
+
+Density version (identical behaviour when data are continuous):
+
+```{r ppc-density}
+plot_ppc_density(fit_static, ppd, Y_obs = Y)
+```
+
+## 6  Drawing *new* predictions
+
+```{r simulate-new, eval = FALSE}
+# generate 500 posterior draws - returns array [m × m × p × n × 500]
+Y_rep <- posterior_predict_dbn(fit_static, ndraws = 500)
+```
+
+## 7  Wrap-up
+
+* We simulated a single-time-point network,
+* ran a short chain,
+* checked convergence **first**,
+* inspected parameters and latent effects, and
+* used posterior-predictive ECDF / density overlays to evaluate fit.
+
+Have some fun.

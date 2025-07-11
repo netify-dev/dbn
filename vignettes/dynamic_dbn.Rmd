@@ -1,0 +1,91 @@
+---
+title:  "Dynamic bilinear network models"
+author: "Tosin Salau & Shahryar Minhas"
+date:   "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Dynamic bilinear network models}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE, comment = "#>",
+  fig.align = "center",
+  fig.width = 6, fig.height = 4,
+  message   = FALSE, warning = FALSE
+)
+library(dbn)
+library(ggplot2)
+```
+
+## 1  Simulate a small dynamic data set
+
+```{r simulate-dynamic}
+set.seed(6886)
+sim <- simulate_dynamic_dbn(n = 12,   # network size: 12 actors
+                           p   =  1,
+                           time  = 20)   # total time periods: 20
+Y <- sim$Y
+dim(Y)
+```
+
+## 2  Fit the dynamic model (tiny chain for the vignette)
+
+```{r fit-dynamic, cache = TRUE}
+fit_dyn <- dbn(Y,
+               family = "ordinal",  # specify data family
+               model = 'dynamic',   # dynamic bilinear model
+               nscan = 800,         # mcmc iterations after burn-in
+               burn = 400,          # initial burn-in iterations
+               odens = 4,           # save every 4th iteration (thinning)
+               time_thin = 1,       # save every time period
+               ar1 = TRUE,          # enable autoregressive dynamics
+               update_rho = TRUE,
+               verbose = TRUE)
+```
+
+## 3  Step #1 - Convergence diagnostics
+
+```{r conv-dyn}
+check_convergence(fit_dyn)
+plot_trace(fit_dyn, pars = c("sigma2", "tau_A2", "tau_B2", "rho_A", "rho_B"))
+```
+
+## 4  Posterior-predictive check
+
+```{r summaries-dyn}
+ppd_dyn <- posterior_predict_dbn(fit_dyn, ndraws = 80, seed = 99)
+plot_ppc_ecdf(fit_dyn, ppd_dyn, ndraws_plot = 25, alpha = 0.25, Y_obs = Y)
+plot_ppc_density(fit_dyn, ppd_dyn, Y_obs = Y)
+```
+
+## 5 Forecasting 6 steps ahead
+
+```{r dyad-path}
+Theta_forecast <- predict(fit_dyn, H = 6, S = 200, summary = "mean")
+dim(Theta_forecast)   # dimensions: m × m × p × h (forecast periods)
+```
+
+## 5  Visualizing a dyad trajectory
+
+```{r ppc-dyn, cache = TRUE}
+dyad_path(fit_dyn, i = 2, j = 7)
+```
+
+
+## 6  Group-level influence through time
+
+```{r group-influence}
+plot_group_influence(fit_dyn,
+                     group = c(1, 3, 5),
+                     type  = "sender",
+                     measure = "rowsum",
+                     cred = 0.9)
+```
+
+
+
