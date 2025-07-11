@@ -1,0 +1,53 @@
+Package: dbn
+Type: Package
+Title: Dynamic Bilinear Network Models for Ordinal Relational Data
+Version: 0.1.0
+Date: 2025-01-06
+Authors@R: c(
+    person("Shahryar", "Minhas", email = "minhassh@msu.edu", 
+           role = c("aut", "cre")),
+    person("Tosin", "Salau", email = "salaubol@msu.edu",
+           role = "aut")
+    )
+Author: Shahryar Minhas [aut, cre], Tosin Salau [aut]
+Maintainer: Shahryar Minhas <minhassh@msu.edu>
+Description: Implements Dynamic Bilinear Network (DBN) models for analyzing 
+    temporal ordinal relational data. Provides both static and dynamic 
+    variants of bilinear autoregressive models with Gaussian rank likelihood 
+    for ordinal outcomes. Includes functions for model estimation via MCMC, 
+    visualization, and diagnostics.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: false
+Depends: 
+    R (>= 4.0.0)
+Imports:
+    abind,
+    cli,
+    Matrix,
+    stats,
+    graphics,
+    grDevices,
+    utils,
+    methods,
+    ggplot2,
+    gridExtra,
+    Rcpp (>= 1.0.0)
+LinkingTo: 
+    Rcpp,
+    RcppArmadillo
+Suggests:
+    coda,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    netify,
+    network,
+    igraph,
+    lattice,
+    truncnorm,
+    RcppArmadillo
+VignetteBuilder: knitr
+RoxygenNote: 7.3.2
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
