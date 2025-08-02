@@ -73,7 +73,7 @@ stat_out_degree <- function(X) {
 
 #' Network statistic: reciprocity
 #'
-#' @description Compute network reciprocity (correlation between X[i,j] and X[j,i])
+#' @description Compute network reciprocity (correlation between X\[i,j\] and X\[j,i\])
 #' @param X Network matrix
 #' @return Scalar reciprocity value
 #' @export
@@ -234,6 +234,7 @@ compute_irf_single <- function(fit, draw_idx, shock, H, t0 = 1, stat_fun = stat_
 #' @param shock_pars List of parameters for build_shock if shock is character
 #' @param ... Additional arguments passed to stat_fun
 #' @return Data frame with IRF results including posterior summaries
+#' @importFrom stats complete.cases
 #' @export
 #' @examples
 #' \dontrun{
@@ -395,6 +396,7 @@ compute_irf <- function(fit, shock, H = 20, t0 = 1,
 #' @param title Plot title (default: auto-generated)
 #' @param ... Additional arguments (ignored)
 #' @return A ggplot2 object
+#' @importFrom rlang .data
 #' @export
 plot.dbn_irf <- function(x, ci_level = 0.95, title = NULL, ...) {
     if (!requireNamespace("ggplot2", quietly = TRUE)) {
@@ -419,7 +421,7 @@ plot.dbn_irf <- function(x, ci_level = 0.95, title = NULL, ...) {
     }
     
     # Create plot
-    p <- ggplot2::ggplot(x, ggplot2::aes(x = horizon)) +
+    p <- ggplot2::ggplot(x, ggplot2::aes(x = .data$horizon)) +
         ggplot2::geom_ribbon(
             ggplot2::aes(ymin = .data[[q_low]], ymax = .data[[q_high]]),
             alpha = 0.3, fill = "gray"

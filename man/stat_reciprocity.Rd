@@ -13,5 +13,5 @@ stat_reciprocity(X)
 Scalar reciprocity value
 }
 \description{
-Compute network reciprocity (correlation between X\link{i,j} and X\link{j,i})
+Compute network reciprocity (correlation between X[i,j] and X[j,i])
 }
