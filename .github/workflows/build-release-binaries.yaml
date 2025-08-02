@@ -50,25 +50,33 @@ jobs:
           cat(sprintf("version=%s\n", version), file = Sys.getenv("GITHUB_OUTPUT"), append = TRUE)
         shell: Rscript {0}
 
-      - name: Build source package
+      - name: Configure OpenMP for macOS
+        if: startsWith(matrix.os, 'macos')
         run: |
-          if [[ "${{ matrix.os }}" == macos* ]]; then
-            # Find libomp installation path
-            LIBOMP_PREFIX=$(brew --prefix libomp)
-            export PKG_CPPFLAGS="-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include"
-            export PKG_LIBS="-L${LIBOMP_PREFIX}/lib -lomp"
+          # Get libomp paths
+          LIBOMP_PREFIX=$(brew --prefix libomp)
+          
+          # Create a temporary Makevars that properly links OpenMP
+          echo "# macOS OpenMP configuration" > src/Makevars.tmp
+          echo "PKG_CXXFLAGS = \$(SHLIB_OPENMP_CXXFLAGS) -Xpreprocessor -fopenmp" >> src/Makevars.tmp
+          echo "PKG_CPPFLAGS = -I${LIBOMP_PREFIX}/include" >> src/Makevars.tmp
+          echo "PKG_LIBS = -L${LIBOMP_PREFIX}/lib -lomp \$(LAPACK_LIBS) \$(BLAS_LIBS) \$(FLIBS)" >> src/Makevars.tmp
+          
+          # Backup original and use our version
+          if [ -f src/Makevars ]; then
+            mv src/Makevars src/Makevars.orig
           fi
-          R CMD build .
+          mv src/Makevars.tmp src/Makevars
+          
+          echo "Contents of src/Makevars:"
+          cat src/Makevars
+
+      - name: Build source package
+        run: R CMD build .
         shell: bash
 
       - name: Build binary package
         run: |
-          if [[ "${{ matrix.os }}" == macos* ]]; then
-            # Find libomp installation path
-            LIBOMP_PREFIX=$(brew --prefix libomp)
-            export PKG_CPPFLAGS="-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include"
-            export PKG_LIBS="-L${LIBOMP_PREFIX}/lib -lomp"
-          fi
           pkg_file=$(ls -1tr *.tar.gz | tail -n 1)
           R CMD INSTALL --build "$pkg_file"
           
