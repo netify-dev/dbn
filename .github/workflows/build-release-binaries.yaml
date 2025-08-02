@@ -30,6 +30,8 @@ jobs:
 
       - name: Install dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"hard"'
 
       - name: Extract version from DESCRIPTION
         id: version
