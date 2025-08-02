@@ -53,8 +53,10 @@ jobs:
       - name: Build source package
         run: |
           if [[ "${{ matrix.os }}" == macos* ]]; then
-            export PKG_CPPFLAGS="-Xpreprocessor -fopenmp"
-            export PKG_LIBS="-lomp"
+            # Find libomp installation path
+            LIBOMP_PREFIX=$(brew --prefix libomp)
+            export PKG_CPPFLAGS="-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include"
+            export PKG_LIBS="-L${LIBOMP_PREFIX}/lib -lomp"
           fi
           R CMD build .
         shell: bash
@@ -62,8 +64,10 @@ jobs:
       - name: Build binary package
         run: |
           if [[ "${{ matrix.os }}" == macos* ]]; then
-            export PKG_CPPFLAGS="-Xpreprocessor -fopenmp"
-            export PKG_LIBS="-lomp"
+            # Find libomp installation path
+            LIBOMP_PREFIX=$(brew --prefix libomp)
+            export PKG_CPPFLAGS="-Xpreprocessor -fopenmp -I${LIBOMP_PREFIX}/include"
+            export PKG_LIBS="-L${LIBOMP_PREFIX}/lib -lomp"
           fi
           pkg_file=$(ls -1tr *.tar.gz | tail -n 1)
           R CMD INSTALL --build "$pkg_file"
