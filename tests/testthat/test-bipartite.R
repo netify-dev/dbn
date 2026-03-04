@@ -69,19 +69,17 @@ test_that("dynamic model fits bipartite data", {
 	expect_equal(dim(fit$B[[1]])[2], 8)
 })
 
-test_that("hmm model fits bipartite data", {
-	skip("Bipartite HMM fitting not yet supported in C++ (update_AB_static_cpp dimension mismatch)")
+test_that("hmm model rejects bipartite data with informative error", {
 	sim <- simulate_hmm_dbn(n = 6, n_col = 9, p = 1, time = 5, R = 2, seed = 52)
-	fit <- dbn(sim$Y, model = "hmm", family = "ordinal", R = 2,
-						 nscan = 50, burn = 20, verbose = FALSE)
-	expect_s3_class(fit, "dbn")
-	expect_equal(fit$dims$n_row, 6)
-	expect_equal(fit$dims$n_col, 9)
-	expect_true(fit$dims$is_bipartite)
+	expect_error(
+		dbn(sim$Y, model = "hmm", family = "ordinal", R = 2,
+			nscan = 50, burn = 20, verbose = FALSE),
+		"bipartite"
+	)
 })
 
 test_that("lowrank model fits bipartite data", {
-	skip("Bipartite lowrank fitting not yet verified — needs C++ audit")
+	skip("Lowrank bipartite requires n_row/n_col refactor in 3 C++ files (lowrank.cpp, lowrank_parallel.cpp, update_ab.cpp)")
 	sim <- simulate_lowrank_dbn(n = 6, n_col = 9, p = 1, time = 5, r = 2, seed = 53)
 	fit <- dbn(sim$Y, model = "lowrank", family = "ordinal", r = 2,
 						 nscan = 50, burn = 20, verbose = FALSE)

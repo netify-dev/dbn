@@ -7,13 +7,16 @@
 stat_reciprocity(X)
 }
 \arguments{
-\item{X}{Network matrix}
+\item{X}{Square network matrix}
 }
 \value{
 Scalar reciprocity value
 }
 \description{
-Correlation between X[i,j] and X[j,i]
+Correlation between X[i,j] and X[j,i].
+Only defined for square (unipartite) networks. For bipartite networks,
+use \code{\link{stat_density}}, \code{\link{stat_in_degree}}, or
+\code{\link{stat_out_degree}} instead.
 }
 \examples{
 X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)

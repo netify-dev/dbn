@@ -10,8 +10,12 @@ get_dbn_threads()
 Integer number of threads currently set for parallel computation
 }
 \description{
-Get the current number of threads used by dbn
+Returns the number of OpenMP threads currently configured for
+parallel MCMC computation. Defaults to 1 (single-threaded).
 }
 \examples{
 get_dbn_threads()
+}
+\seealso{
+\code{\link{set_dbn_threads}}
 }

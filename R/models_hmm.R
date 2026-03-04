@@ -112,6 +112,15 @@ dbn_hmm <- function(Y,
 	p <- dims$p
 	Tt <- dims$Tt
 
+	# bipartite networks are not yet supported for HMM model
+	if (is_bipartite) {
+		cli::cli_abort(c(
+			"HMM model does not yet support bipartite (rectangular) networks.",
+			"i" = "Your data has {n_row} senders and {n_col} receivers.",
+			"i" = "Use {.code model = \"dynamic\"} for bipartite networks."
+		))
+	}
+
 	# optimization parameters based on problem size
 	m_max <- max(n_row, n_col)
 	large_scale <- (m_max > 50 || Tt > 100)
@@ -225,7 +234,7 @@ dbn_hmm <- function(Y,
 		diag(Pi) <- diag(Pi) + 2
 		Pi <- Pi / rowSums(Pi)
 
-		# A and B matrices near identity
+		# a and b matrices near identity
 		A_list <- vector("list", R)
 		B_list <- vector("list", R)
 
@@ -248,7 +257,7 @@ dbn_hmm <- function(Y,
 		g2 <- 1
 	}
 
-	# MCMC setup and storage
+	# mcmc setup and storage
 
 	n_iter <- burn + nscan
 	keep_idx <- ((burn + 1):n_iter)[((burn + 1):n_iter) %% odens == 0]

@@ -7,13 +7,16 @@
 stat_transitivity(X)
 }
 \arguments{
-\item{X}{Network matrix}
+\item{X}{Square network matrix}
 }
 \value{
 Scalar transitivity value
 }
 \description{
-Clustering coefficient
+Clustering coefficient (fraction of closed triangles).
+Only defined for square (unipartite) networks. For bipartite networks,
+use \code{\link{stat_density}}, \code{\link{stat_in_degree}}, or
+\code{\link{stat_out_degree}} instead.
 }
 \examples{
 X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)

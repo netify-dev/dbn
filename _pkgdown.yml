@@ -4,16 +4,12 @@ template:
 
 navbar:
   structure:
-    left:  [methodology, paper, articles, reference]
+    left:  [methodology, articles, reference]
     right: [search, github]
   components:
     methodology:
       text: Methodology
       href: articles/methodology.html
-    paper:
-      text: Paper
-      href: salau_minhas_when_shocks_cascade.pdf
-
 articles:
   - title: "Methodology"
     navbar: ~

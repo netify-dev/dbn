@@ -15,7 +15,7 @@ The `dbn` package implements a family of **Dynamic Bilinear Network (DBN) models
 
 The methodological framework is introduced in:
 
-> Salau, T. & Minhas, S. (under review). *When Shocks Cascade: Time-Varying Propagation in Armed Conflict Networks.* [[Working paper (PDF)]](../salau_minhas_when_shocks_cascade.pdf)
+> Salau, T. & Minhas, S. (under review). *When Shocks Cascade: Time-Varying Propagation in Armed Conflict Networks.*
 
 ## The core idea
 
@@ -151,4 +151,4 @@ If you use this package in your research, please cite:
 
 > Salau, T. & Minhas, S. (under review). When Shocks Cascade: Time-Varying Propagation in Armed Conflict Networks.
 
-A PDF of the working paper is available [here](../salau_minhas_when_shocks_cascade.pdf).
+The package source code and documentation are available at <https://github.com/netify-dev/dbn>.

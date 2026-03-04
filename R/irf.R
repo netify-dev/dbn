@@ -120,8 +120,11 @@ stat_out_degree <- function(X) {
 
 #' Network Statistic: Reciprocity
 #'
-#' @description Correlation between X\[i,j\] and X\[j,i\]
-#' @param X Network matrix
+#' @description Correlation between X\[i,j\] and X\[j,i\].
+#'   Only defined for square (unipartite) networks. For bipartite networks,
+#'   use \code{\link{stat_density}}, \code{\link{stat_in_degree}}, or
+#'   \code{\link{stat_out_degree}} instead.
+#' @param X Square network matrix
 #' @return Scalar reciprocity value
 #' @seealso \code{\link{compute_irf}}, \code{\link{build_shock}},
 #'   \code{\link{stat_density}}, \code{\link{stat_transitivity}}
@@ -130,6 +133,12 @@ stat_out_degree <- function(X) {
 #' stat_reciprocity(X)
 #' @export
 stat_reciprocity <- function(X) {
+	if (nrow(X) != ncol(X)) {
+		cli::cli_abort(c(
+			"Reciprocity is undefined for bipartite (rectangular) networks.",
+			"i" = "Use {.fn stat_density}, {.fn stat_in_degree}, or {.fn stat_out_degree} instead."
+		))
+	}
 	upper_idx <- upper.tri(X)
 	upper_vals <- X[upper_idx]
 	lower_vals <- t(X)[upper_idx]
@@ -139,8 +148,11 @@ stat_reciprocity <- function(X) {
 
 #' Network Statistic: Transitivity
 #'
-#' @description Clustering coefficient
-#' @param X Network matrix
+#' @description Clustering coefficient (fraction of closed triangles).
+#'   Only defined for square (unipartite) networks. For bipartite networks,
+#'   use \code{\link{stat_density}}, \code{\link{stat_in_degree}}, or
+#'   \code{\link{stat_out_degree}} instead.
+#' @param X Square network matrix
 #' @return Scalar transitivity value
 #' @seealso \code{\link{compute_irf}}, \code{\link{build_shock}},
 #'   \code{\link{stat_density}}, \code{\link{stat_reciprocity}}
@@ -149,6 +161,12 @@ stat_reciprocity <- function(X) {
 #' stat_transitivity(X)
 #' @export
 stat_transitivity <- function(X) {
+	if (nrow(X) != ncol(X)) {
+		cli::cli_abort(c(
+			"Transitivity is undefined for bipartite (rectangular) networks.",
+			"i" = "Use {.fn stat_density}, {.fn stat_in_degree}, or {.fn stat_out_degree} instead."
+		))
+	}
 	X_binary <- (X != 0) * 1
 	diag(X_binary) <- 0
 	triangles <- sum(diag(X_binary %*% X_binary %*% X_binary)) / 6
@@ -468,7 +486,7 @@ compute_irf <- function(fit, shock, H = 20, t0 = 1,
 #' sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' S <- build_shock(m = 6, type = "unit_edge", i = 1, j = 2)
-#' irf <- compute_irf(fit, S = S, H = 5)
+#' irf <- compute_irf(fit, shock = S, H = 5)
 #' plot(irf)
 #' }
 #' @importFrom rlang .data
@@ -518,7 +536,7 @@ plot.dbn_irf <- function(x, ci_level = 0.95, title = NULL, ...) {
 #' sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' S <- build_shock(m = 6, type = "unit_edge", i = 1, j = 2)
-#' irf <- compute_irf(fit, S = S, H = 5)
+#' irf <- compute_irf(fit, shock = S, H = 5)
 #' print(irf)
 #' }
 #' @export

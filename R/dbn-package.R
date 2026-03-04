@@ -11,6 +11,24 @@
 #' small regularization before retrying the decomposition. No user action is
 #' required.
 #'
+#' @section Known limitations:
+#' \describe{
+#'   \item{Bipartite HMM/lowrank}{The HMM and low-rank models currently
+#'     support only unipartite (square) networks. Bipartite data will
+#'     produce an informative error. Use \code{model = "dynamic"} for
+#'     bipartite networks.}
+#'   \item{Dynamic binary with small networks}{The dynamic model with
+#'     \code{family = "binary"} may encounter numerical singularities when
+#'     the network has fewer than ~15 nodes. A warning is issued at model
+#'     entry. Consider \code{model = "static"} or a larger network.}
+#'   \item{HMM label switching}{Regime numbering (1, 2, ..., R) in the
+#'     HMM model is arbitrary and may differ across MCMC chains.
+#'     Compare regimes by their estimated A/B matrices, not by label.}
+#'   \item{Lowrank Stiefel identifiability}{The orthonormal factor matrix
+#'     U in the low-rank model is identified only up to orthogonal rotation.
+#'     Factor loadings \eqn{\alpha_t} and U should be interpreted together.}
+#' }
+#'
 #' @importFrom grDevices adjustcolor heat.colors rainbow
 #' @importFrom graphics abline barplot image legend lines matplot par polygon
 #' @importFrom methods as

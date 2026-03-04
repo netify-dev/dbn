@@ -1,7 +1,7 @@
 ####
 # post_methods.R
-# Plot, summary, convergence, and prediction methods for dbn model objects.
-# Generic plot.dbn dispatch lives in zzz-dispatch.R.
+# plot, summary, convergence, and prediction methods for dbn model objects.
+# generic plot.dbn dispatch lives in zzz-dispatch.R.
 ####
 
 ####
@@ -228,7 +228,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 		ggplot2::labs(title = "Parameter Traces", x = "Iteration", y = "Value") +
 		ggplot2::theme_minimal()
 
-	# A matrix distribution at selected time points
+	# a matrix distribution at selected time points
 	if (!is.null(results$draws$misc$A)) {
 		last_A <- results$draws$misc$A[[length(results$draws$misc$A)]]
 	} else {
@@ -263,7 +263,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 		ggplot2::theme_minimal()
 	####
 
-	# AR(1) parameter traces
+	# ar(1) parameter traces
 	if ("rhoA" %in% names(trace_df) && "rhoB" %in% names(trace_df)) {
 		rho_df <- data.frame(
 			iteration = trace_df$iteration,
@@ -812,7 +812,7 @@ role_trajectory <- function(fit, mat = c("A", "B"), comp = 1) {
 	mat <- match.arg(mat)
 	n_keep <- length(fit[[mat]])
 	Tt <- dim(fit[[mat]][[1]])[3]
-	# A indexes n_row, B indexes n_col
+	# a indexes n_row, b indexes n_col
 	m <- if (mat == "A") {
 		fit$dims$n_row
 	} else {
@@ -1422,7 +1422,7 @@ simulate_static <- function(fit, S, summary = "none") {
 	for (s in seq_len(S)) {
 		Bdraw <- lapply(fit$B, function(b) b[, , idx[s]])
 
-		# Y = tprod(M, B) + noise
+		# y = tprod(m, b) + noise
 		Yrep <- tprod(fit$M, Bdraw)
 
 		s2 <- fit$params[idx[s], "s2"]
@@ -1477,7 +1477,7 @@ simulate_dynamic <- function(fit, H, S, summary = "none") {
 			Theta_new <- array(0, c(n_row, n_col, p))
 
 			for (rel in seq_len(p)) {
-				# Theta_t = A_t * Theta_{t-1} * B_t' + noise
+				# theta_t = a_t * theta_{t-1} * b_t' + noise
 				Theta_new[, , rel] <- A_last %*% Theta_curr[, , rel] %*% t(B_last) +
 					sqrt(sigma2) * matrix(rnorm(n_row * n_col), n_row, n_col)
 			}

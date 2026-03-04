@@ -272,7 +272,11 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		t2 <- tail(previous$draws$pars$t2, 1)
 		g2 <- tail(previous$draws$pars$g2, 1)
 		M <- previous$draws$misc$M[[length(previous$draws$misc$M)]]
-		B <- lapply(previous$draws$misc$B, function(b) b[, , dim(b)[3]])
+		B <- lapply(previous$draws$misc$B, function(b) {
+			mat <- b[, , dim(b)[3], drop = FALSE]
+			dim(mat) <- dim(b)[1:2]
+			mat
+		})
 	} else {
 		s2 <- 1
 		t2 <- 1
@@ -281,7 +285,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 	}
 	####
 
-	# MCMC storage
+	# mcmc storage
 	n_iter <- burn + nscan
 	keep_idx <- seq(burn + 1, n_iter, by = odens)
 	n_keep <- length(keep_idx)
@@ -323,7 +327,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 	# main MCMC loop
 	for (iter in 1:n_iter) {
 
-		# B update
+		# b update
 		if (is_large_network) {
 			B[[1]] <- update_B_static_tiled(Z_cube, M, s2, t2, n_row, n_col, p, Tt)
 		} else {
@@ -336,7 +340,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		t2 <- safe_rinv_gamma((sum(d) + 1) / 2, (sse + 1) / 2)
 		####
 
-		# Z update (ordinal/binary)
+		# z update (ordinal/binary)
 		if (FAM$name == "binary") {
 			for (j in 1:p) {
 				for (t in 1:Tt) {
@@ -387,7 +391,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		}
 		####
 
-		# M update
+		# m update
 		if (FAM$name == "ordinal" || iter %% 5 == 0) {
 			if (FAM$name != "ordinal") {
 				Z_flat <- array(Z, c(n_row, n_col, p * Tt))
@@ -599,6 +603,15 @@ dbn_dynamic <- function(Y,
 		cli::cli_abort("Dynamic model requires at least 2 time points. Use {.code model = \"static\"} for cross-sectional data.")
 	}
 
+	# warn about dynamic binary with small networks
+	if (family == "binary" && min(dim(Y)[1], dim(Y)[2]) < 15) {
+		cli::cli_warn(c(
+			"Dynamic binary models with small networks (n < 15) may encounter numerical singularities.",
+			"i" = "Consider using {.code model = \"static\"} or a larger network.",
+			"i" = "The model will attempt to run, but may produce unreliable results."
+		))
+	}
+
 	pre <- shared_preprocess(Y, family = family)
 	Z <- pre$Z
 	R <- pre$R
@@ -756,7 +769,7 @@ dbn_dynamic <- function(Y,
 	Theta_4d <- matrix(Theta_all, nrow = nc, ncol = p * Tt)
 	####
 
-	# MCMC storage
+	# mcmc storage
 	n_iter <- burn + nscan
 	keep <- seq(burn + 1, n_iter, by = odens)
 	n_keep <- length(keep)
@@ -810,7 +823,7 @@ dbn_dynamic <- function(Y,
 	# main MCMC loop
 	for (g in 1:n_iter) {
 
-		# Z update
+		# z update
 		if (FAM$name == "ordinal") {
 			if (use_approx) {
 				EZ_cube[] <- Theta_4d + M_expanded
@@ -839,14 +852,14 @@ dbn_dynamic <- function(Y,
 		}
 		####
 
-		# M update
+		# m update
 		mu_result <- update_mu_dynamic(Z_4d, Theta_4d, g2, a_g, b_g, n_row, n_col, p, Tt)
 		M <- mu_result$M
 		g2 <- mu_result$g2
 		if (use_approx) M_expanded <- rep(as.vector(M), times = Tt)
 		####
 
-		# FFBS for Theta
+		# ffbs for theta
 		if (is_large_network && max(n_row, n_col) > 100) {
 			Theta_cube <- batch_ffbs_all_relations_blocked(Z_4d, M, Aarray, Barray, sigma2, n_row, n_col, p, Tt)
 		} else {
@@ -858,7 +871,7 @@ dbn_dynamic <- function(Y,
 		Theta_4d <- matrix(Theta_cube, nrow = nc, ncol = p * Tt)
 		####
 
-		# A/B update
+		# a/b update
 		if (is_large_network && max(n_row, n_col) > 100) {
 			AB_result <- update_AB_batch_large(
 				Theta_4d, Aarray, Barray,
@@ -881,18 +894,8 @@ dbn_dynamic <- function(Y,
 
 		# tau update
 		if (ar1) {
-			A_curr <- Aarray[,, 2:Tt, drop = FALSE]
-			A_prev <- Aarray[,, 1:(Tt-1), drop = FALSE]
-			B_curr <- Barray[,, 2:Tt, drop = FALSE]
-			B_prev <- Barray[,, 1:(Tt-1), drop = FALSE]
-			innovA <- A_curr - rhoA * A_prev
-			innovB <- B_curr - rhoB * B_prev
-			for (idx in seq_len(Tt - 1)) {
-				innovA[,,idx] <- innovA[,,idx] - (1 - rhoA) * eye_nr
-				innovB[,,idx] <- innovB[,,idx] - (1 - rhoB) * eye_nc
-			}
-			innovA_ss <- sum(innovA^2)
-			innovB_ss <- sum(innovB^2)
+			innovA_ss <- compute_ar1_innovation_ss_cpp(Aarray, rhoA, n_row, Tt)
+			innovB_ss <- compute_ar1_innovation_ss_cpp(Barray, rhoB, n_col, Tt)
 			if (is_large_network) {
 				tauA2 <- safe_rinv_gamma(shape_tauA, (1 + innovA_ss)/2)
 				tauB2 <- safe_rinv_gamma(shape_tauB, (1 + innovB_ss)/2)
@@ -924,16 +927,7 @@ dbn_dynamic <- function(Y,
 			}
 
 			if (FAM$name == "gaussian") {
-				obs_rss <- 0
-				for (j in 1:p) {
-					M_j <- M[,,j]
-					for (t in 1:Tt) {
-						idx <- (j-1) * Tt + t
-						Z_jt <- matrix(Z_4d[,idx], n_row, n_col)
-						Theta_jt <- matrix(Theta_4d[,idx], n_row, n_col)
-						obs_rss <- obs_rss + sum((Z_jt - (Theta_jt + M_j))^2)
-					}
-				}
+				obs_rss <- compute_gaussian_obs_residuals_dynamic_cpp(Z_4d, Theta_4d, M, n_row, n_col, p, Tt)
 				sigma2_obs <- (1 + obs_rss / 2) / rgamma(1, shape = (1 + nc * Tt * p) / 2, rate = 1)
 			}
 		} else {
@@ -949,25 +943,16 @@ dbn_dynamic <- function(Y,
 		}
 		####
 
-		# AR(1) coefficient update
+		# ar(1) coefficient update
 		if (ar1 && update_rho) {
-			identity_A <- eye_nr
-			identity_B <- eye_nc
-
-			diffA_t   <- Aarray[,, 2:Tt, drop = FALSE] - as.vector(identity_A)
-			diffA_tm1 <- Aarray[,, 1:(Tt-1), drop = FALSE] - as.vector(identity_A)
-			rhoA_num   <- sum(diffA_t * diffA_tm1)
-			rhoA_denom <- sum(diffA_tm1^2)
-			rho_mean <- rhoA_num / (rhoA_denom + 1e-10)
-			rho_var  <- tauA2 / (rhoA_denom + 1e-10)
+			rhoA_result <- compute_rho_update_cpp(Aarray, n_row, Tt)
+			rho_mean <- rhoA_result$num / (rhoA_result$denom + 1e-10)
+			rho_var  <- tauA2 / (rhoA_result$denom + 1e-10)
 			rhoA <- truncnorm::rtruncnorm(1, a = -0.99, b = 0.99, mean = rho_mean, sd = sqrt(rho_var))
 
-			diffB_t   <- Barray[,, 2:Tt, drop = FALSE] - as.vector(identity_B)
-			diffB_tm1 <- Barray[,, 1:(Tt-1), drop = FALSE] - as.vector(identity_B)
-			rhoB_num   <- sum(diffB_t * diffB_tm1)
-			rhoB_denom <- sum(diffB_tm1^2)
-			rho_mean <- rhoB_num / (rhoB_denom + 1e-10)
-			rho_var  <- tauB2 / (rhoB_denom + 1e-10)
+			rhoB_result <- compute_rho_update_cpp(Barray, n_col, Tt)
+			rho_mean <- rhoB_result$num / (rhoB_result$denom + 1e-10)
+			rho_var  <- tauB2 / (rhoB_result$denom + 1e-10)
 			rhoB <- truncnorm::rtruncnorm(1, a = -0.99, b = 0.99, mean = rho_mean, sd = sqrt(rho_var))
 			if (symmetric) rhoB <- rhoA
 		}

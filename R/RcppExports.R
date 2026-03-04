@@ -108,6 +108,24 @@ compute_process_variance_blocked <- function(Theta_4d, Aarray, Barray, n_row, n_
     .Call('_dbn_compute_process_variance_blocked', PACKAGE = 'dbn', Theta_4d, Aarray, Barray, n_row, n_col, p, Tt)
 }
 
+#' @keywords internal
+#' @noRd
+compute_gaussian_obs_residuals_dynamic_cpp <- function(Z_4d, Theta_4d, M, n_row, n_col, p, Tt) {
+    .Call('_dbn_compute_gaussian_obs_residuals_dynamic_cpp', PACKAGE = 'dbn', Z_4d, Theta_4d, M, n_row, n_col, p, Tt)
+}
+
+#' @keywords internal
+#' @noRd
+compute_ar1_innovation_ss_cpp <- function(ABarray, rho, n, Tt) {
+    .Call('_dbn_compute_ar1_innovation_ss_cpp', PACKAGE = 'dbn', ABarray, rho, n, Tt)
+}
+
+#' @keywords internal
+#' @noRd
+compute_rho_update_cpp <- function(ABarray, n, Tt) {
+    .Call('_dbn_compute_rho_update_cpp', PACKAGE = 'dbn', ABarray, n, Tt)
+}
+
 #' Fast FFBS for Bilinear Model
 #'
 #' @description Efficient FFBS that avoids Kronecker products.
@@ -709,11 +727,13 @@ update_B_batch <- function(Theta_all_1, Theta_all_2, Theta_all_3, Theta_all_4, A
 }
 
 #' Update A and B matrices for static model (C++ version)
-#' 
-#' @description Fast C++ implementation of update_AB_static
-#' @param Theta_prev Previous Theta values (m x m x n_times)
-#' @param Theta_curr Current Theta values (m x m x n_times) 
-#' @param B_init Initial B matrix (m x m)
+#'
+#' @description Fast C++ implementation of update_AB_static.
+#'   Supports bipartite networks where Theta is n_row x n_col (rectangular).
+#'   A is n_row x n_row (sender dynamics), B is n_col x n_col (receiver dynamics).
+#' @param Theta_prev Previous Theta values (n_row x n_col x n_times)
+#' @param Theta_curr Current Theta values (n_row x n_col x n_times)
+#' @param B_init Initial B matrix (n_col x n_col)
 #' @param tau_A2 Prior variance for A
 #' @param tau_B2 Prior variance for B
 #' @param sigma2 Innovation variance

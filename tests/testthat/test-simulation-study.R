@@ -83,7 +83,7 @@ test_that("simulation study: static gaussian recovers M", {
 
 	fit <- dbn(Z_gauss,
 		model = "static", family = "gaussian",
-		nscan = 400, burn = 200, odens = 2,
+		nscan = 800, burn = 400, odens = 2,
 		verbose = FALSE
 	)
 
@@ -99,7 +99,7 @@ test_that("simulation study: static gaussian recovers M", {
 		valid <- complete.cases(M_true_vec, M_hat_vec)
 		if (sum(valid) > 5) {
 			r <- cor(M_true_vec[valid], M_hat_vec[valid])
-			expect_gt(r, 0.3, label = "M recovery correlation (static gaussian)")
+			expect_gt(r, 0.4, label = "M recovery correlation (static gaussian)")
 		}
 	}
 })
@@ -119,7 +119,7 @@ test_that("simulation study: static ordinal recovers M direction", {
 
 	fit <- dbn(sim$Y,
 		model = "static", family = "ordinal",
-		nscan = 400, burn = 200, odens = 2,
+		nscan = 800, burn = 400, odens = 2,
 		verbose = FALSE
 	)
 
@@ -159,7 +159,7 @@ test_that("simulation study: static binary recovers M sign pattern", {
 
 	fit <- dbn(Y,
 		model = "static", family = "binary",
-		nscan = 400, burn = 200, odens = 2,
+		nscan = 800, burn = 400, odens = 2,
 		verbose = FALSE
 	)
 
@@ -177,7 +177,7 @@ test_that("simulation study: static binary recovers M sign pattern", {
 		valid <- complete.cases(M_true_vec, M_hat_vec)
 		if (sum(valid) > 5) {
 			r <- cor(M_true_vec[valid], M_hat_vec[valid])
-			expect_gt(r, 0.2, label = "M sign recovery (static binary)")
+			expect_gt(r, 0.3, label = "M sign recovery (static binary)")
 		}
 	}
 })
@@ -197,7 +197,7 @@ test_that("simulation study: dynamic gaussian recovers M and Theta", {
 
 	fit <- dbn(sim$Z,
 		model = "dynamic", family = "gaussian",
-		nscan = 400, burn = 200, odens = 2,
+		nscan = 800, burn = 400, odens = 2,
 		verbose = FALSE
 	)
 
@@ -218,8 +218,7 @@ test_that("simulation study: dynamic gaussian recovers M and Theta", {
 			valid <- complete.cases(th_true_vec, th_hat_vec)
 			if (sum(valid) > 5) {
 				r <- cor(th_true_vec[valid], th_hat_vec[valid])
-				# use lenient threshold — small sample, short chain
-				expect_gt(r, 0.1, label = "Theta recovery (dynamic gaussian)")
+				expect_gt(r, 0.25, label = "Theta recovery (dynamic gaussian)")
 			}
 		}
 	}
@@ -245,7 +244,7 @@ test_that("simulation study: dynamic ordinal model runs and converges", {
 
 	fit <- dbn(sim$Y,
 		model = "dynamic", family = "ordinal",
-		nscan = 300, burn = 150, odens = 2,
+		nscan = 800, burn = 400, odens = 2,
 		verbose = FALSE
 	)
 
@@ -281,7 +280,7 @@ test_that("simulation study: PPD calibration for dynamic gaussian", {
 
 	fit <- dbn(sim$Z,
 		model = "dynamic", family = "gaussian",
-		nscan = 500, burn = 250, odens = 2,
+		nscan = 800, burn = 400, odens = 2,
 		verbose = FALSE
 	)
 
@@ -315,8 +314,8 @@ test_that("simulation study: PPD calibration for dynamic gaussian", {
 		coverage <- mean(in_interval, na.rm = TRUE)
 
 		# coverage should be roughly 90% (allow wide tolerance for small samples)
-		expect_gt(coverage, 0.5,
-			label = "PPD 90% coverage should be above 50%")
+		expect_gt(coverage, 0.65,
+			label = "PPD 90% coverage should be above 65%")
 	}
 })
 
@@ -335,7 +334,7 @@ test_that("simulation study: PPD calibration for static gaussian", {
 
 	fit <- dbn(sim$Z,
 		model = "static", family = "gaussian",
-		nscan = 400, burn = 200, odens = 2,
+		nscan = 800, burn = 400, odens = 2,
 		verbose = FALSE
 	)
 
@@ -363,7 +362,7 @@ test_that("simulation study: PPD calibration for static gaussian", {
 			in_interval <- (obs >= q_lo) & (obs <= q_hi)
 		}
 		coverage <- mean(in_interval, na.rm = TRUE)
-		expect_gt(coverage, 0.5,
-			label = "PPD 90% coverage should be above 50%")
+		expect_gt(coverage, 0.65,
+			label = "PPD 90% coverage should be above 65%")
 	}
 })

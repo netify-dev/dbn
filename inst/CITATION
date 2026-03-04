@@ -1,0 +1,11 @@
+bibentry(
+  bibtype  = "Misc",
+  title    = "Dynamic Bilinear Network Models for Ordinal Relational Data",
+  author   = c(
+    person("Tosin", "Salau"),
+    person("Shahryar", "Minhas")
+  ),
+  year     = "2026",
+  note     = "R package version 0.2.0",
+  url      = "https://github.com/netify-dev/dbn"
+)

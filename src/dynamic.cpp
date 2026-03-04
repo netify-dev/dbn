@@ -6,6 +6,8 @@
 #include <omp.h>
 #endif
 
+#include <random>
+#include <vector>
 #include "thread_control.h"
 
 using namespace Rcpp;
@@ -39,20 +41,52 @@ static arma::mat safe_inv_sympd(const arma::mat& M) {
     return result;
 }
 
-// Safe mvnrnd with regularization
-static arma::vec safe_mvnrnd(const arma::vec& mu, const arma::mat& Sigma) {
+
+// Thread-safe multivariate normal sampling using thread-local RNG.
+// Uses manual Cholesky + std::mt19937_64 instead of arma::mvnrnd.
+static arma::vec thread_safe_mvnrnd(const arma::vec& mu, const arma::mat& Sigma,
+                                     std::mt19937_64& rng) {
+    int d = mu.n_elem;
     arma::mat S = 0.5 * (Sigma + Sigma.t());
-    try {
-        return arma::mvnrnd(mu, S);
-    } catch (...) {
-        double reg = 1e-6 * arma::norm(S, "fro") + 1e-8;
-        S.diag() += reg;
-        try {
-            return arma::mvnrnd(mu, S);
-        } catch (...) {
-            return mu + arma::sqrt(arma::abs(S.diag())) % arma::randn(mu.n_elem);
-        }
+
+    // generate standard normals from thread-local RNG
+    std::normal_distribution<double> norm(0.0, 1.0);
+    arma::vec z(d);
+    for (int i = 0; i < d; i++) {
+        z(i) = norm(rng);
     }
+
+    // try Cholesky decomposition
+    arma::mat L;
+    bool ok = arma::chol(L, S, "lower");
+    if (ok) {
+        return mu + L * z;
+    }
+
+    // regularize and retry
+    double reg = 1e-6 * arma::norm(S, "fro") + 1e-8;
+    S.diag() += reg;
+    ok = arma::chol(L, S, "lower");
+    if (ok) {
+        return mu + L * z;
+    }
+
+    // fallback: diagonal sampling
+    return mu + arma::sqrt(arma::abs(S.diag())) % z;
+}
+
+// Initialize per-thread RNG engines with seeds from R's RNG.
+// Must be called from the main thread before any parallel region.
+static std::vector<std::mt19937_64> init_thread_rngs(int n_threads) {
+    std::vector<std::mt19937_64> rngs;
+    rngs.reserve(n_threads);
+    for (int i = 0; i < n_threads; i++) {
+        // use R's RNG to generate a seed for each thread
+        uint64_t seed = static_cast<uint64_t>(R::runif(0.0, 1.0) * 4294967296.0);
+        seed ^= static_cast<uint64_t>(i + 1) * 2654435761ULL;
+        rngs.emplace_back(seed);
+    }
+    return rngs;
 }
 
 // Batch update z for ordinal data
@@ -135,36 +169,14 @@ arma::mat batch_update_Z_ordinal_fast(const arma::mat& R_4d,
                                        const List& IR,
                                        const List& IR_time_indices,  // precomputed time indices
                                        int n_row, int n_col, int p, int Tt) {
-    set_dbn_threads(); // set threads from R options
     int nc = n_row * n_col;
 
     // allocate output once
     arma::mat Z_new(nc, p * Tt);
 
-    // preallocate workspace for each thread
-    #ifdef _OPENMP
-    int n_threads = omp_get_max_threads();
-    std::vector<arma::vec> workspace_R(n_threads, arma::vec(nc));
-    std::vector<arma::vec> workspace_Z(n_threads, arma::vec(nc));
-    std::vector<arma::vec> workspace_EZ(n_threads, arma::vec(nc));
-    #endif
-
-    // parallel over relations with better load balancing
-    #ifdef _OPENMP
-    #pragma omp parallel for schedule(dynamic, 1)
-    #endif
+    // NOTE: no OpenMP here — rz_fc_cpp manipulates R List/SEXP objects
+    // which are not thread-safe (corrupts R's PROTECT stack)
     for(int j = 0; j < p; j++) {
-        #ifdef _OPENMP
-        int tid = omp_get_thread_num();
-        arma::vec& local_R = workspace_R[tid];
-        arma::vec& local_Z = workspace_Z[tid];
-        arma::vec& local_EZ = workspace_EZ[tid];
-        #else
-        arma::vec local_R(nc);
-        arma::vec local_Z(nc);
-        arma::vec local_EZ(nc);
-        #endif
-
         // get pre-computed time indices for this relation
         List IR_j_time = IR_time_indices[j];
         arma::mat M_j = M.slice(j);
@@ -340,61 +352,85 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
     double inv_tauB2 = 1.0 / tauB2;
 
     // --- Update A (sender dynamics, n_row x n_row) ---
-    // For row i of A: Theta_t(i,:) = A(i,:) * Theta_{t-1} * B_t'
-    // Response: row i of Theta_t -> length n_col
-    // Design: (Theta_{t-1} * B_t')' -> n_col x n_row
-    // Parameter: A(i,:) -> length n_row
-    // sequential: safe_mvnrnd is not thread-safe
+    // Each row i of A is independent: parallelize over rows with thread-local RNG.
+    // Use private per-row storage to avoid false sharing on the output cube
+    // (rows in column-major cubes are interleaved, sharing cache lines).
+    set_dbn_threads();
+#ifdef _OPENMP
+    int n_threads_A = std::min(omp_get_max_threads(), n_row);
+#else
+    int n_threads_A = 1;
+#endif
+    auto rngs_A = init_thread_rngs(n_threads_A);
+
+    // Private storage: A_private[i] is an n_row x Tt matrix (column t = row i's values at time t)
+    std::vector<arma::mat> A_private(n_row, arma::mat(n_row, Tt, arma::fill::zeros));
+
+    #pragma omp parallel for schedule(static) num_threads(n_threads_A)
     for(int i = 0; i < n_row; i++) {
-        // pre-allocate workspace outside t-loop
+#ifdef _OPENMP
+        int tid = omp_get_thread_num();
+#else
+        int tid = 0;
+#endif
         arma::mat F_it(p * n_col, n_row);
         arma::vec y_it(p * n_col);
         for(int t = 1; t < Tt; t++) {
 
-            // build design matrix with better memory access
             for(int j = 0; j < p; j++) {
                 int base_idx = j * n_col;
                 int col_idx_prev = j * Tt + t - 1;
                 int col_idx_curr = j * Tt + t;
 
-                // extract and reshape
                 arma::mat Theta_prev = col_as_mat(Theta_4d, col_idx_prev, n_row, n_col);
                 arma::mat Theta_curr = col_as_mat(Theta_4d, col_idx_curr, n_row, n_col);
 
-                // Design: (Theta_{t-1} * B_t')' = B_t * Theta_{t-1}' -> n_col x n_row
                 F_it.rows(base_idx, base_idx + n_col - 1) = (Theta_prev * Barray_old.slice(t).t()).t();
-                // Response: row i of Theta_t -> n_col x 1
                 y_it.subvec(base_idx, base_idx + n_col - 1) = Theta_curr.row(i).t();
             }
 
-            // compute posterior with pre-computed constants
-            // F_it' * F_it: (n_row x p*n_col) * (p*n_col x n_row) = n_row x n_row
             arma::mat V_inv = inv_sigma2 * (F_it.t() * F_it) + inv_tauA2 * eye_nr;
             arma::mat V = safe_inv_sympd(V_inv);
             V = 0.5 * (V + V.t());
             arma::vec m_post = V * (inv_sigma2 * (F_it.t() * y_it));
 
             if(ar1 && t > 1) {
-                m_post += (rhoA * inv_tauA2) * (V * Aarray.slice(t - 1).row(i).t());
+                // read from private storage (no false sharing)
+                m_post += (rhoA * inv_tauA2) * (V * A_private[i].col(t - 1));
             }
 
-            // sample new row
-            arma::vec a_new = safe_mvnrnd(m_post, V);
-            Aarray.slice(t).row(i) = a_new.t();
+            arma::vec a_new = thread_safe_mvnrnd(m_post, V, rngs_A[tid]);
+            A_private[i].col(t) = a_new;  // write to private storage
         }
     }
 
-    // set a_1 = I
+    // Copy private storage to output cube (single-threaded, cache-friendly)
     Aarray.slice(0) = eye_nr;
+    for(int t = 1; t < Tt; t++) {
+        for(int i = 0; i < n_row; i++) {
+            Aarray.slice(t).row(i) = A_private[i].col(t).t();
+        }
+    }
 
     // --- Update B (receiver dynamics, n_col x n_col) ---
-    // For column k of B: Theta_t(:,k) = A_t * Theta_{t-1} * B(k,:)'
-    // Response: column k of Theta_t -> length n_row
-    // Design: A_t * Theta_{t-1} -> n_row x n_col
-    // Parameter: B(k,:)' -> length n_col
-    // sequential: safe_mvnrnd is not thread-safe
+    // Columns in column-major storage are contiguous, so false sharing is minimal.
+    // Still use private storage for consistency and AR(1) correctness.
+#ifdef _OPENMP
+    int n_threads_B = std::min(omp_get_max_threads(), n_col);
+#else
+    int n_threads_B = 1;
+#endif
+    auto rngs_B = init_thread_rngs(n_threads_B);
+
+    std::vector<arma::mat> B_private(n_col, arma::mat(n_col, Tt, arma::fill::zeros));
+
+    #pragma omp parallel for schedule(static) num_threads(n_threads_B)
     for(int k = 0; k < n_col; k++) {
-        // pre-allocate workspace outside t-loop
+#ifdef _OPENMP
+        int tid = omp_get_thread_num();
+#else
+        int tid = 0;
+#endif
         arma::mat F_kt(p * n_row, n_col);
         arma::vec y_kt(p * n_row);
         for(int t = 1; t < Tt; t++) {
@@ -407,29 +443,31 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
                 arma::mat Theta_prev = col_as_mat(Theta_4d, col_idx_prev, n_row, n_col);
                 arma::mat Theta_curr = col_as_mat(Theta_4d, col_idx_curr, n_row, n_col);
 
-                // Design: A_t * Theta_{t-1} -> n_row x n_col
                 F_kt.rows(base_idx, base_idx + n_row - 1) = Aarray.slice(t) * Theta_prev;
-                // Response: column k of Theta_t -> n_row x 1
                 y_kt.subvec(base_idx, base_idx + n_row - 1) = Theta_curr.col(k);
             }
 
-            // F_kt' * F_kt: (n_col x p*n_row) * (p*n_row x n_col) = n_col x n_col
             arma::mat V_inv = inv_sigma2 * (F_kt.t() * F_kt) + inv_tauB2 * eye_nc;
             arma::mat V = safe_inv_sympd(V_inv);
             V = 0.5 * (V + V.t());
             arma::vec m_post = V * (inv_sigma2 * (F_kt.t() * y_kt));
 
             if(ar1 && t > 1) {
-                m_post += (rhoB * inv_tauB2) * (V * Barray.slice(t - 1).col(k));
+                m_post += (rhoB * inv_tauB2) * (V * B_private[k].col(t - 1));
             }
 
-            arma::vec b_new = safe_mvnrnd(m_post, V);
-            Barray.slice(t).col(k) = b_new;
+            arma::vec b_new = thread_safe_mvnrnd(m_post, V, rngs_B[tid]);
+            B_private[k].col(t) = b_new;
         }
     }
 
-    // set b_1 = I
+    // Copy private storage to output cube
     Barray.slice(0) = eye_nc;
+    for(int t = 1; t < Tt; t++) {
+        for(int k = 0; k < n_col; k++) {
+            Barray.slice(t).col(k) = B_private[k].col(t);
+        }
+    }
 
     return List::create(
         Named("Aarray") = Aarray,
@@ -572,198 +610,130 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
     double inv_tauA2 = 1.0 / tauA2;
     double inv_tauB2 = 1.0 / tauB2;
 
-    // use tiled approach for very large networks
-    const int tile_size_A = std::min(32, n_row);
-    const int tile_size_B = std::min(32, n_col);
+    // --- Update A (sender dynamics) ---
+    // Private per-row storage to avoid false sharing
+    set_dbn_threads();
+#ifdef _OPENMP
+    int n_threads_A = std::min(omp_get_max_threads(), n_row);
+#else
+    int n_threads_A = 1;
+#endif
+    auto rngs_A = init_thread_rngs(n_threads_A);
 
-    // update A with tiled computation
-    // Note: parallel disabled because safe_mvnrnd is not thread-safe
-    #ifdef _OPENMP
-    {
+    std::vector<arma::mat> A_private(n_row, arma::mat(n_row, Tt, arma::fill::zeros));
+
+    #pragma omp parallel for schedule(static) num_threads(n_threads_A)
+    for(int i = 0; i < n_row; i++) {
+#ifdef _OPENMP
+        int tid = omp_get_thread_num();
+#else
+        int tid = 0;
+#endif
         arma::mat F_local(p * n_col, n_row);
         arma::vec y_local(p * n_col);
         arma::mat V_local(n_row, n_row);
 
-        for(int i_tile = 0; i_tile < n_row; i_tile += tile_size_A) {
-            int i_end = std::min(i_tile + tile_size_A, n_row);
-
-            for(int i = i_tile; i < i_end; i++) {
-                for(int t = 1; t < Tt; t++) {
-                    // build design matrix
-                    for(int j = 0; j < p; j++) {
-                        int base_idx = j * n_col;
-
-                        arma::mat Theta_prev = col_as_mat(Theta_4d, j * Tt + t - 1, n_row, n_col);
-                        arma::mat Theta_curr = col_as_mat(Theta_4d, j * Tt + t, n_row, n_col);
-
-                        F_local.rows(base_idx, base_idx + n_col - 1) =
-                            (Theta_prev * Barray_old.slice(t).t()).t();
-                        y_local.subvec(base_idx, base_idx + n_col - 1) = Theta_curr.row(i).t();
-                    }
-
-                    // compute posterior with Woodbury identity for large n_row
-                    if (n_row > 50) {
-                        arma::mat FtF = F_local.t() * F_local;
-                        arma::mat W = inv_tauA2 * eye_nr + inv_sigma2 * FtF;
-                        V_local = tauA2 * (eye_nr - tauA2 * inv_sigma2 *
-                                          solve(W, FtF, solve_opts::likely_sympd));
-                    } else {
-                        arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauA2 * eye_nr;
-                        V_local = safe_inv_sympd(V_inv);
-                    }
-
-                    V_local = 0.5 * (V_local + V_local.t());
-                    arma::vec m_post = V_local * (inv_sigma2 * (F_local.t() * y_local));
-
-                    if(ar1 && t > 1) {
-                        m_post += (rhoA * inv_tauA2) * (V_local * Aarray.slice(t - 1).row(i).t());
-                    }
-
-                    // sample new row
-                    arma::vec a_new = safe_mvnrnd(m_post, V_local);
-                    Aarray.slice(t).row(i) = a_new.t();
-                }
-            }
-        }
-    }
-    #else
-    // serial fallback
-    for(int i = 0; i < n_row; i++) {
-        arma::mat F_it(p * n_col, n_row);
-        arma::vec y_it(p * n_col);
         for(int t = 1; t < Tt; t++) {
-
-            // build design matrix
             for(int j = 0; j < p; j++) {
                 int base_idx = j * n_col;
 
                 arma::mat Theta_prev = col_as_mat(Theta_4d, j * Tt + t - 1, n_row, n_col);
                 arma::mat Theta_curr = col_as_mat(Theta_4d, j * Tt + t, n_row, n_col);
 
-                F_it.rows(base_idx, base_idx + n_col - 1) =
+                F_local.rows(base_idx, base_idx + n_col - 1) =
                     (Theta_prev * Barray_old.slice(t).t()).t();
-                y_it.subvec(base_idx, base_idx + n_col - 1) = Theta_curr.row(i).t();
+                y_local.subvec(base_idx, base_idx + n_col - 1) = Theta_curr.row(i).t();
             }
 
-            // compute posterior with Woodbury identity for large n_row
-            arma::mat V;
             if (n_row > 50) {
-                arma::mat FtF = F_it.t() * F_it;
+                arma::mat FtF = F_local.t() * F_local;
                 arma::mat W = inv_tauA2 * eye_nr + inv_sigma2 * FtF;
-                V = tauA2 * (eye_nr - tauA2 * inv_sigma2 *
-                            solve(W, FtF, solve_opts::likely_sympd));
+                V_local = tauA2 * (eye_nr - tauA2 * inv_sigma2 *
+                                  solve(W, FtF, solve_opts::likely_sympd));
             } else {
-                arma::mat V_inv = inv_sigma2 * (F_it.t() * F_it) + inv_tauA2 * eye_nr;
-                V = safe_inv_sympd(V_inv);
+                arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauA2 * eye_nr;
+                V_local = safe_inv_sympd(V_inv);
             }
 
-            V = 0.5 * (V + V.t());
-            arma::vec m_post = V * (inv_sigma2 * (F_it.t() * y_it));
+            V_local = 0.5 * (V_local + V_local.t());
+            arma::vec m_post = V_local * (inv_sigma2 * (F_local.t() * y_local));
 
             if(ar1 && t > 1) {
-                m_post += (rhoA * inv_tauA2) * (V * Aarray.slice(t - 1).row(i).t());
+                m_post += (rhoA * inv_tauA2) * (V_local * A_private[i].col(t - 1));
             }
 
-            // sample new row
-            arma::vec a_new = safe_mvnrnd(m_post, V);
-            Aarray.slice(t).row(i) = a_new.t();
+            arma::vec a_new = thread_safe_mvnrnd(m_post, V_local, rngs_A[tid]);
+            A_private[i].col(t) = a_new;
         }
     }
-    #endif
 
-    // set A_1 = I
     Aarray.slice(0) = eye_nr;
+    for(int t = 1; t < Tt; t++) {
+        for(int i = 0; i < n_row; i++) {
+            Aarray.slice(t).row(i) = A_private[i].col(t).t();
+        }
+    }
 
-    // update B with same tiled approach
-    // Note: parallel disabled because safe_mvnrnd is not thread-safe
-    #ifdef _OPENMP
-    {
+    // --- Update B (receiver dynamics) ---
+#ifdef _OPENMP
+    int n_threads_B = std::min(omp_get_max_threads(), n_col);
+#else
+    int n_threads_B = 1;
+#endif
+    auto rngs_B = init_thread_rngs(n_threads_B);
+
+    std::vector<arma::mat> B_private(n_col, arma::mat(n_col, Tt, arma::fill::zeros));
+
+    #pragma omp parallel for schedule(static) num_threads(n_threads_B)
+    for(int k = 0; k < n_col; k++) {
+#ifdef _OPENMP
+        int tid = omp_get_thread_num();
+#else
+        int tid = 0;
+#endif
         arma::mat F_local(p * n_row, n_col);
         arma::vec y_local(p * n_row);
         arma::mat V_local(n_col, n_col);
 
-        for(int k_tile = 0; k_tile < n_col; k_tile += tile_size_B) {
-            int k_end = std::min(k_tile + tile_size_B, n_col);
-
-            for(int k = k_tile; k < k_end; k++) {
-                for(int t = 1; t < Tt; t++) {
-                    for(int j = 0; j < p; j++) {
-                        int base_idx = j * n_row;
-
-                        arma::mat Theta_prev = col_as_mat(Theta_4d, j * Tt + t - 1, n_row, n_col);
-                        arma::mat Theta_curr = col_as_mat(Theta_4d, j * Tt + t, n_row, n_col);
-
-                        F_local.rows(base_idx, base_idx + n_row - 1) = Aarray.slice(t) * Theta_prev;
-                        y_local.subvec(base_idx, base_idx + n_row - 1) = Theta_curr.col(k);
-                    }
-
-                    // use Woodbury for large n_col
-                    if (n_col > 50) {
-                        arma::mat FtF = F_local.t() * F_local;
-                        arma::mat W = inv_tauB2 * eye_nc + inv_sigma2 * FtF;
-                        V_local = tauB2 * (eye_nc - tauB2 * inv_sigma2 *
-                                          solve(W, FtF, solve_opts::likely_sympd));
-                    } else {
-                        arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauB2 * eye_nc;
-                        V_local = safe_inv_sympd(V_inv);
-                    }
-
-                    V_local = 0.5 * (V_local + V_local.t());
-                    arma::vec m_post = V_local * (inv_sigma2 * (F_local.t() * y_local));
-
-                    if(ar1 && t > 1) {
-                        m_post += (rhoB * inv_tauB2) * (V_local * Barray.slice(t - 1).col(k));
-                    }
-
-                    arma::vec b_new = safe_mvnrnd(m_post, V_local);
-                    Barray.slice(t).col(k) = b_new;
-                }
-            }
-        }
-    }
-    #else
-    // serial fallback for B
-    for(int k = 0; k < n_col; k++) {
-        arma::mat F_kt(p * n_row, n_col);
-        arma::vec y_kt(p * n_row);
         for(int t = 1; t < Tt; t++) {
-
             for(int j = 0; j < p; j++) {
                 int base_idx = j * n_row;
 
                 arma::mat Theta_prev = col_as_mat(Theta_4d, j * Tt + t - 1, n_row, n_col);
                 arma::mat Theta_curr = col_as_mat(Theta_4d, j * Tt + t, n_row, n_col);
 
-                F_kt.rows(base_idx, base_idx + n_row - 1) = Aarray.slice(t) * Theta_prev;
-                y_kt.subvec(base_idx, base_idx + n_row - 1) = Theta_curr.col(k);
+                F_local.rows(base_idx, base_idx + n_row - 1) = Aarray.slice(t) * Theta_prev;
+                y_local.subvec(base_idx, base_idx + n_row - 1) = Theta_curr.col(k);
             }
 
-            arma::mat V;
             if (n_col > 50) {
-                arma::mat FtF = F_kt.t() * F_kt;
+                arma::mat FtF = F_local.t() * F_local;
                 arma::mat W = inv_tauB2 * eye_nc + inv_sigma2 * FtF;
-                V = tauB2 * (eye_nc - tauB2 * inv_sigma2 *
-                            solve(W, FtF, solve_opts::likely_sympd));
+                V_local = tauB2 * (eye_nc - tauB2 * inv_sigma2 *
+                                  solve(W, FtF, solve_opts::likely_sympd));
             } else {
-                arma::mat V_inv = inv_sigma2 * (F_kt.t() * F_kt) + inv_tauB2 * eye_nc;
-                V = safe_inv_sympd(V_inv);
+                arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauB2 * eye_nc;
+                V_local = safe_inv_sympd(V_inv);
             }
 
-            V = 0.5 * (V + V.t());
-            arma::vec m_post = V * (inv_sigma2 * (F_kt.t() * y_kt));
+            V_local = 0.5 * (V_local + V_local.t());
+            arma::vec m_post = V_local * (inv_sigma2 * (F_local.t() * y_local));
 
             if(ar1 && t > 1) {
-                m_post += (rhoB * inv_tauB2) * (V * Barray.slice(t - 1).col(k));
+                m_post += (rhoB * inv_tauB2) * (V_local * B_private[k].col(t - 1));
             }
 
-            arma::vec b_new = safe_mvnrnd(m_post, V);
-            Barray.slice(t).col(k) = b_new;
+            arma::vec b_new = thread_safe_mvnrnd(m_post, V_local, rngs_B[tid]);
+            B_private[k].col(t) = b_new;
         }
     }
-    #endif
 
-    // set B_1 = I
     Barray.slice(0) = eye_nc;
+    for(int t = 1; t < Tt; t++) {
+        for(int k = 0; k < n_col; k++) {
+            Barray.slice(t).col(k) = B_private[k].col(t);
+        }
+    }
 
     return List::create(
         Named("Aarray") = Aarray,
@@ -808,4 +778,79 @@ double compute_process_variance_blocked(const arma::mat& Theta_4d,
     }
 
     return proc_rss;
+}
+
+// Compute gaussian observation residual sum of squares for dynamic model.
+// Takes the flat matrix layout (nc x p*Tt) used by the dynamic MCMC loop.
+//' @keywords internal
+//' @noRd
+// [[Rcpp::export]]
+double compute_gaussian_obs_residuals_dynamic_cpp(const arma::mat& Z_4d,
+                                                   const arma::mat& Theta_4d,
+                                                   const arma::cube& M,
+                                                   int n_row, int n_col, int p, int Tt) {
+    set_dbn_threads();
+    int n_total = p * Tt;
+    double obs_rss = 0.0;
+
+    #pragma omp parallel for reduction(+:obs_rss) schedule(static)
+    for (int idx = 0; idx < n_total; idx++) {
+        int j = idx / Tt;
+        int t = idx % Tt;
+        int col_idx = j * Tt + t;
+
+        arma::mat Z_jt = col_as_mat(Z_4d, col_idx, n_row, n_col);
+        arma::mat Theta_jt = col_as_mat(Theta_4d, col_idx, n_row, n_col);
+        arma::mat diff = Z_jt - (Theta_jt + M.slice(j));
+        obs_rss += arma::accu(diff % diff);
+    }
+
+    return obs_rss;
+}
+
+// Compute AR(1) innovation sum of squares for tau update.
+// innov[t] = A[t] - rho * A[t-1] - (1 - rho) * I
+//' @keywords internal
+//' @noRd
+// [[Rcpp::export]]
+double compute_ar1_innovation_ss_cpp(const arma::cube& ABarray, double rho, int n, int Tt) {
+    set_dbn_threads();
+    arma::mat I = arma::eye(n, n);
+    double ss = 0.0;
+
+    #pragma omp parallel for reduction(+:ss) schedule(static)
+    for (int t = 1; t < Tt; t++) {
+        arma::mat innov = ABarray.slice(t) - rho * ABarray.slice(t - 1) - (1.0 - rho) * I;
+        ss += arma::accu(innov % innov);
+    }
+
+    return ss;
+}
+
+// Compute numerator and denominator for rho AR(1) update.
+// diffA_t   = A[t]   - I
+// diffA_tm1 = A[t-1] - I
+// num   = sum(diffA_t * diffA_tm1)
+// denom = sum(diffA_tm1^2)
+//' @keywords internal
+//' @noRd
+// [[Rcpp::export]]
+List compute_rho_update_cpp(const arma::cube& ABarray, int n, int Tt) {
+    set_dbn_threads();
+    arma::mat I = arma::eye(n, n);
+    double num = 0.0;
+    double denom = 0.0;
+
+    #pragma omp parallel for reduction(+:num,denom) schedule(static)
+    for (int t = 1; t < Tt; t++) {
+        arma::mat diff_t   = ABarray.slice(t) - I;
+        arma::mat diff_tm1 = ABarray.slice(t - 1) - I;
+        num   += arma::accu(diff_t % diff_tm1);
+        denom += arma::accu(diff_tm1 % diff_tm1);
+    }
+
+    return List::create(
+        Named("num") = num,
+        Named("denom") = denom
+    );
 }

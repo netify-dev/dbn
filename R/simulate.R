@@ -429,7 +429,7 @@ simulate_hmm_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	if (symmetric) for (r in 1:R) B_list[[r]] <- A_list[[r]]
 	####
 
-	# Markov chain
+	# markov chain
 	Pi <- matrix((1 - transition_prob) / (R - 1), R, R)
 	diag(Pi) <- transition_prob
 	S <- integer(time)

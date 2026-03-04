@@ -101,7 +101,9 @@ summary(fit_gauss)
 
 ```{r binary-static, cache = TRUE}
 set.seed(20)
-Y_bin <- array(rbinom(n * n * p * time, 1, 0.3), dim = c(n, n, p, time))
+n_bin <- 15  # binary models need slightly larger networks for numerical stability
+Y_bin <- array(rbinom(n_bin * n_bin * p * time, 1, 0.4),
+               dim = c(n_bin, n_bin, p, time))
 for (t in 1:time) diag(Y_bin[,,1,t]) <- NA
 
 fit_bin <- dbn(Y_bin, model = "static", family = "binary",

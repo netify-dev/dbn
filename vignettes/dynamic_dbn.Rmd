@@ -194,7 +194,33 @@ When `n_row != n_col`, $A$ is `n_row x n_row` (sender dynamics) and $B$ is
 `n_col x n_col` (receiver dynamics). Self-loops are retained since senders
 and receivers are distinct.
 
-## 11 Scaling to larger networks
+## 11 Parallel computation
+
+The dynamic model parallelizes the row-wise A and B FFBS updates using
+OpenMP. Set the number of threads before fitting:
+
+```{r threads}
+# Use physical cores (not logical/hyperthreaded)
+set_dbn_threads(parallel::detectCores(logical = FALSE))
+get_dbn_threads()
+```
+
+Parallelization benefits scale with network size: for networks with 15+
+actors, expect 2--4x speedup with 4--8 cores. For small networks (n < 10),
+the overhead of thread management may exceed the benefit, so single-threaded
+execution is fine.
+
+OpenMP is available by default on Linux and Windows. On macOS, install it
+via `brew install libomp` (see the README for details). If OpenMP is not
+available, the package falls back to single-threaded execution automatically.
+
+To reset to single-threaded:
+
+```{r threads-reset}
+set_dbn_threads(1)
+```
+
+## 12 Scaling to larger networks
 
 The dynamic model can handle networks with many actors. The main constraint
 is RAM, not computation. Use `estimate_memory()` to check requirements

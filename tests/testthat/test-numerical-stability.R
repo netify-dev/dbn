@@ -103,3 +103,71 @@ test_that("models use safe_rinv_gamma instead of 1/rgamma", {
 	expect_true(all(is.finite(result_dyn$g2)))
 	expect_true(all(result_dyn$g2 > 0))
 })
+
+####
+# numerical stress tests
+####
+
+test_that("near-constant gaussian data runs without crash", {
+	skip_on_cran()
+	set.seed(301)
+	n <- 8
+	Tt <- 5
+	Y <- array(5.0 + rnorm(n * n * 1 * Tt, sd = 0.001), dim = c(n, n, 1, Tt))
+	for (t in 1:Tt) diag(Y[,,1,t]) <- NA
+
+	fit <- dbn(Y, model = "static", family = "gaussian",
+		nscan = 50, burn = 20, verbose = FALSE)
+	expect_s3_class(fit, "dbn")
+	expect_true(all(is.finite(fit$draws$pars$s2)),
+		label = "sigma2 finite for near-constant data")
+})
+
+test_that("highly imbalanced binary data runs without crash", {
+	skip_on_cran()
+	set.seed(302)
+	n <- 10
+	Tt <- 10
+	# p(edge) ~ 0.02 — very sparse
+	Y <- array(0, dim = c(n, n, 1, Tt))
+	for (t in 1:Tt) {
+		Y[,,1,t] <- matrix(rbinom(n * n, 1, 0.02), n, n)
+		diag(Y[,,1,t]) <- NA
+	}
+
+	fit <- dbn(Y, model = "static", family = "binary",
+		nscan = 50, burn = 20, verbose = FALSE)
+	expect_s3_class(fit, "dbn")
+	expect_true(all(is.finite(fit$draws$pars$s2)),
+		label = "sigma2 finite for sparse binary")
+})
+
+test_that("very rectangular bipartite runs without crash", {
+	skip_on_cran()
+	set.seed(303)
+	n_row <- 4
+	n_col <- 20
+	Tt <- 5
+	Y <- array(rnorm(n_row * n_col * 1 * Tt), dim = c(n_row, n_col, 1, Tt))
+
+	suppressWarnings({
+		fit <- dbn(Y, model = "dynamic", family = "gaussian",
+			nscan = 50, burn = 20, verbose = FALSE)
+	})
+	expect_s3_class(fit, "dbn")
+	expect_true(all(is.finite(fit$sigma2)),
+		label = "sigma2 finite for very rectangular bipartite")
+})
+
+test_that("long time series with small n runs without crash", {
+	skip_on_cran()
+	set.seed(304)
+	sim <- simulate_dynamic_dbn(n = 5, p = 1, time = 50,
+		sigma2 = 0.3, tauA2 = 0.05, tauB2 = 0.05, seed = 304)
+
+	fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+		nscan = 50, burn = 20, verbose = FALSE)
+	expect_s3_class(fit, "dbn")
+	expect_true(all(is.finite(fit$sigma2)),
+		label = "sigma2 finite for long time series")
+})

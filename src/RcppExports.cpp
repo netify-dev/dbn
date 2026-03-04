@@ -258,6 +258,50 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// compute_gaussian_obs_residuals_dynamic_cpp
+double compute_gaussian_obs_residuals_dynamic_cpp(const arma::mat& Z_4d, const arma::mat& Theta_4d, const arma::cube& M, int n_row, int n_col, int p, int Tt);
+RcppExport SEXP _dbn_compute_gaussian_obs_residuals_dynamic_cpp(SEXP Z_4dSEXP, SEXP Theta_4dSEXP, SEXP MSEXP, SEXP n_rowSEXP, SEXP n_colSEXP, SEXP pSEXP, SEXP TtSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Z_4d(Z_4dSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Theta_4d(Theta_4dSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< int >::type n_row(n_rowSEXP);
+    Rcpp::traits::input_parameter< int >::type n_col(n_colSEXP);
+    Rcpp::traits::input_parameter< int >::type p(pSEXP);
+    Rcpp::traits::input_parameter< int >::type Tt(TtSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_gaussian_obs_residuals_dynamic_cpp(Z_4d, Theta_4d, M, n_row, n_col, p, Tt));
+    return rcpp_result_gen;
+END_RCPP
+}
+// compute_ar1_innovation_ss_cpp
+double compute_ar1_innovation_ss_cpp(const arma::cube& ABarray, double rho, int n, int Tt);
+RcppExport SEXP _dbn_compute_ar1_innovation_ss_cpp(SEXP ABarraySEXP, SEXP rhoSEXP, SEXP nSEXP, SEXP TtSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::cube& >::type ABarray(ABarraySEXP);
+    Rcpp::traits::input_parameter< double >::type rho(rhoSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< int >::type Tt(TtSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_ar1_innovation_ss_cpp(ABarray, rho, n, Tt));
+    return rcpp_result_gen;
+END_RCPP
+}
+// compute_rho_update_cpp
+List compute_rho_update_cpp(const arma::cube& ABarray, int n, int Tt);
+RcppExport SEXP _dbn_compute_rho_update_cpp(SEXP ABarraySEXP, SEXP nSEXP, SEXP TtSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::cube& >::type ABarray(ABarraySEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< int >::type Tt(TtSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_rho_update_cpp(ABarray, n, Tt));
+    return rcpp_result_gen;
+END_RCPP
+}
 // ffbs_bilinear
 arma::cube ffbs_bilinear(const arma::cube& Z, const arma::mat& mu, const arma::cube& A_array, const arma::cube& B_array, double sigma2_proc, double sigma2_obs);
 RcppExport SEXP _dbn_ffbs_bilinear(SEXP ZSEXP, SEXP muSEXP, SEXP A_arraySEXP, SEXP B_arraySEXP, SEXP sigma2_procSEXP, SEXP sigma2_obsSEXP) {
@@ -1568,6 +1612,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_dbn_batch_ffbs_all_relations_blocked", (DL_FUNC) &_dbn_batch_ffbs_all_relations_blocked, 9},
     {"_dbn_update_AB_batch_large", (DL_FUNC) &_dbn_update_AB_batch_large, 13},
     {"_dbn_compute_process_variance_blocked", (DL_FUNC) &_dbn_compute_process_variance_blocked, 7},
+    {"_dbn_compute_gaussian_obs_residuals_dynamic_cpp", (DL_FUNC) &_dbn_compute_gaussian_obs_residuals_dynamic_cpp, 7},
+    {"_dbn_compute_ar1_innovation_ss_cpp", (DL_FUNC) &_dbn_compute_ar1_innovation_ss_cpp, 4},
+    {"_dbn_compute_rho_update_cpp", (DL_FUNC) &_dbn_compute_rho_update_cpp, 3},
     {"_dbn_ffbs_bilinear", (DL_FUNC) &_dbn_ffbs_bilinear, 6},
     {"_dbn_ffbs_dlm_cpp", (DL_FUNC) &_dbn_ffbs_dlm_cpp, 8},
     {"_dbn_ffbs_dlm_batch_cpp", (DL_FUNC) &_dbn_ffbs_dlm_batch_cpp, 8},

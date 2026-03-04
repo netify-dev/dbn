@@ -37,7 +37,7 @@ Imports:
     rlang,
     truncnorm,
     Rcpp (>= 1.0.0)
-SystemRequirements: C++11, GNU make
+SystemRequirements: C++11, GNU make, OpenMP (optional)
 LinkingTo:
     Rcpp,
     RcppArmadillo

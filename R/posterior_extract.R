@@ -135,11 +135,12 @@ theta_summary <- function(fit, fun = mean,
 		# single dyad/rel with multiple times
 		if (is.matrix(slices)) {
 			vals <- apply(slices, 2, fun)
+			time_seq <- if (is.null(time)) seq_len(length(vals)) else time
 			df <- data.frame(
 				i = rep(i, length(vals)),
 				j = rep(j, length(vals)),
 				rel = rep(rel, length(vals)),
-				time = time,
+				time = time_seq,
 				value = vals, .w_chunk = length(block)
 			)
 			out <- rbind(out, df)

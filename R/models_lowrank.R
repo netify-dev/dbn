@@ -13,7 +13,7 @@ init_lowrank <- function(Y, r) {
 	m <- dim(Y)[1]
 	Tt <- dim(Y)[4]
 
-	# SVD of time-averaged adjacency for starting directions
+	# svd of time-averaged adjacency for starting directions
 	Ybar <- apply(Y, c(1, 2), mean, na.rm = TRUE)
 	Ybar[is.na(Ybar)] <- 0
 	sv <- svd(Ybar, nu = r, nv = r)
@@ -127,6 +127,15 @@ dbn_lowrank_accurate <- function(Y,
 	Tt <- dims$Tt
 	nc <- n_row * n_col
 
+	# bipartite networks are not yet supported for low-rank model
+	if (is_bipartite) {
+		cli::cli_abort(c(
+			"Low-rank model does not yet support bipartite (rectangular) networks.",
+			"i" = "Your data has {n_row} senders and {n_col} receivers.",
+			"i" = "Use {.code model = \"dynamic\"} for bipartite networks."
+		))
+	}
+
 	# validate rank
 	if (r < 1) cli::cli_abort("{.arg r} must be at least 1.")
 	if (r > min(n_row, n_col)) cli::cli_abort("{.arg r} ({r}) cannot exceed min(n_row, n_col) = {min(n_row, n_col)}.")
@@ -203,7 +212,7 @@ dbn_lowrank_accurate <- function(Y,
 	}
 	####
 
-	# MCMC setup and storage
+	# mcmc setup and storage
 	n_iter <- burn + nscan
 	keep_idx <- ((burn + 1):n_iter)[((burn + 1):n_iter) %% odens == 0]
 	S <- length(keep_idx)
@@ -606,6 +615,15 @@ dbn_lowrank <- function(Y,
 	Tt <- dims$Tt
 	nc <- n_row * n_col
 
+	# bipartite networks are not yet supported for low-rank model
+	if (is_bipartite) {
+		cli::cli_abort(c(
+			"Low-rank model does not yet support bipartite (rectangular) networks.",
+			"i" = "Your data has {n_row} senders and {n_col} receivers.",
+			"i" = "Use {.code model = \"dynamic\"} for bipartite networks."
+		))
+	}
+
 	# validate rank
 	if (r < 1) cli::cli_abort("{.arg r} must be at least 1.")
 	if (r > min(n_row, n_col)) cli::cli_abort("{.arg r} ({r}) cannot exceed min(n_row, n_col) = {min(n_row, n_col)}.")
@@ -682,7 +700,7 @@ dbn_lowrank <- function(Y,
 	}
 	####
 
-	# MCMC setup and storage
+	# mcmc setup and storage
 	n_iter <- burn + nscan
 	keep_idx <- ((burn + 1):n_iter)[((burn + 1):n_iter) %% odens == 0]
 	S <- length(keep_idx)
@@ -771,7 +789,7 @@ dbn_lowrank <- function(Y,
 
 		Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
-		# B update
+		# b update
 		Barray <- update_B_parallel(Theta_flat, Aarray,
 									sigma2_proc,
 									tau_B2,
@@ -803,10 +821,10 @@ dbn_lowrank <- function(Y,
 		if (g %% u_update_freq == 0) {
 			W <- generate_skew_proposal(m, sqrt(m) * epsilon)
 
-			# Cayley transform for Stiefel manifold
+			# cayley transform for stiefel manifold
 			U_prop <- cayley_transform(U, W, epsilon)
 
-			# Stiefel drift guard: re-orthogonalize if needed
+			# stiefel drift guard: re-orthogonalize if needed
 			orth_err <- norm(crossprod(U_prop) - diag(ncol(U_prop)), "F")
 			if (orth_err > 1e-10) {
 				U_prop <- qr.Q(qr(U_prop))

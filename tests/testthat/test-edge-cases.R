@@ -92,3 +92,60 @@ test_that("verbose = TRUE works like verbose = 100", {
 		dbn(sim$Y, model = "static", nscan = 50, burn = 20, verbose = TRUE)
 	)
 })
+
+####
+# bipartite guard rails for HMM and lowrank
+####
+
+test_that("bipartite data errors for HMM model", {
+	Y <- array(rnorm(4 * 6 * 1 * 5), dim = c(4, 6, 1, 5))
+	expect_error(
+		dbn(Y, model = "hmm", R = 2, nscan = 30, burn = 10, verbose = FALSE),
+		"bipartite"
+	)
+})
+
+test_that("bipartite data errors for lowrank model", {
+	Y <- array(rnorm(4 * 6 * 1 * 5), dim = c(4, 6, 1, 5))
+	expect_error(
+		dbn(Y, model = "lowrank", r = 2, nscan = 30, burn = 10, verbose = FALSE),
+		"bipartite"
+	)
+})
+
+test_that("dynamic binary with small n produces warning", {
+	set.seed(201)
+	n <- 8
+	Y <- array(sample(0:1, n * n * 1 * 5, replace = TRUE), dim = c(n, n, 1, 5))
+	for (t in 1:5) diag(Y[,,1,t]) <- NA
+	expect_warning(
+		dbn(Y, model = "dynamic", family = "binary",
+			nscan = 30, burn = 10, verbose = FALSE),
+		"singularit"
+	)
+})
+
+####
+# additional dimension validation
+####
+
+test_that("2D matrix input errors", {
+	Y <- matrix(rnorm(25), 5, 5)
+	expect_error(
+		dbn(Y, model = "static", nscan = 30, burn = 10, verbose = FALSE)
+	)
+})
+
+test_that("minimal valid run: nscan=2, burn=1, odens=1", {
+	sim <- simulate_static_dbn(n = 5, time = 3, seed = 110)
+	fit <- dbn(sim$Y, model = "static", nscan = 2, burn = 1, odens = 1, verbose = FALSE)
+	expect_s3_class(fit, "dbn")
+})
+
+test_that("lowrank with r = 0 errors", {
+	sim <- simulate_lowrank_dbn(n = 5, time = 5, r = 2, seed = 111)
+	expect_error(
+		dbn(sim$Y, model = "lowrank", r = 0, nscan = 30, burn = 10, verbose = FALSE),
+		"at least 1"
+	)
+})

@@ -328,31 +328,6 @@ get_family <- function(fit) {
 ####
 
 ####
-#' Extract theta from legacy format
-#'
-#' @description Attempt to reconstruct theta array from legacy storage format
-#' @param fit Model fit object
-#' @param draw_idx Draw index
-#' @return Theta array or NULL
-#' @keywords internal
-extract_theta_legacy <- function(fit, draw_idx) {
-	if (!is.null(fit$U) && !is.null(fit$alpha)) {
-		U <- fit$U[[draw_idx]]
-		alpha <- fit$alpha[[draw_idx]]
-		warning("Legacy theta extraction for lowrank models is approximate")
-		return(NULL)
-	}
-
-	if (!is.null(fit$A) && !is.null(fit$B)) {
-		warning("Cannot extract Theta from A/B matrices alone")
-		return(NULL)
-	}
-
-	NULL
-}
-####
-
-####
 #' Posterior predictive ECDF plot
 #'
 #' @description Plot empirical CDFs of observed vs replicated data

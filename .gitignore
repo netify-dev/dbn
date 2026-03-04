@@ -41,6 +41,7 @@ vignettes/*.pdf
 
 # pkgdown site
 docs/
+pkgdown/
 
 # translation temp files
 po/*~
@@ -49,6 +50,10 @@ po/*~
 rsconnect/
 /doc/
 /Meta/
+
+# Test artifacts
+Rplots.pdf
+tests/testthat/Rplots.pdf
 
 # Compiled code
 src/*.o

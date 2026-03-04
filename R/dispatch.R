@@ -50,7 +50,7 @@ summary.dbn <- function(object, ...) {
 #' @method predict dbn
 predict.dbn <- function(object, ...) {
 	if (!inherits(object, "dbn")) cli::cli_abort("{.arg object} must be a {.cls dbn} object.")
-	# HMM and lowrank have dedicated forecast functions with H/draws/summary args
+	# hmm and lowrank have dedicated forecast functions with H/draws/summary args
 	if (object$model == "hmm") return(predict_hmm(object, ...))
 	if (object$model %in% c("lowrank", "lowrank_accurate")) return(predict_lowrank(object, ...))
 	# check if caller is requesting forecasting (H or S args)
