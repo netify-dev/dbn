@@ -100,8 +100,8 @@ summary(fit_gauss)
 **Binary data** (0/1 outcomes via probit link):
 
 ```{r binary-static, cache = TRUE}
-set.seed(20)
-n_bin <- 20
+set.seed(42)
+n_bin <- 8
 Y_bin <- array(rbinom(n_bin * n_bin * p * time, 1, 0.5),
                dim = c(n_bin, n_bin, p, time))
 for (t in 1:time) diag(Y_bin[,,1,t]) <- NA

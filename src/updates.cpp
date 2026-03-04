@@ -97,33 +97,41 @@ arma::mat update_B_static(const arma::cube& Z, const arma::cube& M,
     arma::mat L_post;
     bool chol_success = arma::chol(L_post, gXtX, "lower");
 
-    if (!chol_success) {
-        arma::mat U, V;
-        arma::vec s;
-        bool svd_ok = arma::svd_econ(U, s, V, XtX);
-
-        if (!svd_ok || s.n_elem == 0) {
-            // degenerate: return identity + noise
-            return arma::eye(n_row, n_row) + 0.01 * arma::randn(n_row, n_row);
+    // try cholesky-based solve if factorization succeeded
+    bool solve_ok = false;
+    if (chol_success) {
+        arma::mat post_mean_part, post_mean, noise_part;
+        solve_ok = arma::solve(post_mean_part, arma::trimatl(L_post),
+                               gamma * XtY + lambda * arma::eye(n_row, n_row));
+        if (solve_ok) {
+            solve_ok = arma::solve(post_mean, arma::trimatu(L_post.t()), post_mean_part);
         }
-
-        double eps = 1e-8 * s.max();
-        s = arma::max(s, eps * arma::ones(s.n_elem));
-
-        arma::mat post_cov = V * arma::diagmat(1.0 / (gamma * s + lambda)) * V.t();
-        arma::mat post_mean = post_cov * (gamma * XtY + lambda * arma::eye(n_row, n_row));
-
-        arma::mat noise = arma::randn(n_row, n_row);
-        return post_mean + V * arma::diagmat(arma::sqrt(1.0 / (gamma * s + lambda))) * V.t() * noise;
+        if (solve_ok) {
+            arma::mat Z_sample = arma::randn(n_row, n_row);
+            solve_ok = arma::solve(noise_part, arma::trimatu(L_post.t()), Z_sample);
+        }
+        if (solve_ok) {
+            return post_mean + noise_part / sqrt(gamma);
+        }
     }
 
-    arma::mat post_mean_part = arma::solve(arma::trimatl(L_post), gamma * XtY + lambda * arma::eye(n_row, n_row));
-    arma::mat post_mean = arma::solve(arma::trimatu(L_post.t()), post_mean_part);
+    // SVD fallback when cholesky or triangular solve fails
+    arma::mat U, V;
+    arma::vec s;
+    bool svd_ok = arma::svd_econ(U, s, V, XtX);
 
-    arma::mat Z_sample = arma::randn(n_row, n_row);
-    arma::mat B_new = post_mean + arma::solve(arma::trimatu(L_post.t()), Z_sample) / sqrt(gamma);
+    if (!svd_ok || s.n_elem == 0) {
+        return arma::eye(n_row, n_row) + 0.01 * arma::randn(n_row, n_row);
+    }
 
-    return B_new;
+    double eps = 1e-8 * s.max();
+    s = arma::max(s, eps * arma::ones(s.n_elem));
+
+    arma::mat post_cov = V * arma::diagmat(1.0 / (gamma * s + lambda)) * V.t();
+    arma::mat post_mean_svd = post_cov * (gamma * XtY + lambda * arma::eye(n_row, n_row));
+
+    arma::mat noise = arma::randn(n_row, n_row);
+    return post_mean_svd + V * arma::diagmat(arma::sqrt(1.0 / (gamma * s + lambda))) * V.t() * noise;
 }
 
 // broadcast M across time and add noise for static model
