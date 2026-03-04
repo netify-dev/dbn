@@ -11,15 +11,15 @@
 using namespace Rcpp;
 using namespace arma;
 
-// Fast truncated normal sampler using accept-reject
+// truncated normal sampler via accept-reject
 inline double rtruncnorm(double mean, double sd, double lower, double upper) {
-    // stdz bounds
+    // standardize bounds
     double a = (lower - mean) / sd;
     double b = (upper - mean) / sd;
     
-    // use different algorithms based on bounds
+    // choose algorithm based on bound location
     if (a > 0.0) {
-        // both bounds above mean - use exponential proposal
+        // both bounds above mean: exponential proposal
         double alpha = (a + sqrt(a*a + 4.0)) / 2.0;
         double z, u, rho;
         do {
@@ -29,10 +29,10 @@ inline double rtruncnorm(double mean, double sd, double lower, double upper) {
         } while (u > rho || z > b);
         return mean + sd * z;
     } else if (b < 0.0) {
-        // both bounds below mean - flip and use exponential
+        // both bounds below mean: flip and use exponential
         return -rtruncnorm(-mean, sd, -upper, -lower);
     } else {
-        // bounds straddle mean - use normal rejection
+        // bounds straddle mean: normal rejection
         double z;
         do {
             z = R::rnorm(0.0, 1.0);
@@ -41,7 +41,7 @@ inline double rtruncnorm(double mean, double sd, double lower, double upper) {
     }
 }
 
-// Rank likelihood sampler
+// rank likelihood sampler
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -64,10 +64,10 @@ arma::mat rz_fc_matrix(const arma::mat& R, const arma::mat& Z_current,
         String rank_name = rank_names[r];
         
         if(rank_name == "NA") {
-            // handle missing values - sample from prior
+            // missing values: sample from prior
             IntegerVector idx = iranks[r];
             for(int i = 0; i < idx.size(); i++) {
-                int pos = idx[i] - 1; // R uses 1-based indexing
+                int pos = idx[i] - 1; // 0-based
                 Z_vec(pos) = R::rnorm(EZ_vec(pos), 1.0);
             }
         } else {
@@ -103,14 +103,14 @@ arma::mat rz_fc_matrix(const arma::mat& R, const arma::mat& Z_current,
                 }
             }
             
-            // samp truncnorm for all indices at this rank
+            // sample truncated normal for all indices at this rank
             for(int i = 0; i < idx.size(); i++) {
                 int pos = idx[i] - 1;
                 double mean = EZ_vec(pos);
                 
                 // ensure bounds are feasible
                 if(lower_bound >= upper_bound) {
-                    // bounds infeasible - skip update to preserve rank ordering
+                    // infeasible bounds, skip to preserve rank ordering
                     continue;
                 }
 
@@ -118,13 +118,13 @@ arma::mat rz_fc_matrix(const arma::mat& R, const arma::mat& Z_current,
             }
         }
     }
-    
-    // reshape back to matrix
+
+    // reshape back
     Z_new = reshape(Z_vec, R.n_rows, R.n_cols);
     return Z_new;
 }
 
-// Batch rank likelihood update for multiple relations
+// batch rank likelihood update for multiple relations
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -200,7 +200,7 @@ arma::cube rz_fc_batch(const arma::cube& R, const arma::cube& Z_current,
                         double mean = EZ_j_vec(pos);
 
                         if(lower_bound >= upper_bound) {
-                            // bounds infeasible - skip update to preserve rank ordering
+                            // infeasible bounds, skip to preserve rank ordering
                             continue;
                         }
 
@@ -218,7 +218,7 @@ arma::cube rz_fc_batch(const arma::cube& R, const arma::cube& Z_current,
     return Z_new;
 }
 
-// Pre-compute rank structure for efficiency
+// precompute rank structure for efficient sampling
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]

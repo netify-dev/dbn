@@ -18,8 +18,8 @@ plot_hmm <- function(x) {
 	if (x$model != "hmm") cli::cli_abort("Not an HMM fit.")
 	if (!requireNamespace("ggplot2", quietly = TRUE)) {
 		cli::cli_abort(c(
-			"Package {.pkg ggplot2} is required for this function.",
-			"i" = "Install with {.code install.packages(\"ggplot2\")}"
+			"package {.pkg ggplot2} is required for this function.",
+			"i" = "install with {.code install.packages(\"ggplot2\")}"
 		))
 	}
 
@@ -44,7 +44,7 @@ plot_hmm <- function(x) {
 		ggplot2::theme_minimal()
 	####
 
-	# transition matrix heatmap
+	# transition matrix
 	Pi_bar <- Reduce(`+`, x$Pi) / length(x$Pi)
 
 	df_Pi <- data.frame()
@@ -64,7 +64,7 @@ plot_hmm <- function(x) {
 		ggplot2::theme_minimal()
 	####
 
-	# parameter traces
+	# parameter trace plots
 	trace <- data.frame(
 		iter = seq_along(x$sigma2),
 		sigma2 = x$sigma2,

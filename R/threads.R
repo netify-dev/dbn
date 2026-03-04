@@ -1,5 +1,5 @@
 ####
-# openmp thread management
+# OpenMP thread management for parallel MCMC
 ####
 
 #' Get the current number of threads used by dbn

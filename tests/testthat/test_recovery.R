@@ -1,8 +1,4 @@
-####
-# simulation study: parameter recovery + posterior predictive calibration
-# validates that MCMC posterior inference recovers known parameters
-# across {static, dynamic} x {gaussian, ordinal, binary} = 6 cells
-####
+#### parameter recovery and PPD calibration
 
 # helper: compute posterior mean of M from stored draws
 extract_M_posterior_mean <- function(fit) {
@@ -11,9 +7,8 @@ extract_M_posterior_mean <- function(fit) {
 		if (!is.null(M_draws) && length(M_draws) > 0) {
 			Reduce("+", M_draws) / length(M_draws)
 		} else if (!is.null(fit$params)) {
-			# fallback: from params matrix
-			n_row <- fit$dims$n_row %||% fit$dims$m
-			n_col <- fit$dims$n_col %||% fit$dims$m
+			n_row <- fit$dims$n_row
+			n_col <- fit$dims$n_col
 			M_col <- grep("^M\\[", colnames(fit$params))
 			if (length(M_col) > 0) {
 				matrix(colMeans(fit$params[, M_col, drop = FALSE]), n_row, n_col)
@@ -59,9 +54,7 @@ extract_Theta_posterior_mean <- function(fit) {
 	}
 }
 
-####
-# 1. static x gaussian
-####
+# static x gaussian
 test_that("simulation study: static gaussian recovers M", {
 	skip_on_cran()
 	set.seed(2024)
@@ -78,10 +71,7 @@ test_that("simulation study: static gaussian recovers M", {
 		seed = 2024
 	)
 
-	# convert to gaussian: use the latent Z directly
-	Z_gauss <- sim$Z
-
-	fit <- dbn(Z_gauss,
+	fit <- dbn(sim$Z,
 		model = "static", family = "gaussian",
 		nscan = 800, burn = 400, odens = 2,
 		verbose = FALSE
@@ -90,12 +80,10 @@ test_that("simulation study: static gaussian recovers M", {
 	expect_s3_class(fit, "dbn")
 	expect_equal(fit$model, "static")
 
-	# posterior mean of M should correlate with true M
 	M_hat <- extract_M_posterior_mean(fit)
 	if (!is.null(M_hat) && !is.null(sim$M)) {
 		M_true_vec <- as.vector(sim$M[, , 1])
 		M_hat_vec <- as.vector(M_hat)
-		# remove NAs (self-loops)
 		valid <- complete.cases(M_true_vec, M_hat_vec)
 		if (sum(valid) > 5) {
 			r <- cor(M_true_vec[valid], M_hat_vec[valid])
@@ -104,9 +92,7 @@ test_that("simulation study: static gaussian recovers M", {
 	}
 })
 
-####
-# 2. static x ordinal
-####
+# static x ordinal
 test_that("simulation study: static ordinal recovers M direction", {
 	skip_on_cran()
 	set.seed(2025)
@@ -125,8 +111,6 @@ test_that("simulation study: static ordinal recovers M direction", {
 
 	expect_s3_class(fit, "dbn")
 
-	# for ordinal, M recovery is harder due to identifiability
-	# check that model completes and sigma2 is reasonable
 	if (!is.null(fit$params)) {
 		sigma2_col <- grep("s2|sigma2", colnames(fit$params))
 		if (length(sigma2_col) > 0) {
@@ -137,9 +121,7 @@ test_that("simulation study: static ordinal recovers M direction", {
 	}
 })
 
-####
-# 3. static x binary
-####
+# static x binary
 test_that("simulation study: static binary recovers M sign pattern", {
 	skip_on_cran()
 	set.seed(2026)
@@ -148,7 +130,6 @@ test_that("simulation study: static binary recovers M sign pattern", {
 	p <- 1
 	Tt <- 20
 
-	# generate binary data from probit DGP (no self-loop NAs for binary)
 	M_true <- matrix(rnorm(n * n, 0, 0.5), n, n)
 	Z <- array(NA, c(n, n, p, Tt))
 	Y <- array(NA, c(n, n, p, Tt))
@@ -165,11 +146,9 @@ test_that("simulation study: static binary recovers M sign pattern", {
 
 	expect_s3_class(fit, "dbn")
 
-	# family may be stored as character or list
 	fam_name <- if (is.list(fit$family)) fit$family$name else fit$family
 	expect_equal(fam_name, "binary")
 
-	# check that M posterior mean sign pattern correlates with truth
 	M_hat <- extract_M_posterior_mean(fit)
 	if (!is.null(M_hat)) {
 		M_true_vec <- as.vector(M_true)
@@ -182,9 +161,7 @@ test_that("simulation study: static binary recovers M sign pattern", {
 	}
 })
 
-####
-# 4. dynamic x gaussian
-####
+# dynamic x gaussian
 test_that("simulation study: dynamic gaussian recovers M and Theta", {
 	skip_on_cran()
 	set.seed(2027)
@@ -204,13 +181,11 @@ test_that("simulation study: dynamic gaussian recovers M and Theta", {
 	expect_s3_class(fit, "dbn")
 	expect_equal(fit$model, "dynamic")
 
-	# Theta posterior mean should correlate with true Theta
 	Theta_hat <- extract_Theta_posterior_mean(fit)
 	if (!is.null(Theta_hat) && !is.null(sim$Theta)) {
 		nd_hat <- length(dim(Theta_hat))
 		nd_true <- length(dim(sim$Theta))
 		if (nd_hat >= 4 && nd_true >= 4) {
-			# use the last stored time point (most converged)
 			t_hat <- dim(Theta_hat)[4]
 			t_true <- dim(sim$Theta)[4]
 			th_true_vec <- as.vector(sim$Theta[, , 1, t_true])
@@ -223,15 +198,12 @@ test_that("simulation study: dynamic gaussian recovers M and Theta", {
 		}
 	}
 
-	# sigma2 posterior mean should be positive and finite
 	sigma2_hat <- mean(fit$sigma2)
 	expect_gt(sigma2_hat, 0)
 	expect_true(is.finite(sigma2_hat))
 })
 
-####
-# 5. dynamic x ordinal
-####
+# dynamic x ordinal
 test_that("simulation study: dynamic ordinal model runs and converges", {
 	skip_on_cran()
 	set.seed(2028)
@@ -251,23 +223,13 @@ test_that("simulation study: dynamic ordinal model runs and converges", {
 	expect_s3_class(fit, "dbn")
 	expect_equal(fit$model, "dynamic")
 
-	# basic convergence: variance parameters are finite and positive
 	expect_true(all(is.finite(fit$sigma2)))
 	expect_true(all(fit$sigma2 > 0))
 
-	# A draws should be stored
 	expect_true(!is.null(fit$A) || !is.null(fit$draws$A))
 })
 
-####
-# 6. dynamic x binary — skipped because small binary networks
-# can hit C++ numerical singularity that crashes R.
-# The static binary test (test 3) validates binary family support.
-####
-
-####
-# 7. posterior predictive calibration (dynamic gaussian)
-####
+# PPD calibration (dynamic gaussian)
 test_that("simulation study: PPD calibration for dynamic gaussian", {
 	skip_on_cran()
 	set.seed(2030)
@@ -284,7 +246,6 @@ test_that("simulation study: PPD calibration for dynamic gaussian", {
 		verbose = FALSE
 	)
 
-	# generate PPD samples
 	ppd <- tryCatch(
 		posterior_predict_dbn(fit, ndraws = 50, seed = 42),
 		error = function(e) {
@@ -293,19 +254,15 @@ test_that("simulation study: PPD calibration for dynamic gaussian", {
 		}
 	)
 
-	# at minimum, PPD should not error out
 	expect_true(!is.null(ppd), label = "PPD generation succeeds")
 
 	if (!is.null(ppd) && !is.null(ppd$y_rep) && is.array(ppd$y_rep)) {
 		yrep <- ppd$y_rep
-		# for gaussian: check that observed data falls within PPD intervals
 		nd <- length(dim(yrep))
 		q_lo <- apply(yrep, 1:(nd - 1), quantile, probs = 0.05, na.rm = TRUE)
 		q_hi <- apply(yrep, 1:(nd - 1), quantile, probs = 0.95, na.rm = TRUE)
 
-		# coverage: fraction of observed values within 90% PPD interval
 		obs <- sim$Z[, , 1, ]
-		# match dimensions
 		if (length(dim(q_lo)) >= 3 && dim(q_lo)[3] >= 1) {
 			in_interval <- (obs >= q_lo[, , 1, ]) & (obs <= q_hi[, , 1, ])
 		} else {
@@ -313,15 +270,12 @@ test_that("simulation study: PPD calibration for dynamic gaussian", {
 		}
 		coverage <- mean(in_interval, na.rm = TRUE)
 
-		# coverage should be roughly 90% (allow wide tolerance for small samples)
 		expect_gt(coverage, 0.65,
 			label = "PPD 90% coverage should be above 65%")
 	}
 })
 
-####
-# 8. posterior predictive calibration (static gaussian)
-####
+# PPD calibration (static gaussian)
 test_that("simulation study: PPD calibration for static gaussian", {
 	skip_on_cran()
 	set.seed(2031)
@@ -346,7 +300,6 @@ test_that("simulation study: PPD calibration for static gaussian", {
 		}
 	)
 
-	# at minimum, PPD should not error out
 	expect_true(!is.null(ppd), label = "PPD generation succeeds")
 
 	if (!is.null(ppd) && !is.null(ppd$y_rep) && is.array(ppd$y_rep)) {

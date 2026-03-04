@@ -28,13 +28,13 @@ arma::vec rz_fc_cpp(const arma::vec& R,
   const int n = Z.n_elem;
   arma::vec Z_new = Z;  // copy to preserve input
   
-  // get number of rank levels (excluding na)
+  // rank levels (excluding NA)
   int n_ranks = iranks.size();
   if (iranks.containsElementNamed("NA")) {
     n_ranks--;
   }
   
-  // get max rank value
+  // max rank
   int max_rank = 0;
   Rcpp::CharacterVector names = iranks.names();
   for (int k = 0; k < iranks.size(); k++) {
@@ -46,7 +46,7 @@ arma::vec rz_fc_cpp(const arma::vec& R,
   
   // process each rank level
   for (int k = 1; k <= max_rank; k++) {
-    // check if this rank exists in the data
+    // check if rank exists
     std::string rank_key = std::to_string(k);
     bool rank_exists = false;
     int rank_idx = -1;
@@ -61,7 +61,7 @@ arma::vec rz_fc_cpp(const arma::vec& R,
     
     if (!rank_exists) continue;
     
-    // get indices for this rank
+    // indices for this rank
     arma::uvec idx = Rcpp::as<arma::uvec>(iranks[rank_idx]) - 1;  // R to C++ indexing
     
     if (idx.n_elem == 0) continue;
@@ -73,7 +73,7 @@ arma::vec rz_fc_cpp(const arma::vec& R,
     if (k == 1) {
       lb = -arma::datum::inf;
     } else {
-      // find max Z value from rank k-1
+      // max Z from rank k-1
       lb = -arma::datum::inf;
       std::string prev_rank_key = std::to_string(k-1);
       for (int j = 0; j < iranks.size(); j++) {
@@ -91,7 +91,7 @@ arma::vec rz_fc_cpp(const arma::vec& R,
     if (k == max_rank) {
       ub = arma::datum::inf;
     } else {
-      // find min Z value from rank k+1
+      // min Z from rank k+1
       ub = arma::datum::inf;
       std::string next_rank_key = std::to_string(k+1);
       for (int j = 0; j < iranks.size(); j++) {
@@ -112,34 +112,34 @@ arma::vec rz_fc_cpp(const arma::vec& R,
     for (arma::uword i = 0; i < idx.n_elem; i++) {
       double mu_i = mu_k(i);
       
-      // handle non-finite mu_i
+      // non-finite fallback
       if (!std::isfinite(mu_i)) {
-        mu_i = 0.0;  // use zero as default
+        mu_i = 0.0;
       }
       
       // compute cdf bounds
       double p_lo = R::pnorm(lb, mu_i, 1.0, true, false);
       double p_hi = R::pnorm(ub, mu_i, 1.0, true, false);
       
-      // hande edge cases 
+      // clamp edge cases
       const double eps = std::numeric_limits<double>::epsilon();
       p_lo = std::max(p_lo, eps);
       p_hi = std::min(p_hi, 1.0 - eps);
       
-      // samp uniform and transform
+      // inverse CDF sampling
       double u;
       if (p_lo < p_hi) {
         u = R::runif(p_lo, p_hi);
       } else {
-        // bounds are inverted or equal, use the mean
+        // inverted bounds, use midpoint
         u = (p_lo + p_hi) / 2.0;
       }
       double z_val = R::qnorm(u, mu_i, 1.0, true, false);
       
-      // check for non-finite values and handle edge cases
+      // non-finite fallback
       if (!std::isfinite(z_val)) {
         if (p_hi - p_lo < eps) {
-          // very tight bounds, use midpoint
+          // tight bounds: midpoint
           if (std::isfinite(lb) && std::isfinite(ub)) {
             z_val = (lb + ub) / 2.0;
           } else if (std::isfinite(lb)) {
@@ -150,7 +150,7 @@ arma::vec rz_fc_cpp(const arma::vec& R,
             z_val = mu_i;
           }
         } else {
-          // fallback to mean
+          // fallback
           z_val = mu_i;
         }
       }
@@ -162,9 +162,9 @@ arma::vec rz_fc_cpp(const arma::vec& R,
     Z_new.elem(idx) = Z_k;
   }
   
-  // handle NA values
+  // NA values: draw from the unconstrained normal
   if (iranks.containsElementNamed("NA")) {
-    // find index of "NA" in the list
+    // find NA index
     int na_idx = -1;
     for (int j = 0; j < iranks.size(); j++) {
       if (Rcpp::as<std::string>(names[j]) == "NA") {
@@ -180,7 +180,7 @@ arma::vec rz_fc_cpp(const arma::vec& R,
         arma::vec Z_na(idx_na.n_elem);
         
         for (arma::uword i = 0; i < idx_na.n_elem; i++) {
-          // for NA vals, samp from norm distr without truncating
+          // untruncated normal for NA
           if (std::isfinite(mu_na(i))) {
             Z_na(i) = R::rnorm(mu_na(i), 1.0);
           } else {
@@ -207,10 +207,10 @@ arma::vec rz_fc_cpp(const arma::vec& R,
 Rcpp::List build_rank_indices(const arma::mat& R) {
   arma::vec R_vec = arma::vectorise(R);
   
-  // find finite values first
+  // finite values
   arma::uvec finite_idx = arma::find_finite(R_vec);
   
-  // find unique ranks only among finite values
+  // unique ranks among finite values
   arma::vec unique_ranks;
   if (finite_idx.n_elem > 0) {
     unique_ranks = arma::unique(R_vec(finite_idx));
@@ -219,7 +219,7 @@ Rcpp::List build_rank_indices(const arma::mat& R) {
   Rcpp::List iranks;
   Rcpp::CharacterVector names;
   
-  // build index list for each rank
+  // index list per rank
   for (arma::uword k = 0; k < unique_ranks.n_elem; k++) {
     double rank_val = unique_ranks(k);
     arma::uvec idx = arma::find(R_vec == rank_val) + 1;  // C++ to R indexing
@@ -228,7 +228,7 @@ Rcpp::List build_rank_indices(const arma::mat& R) {
     names.push_back(std::to_string(static_cast<int>(rank_val)));
   }
   
-  // add NA indices
+  // collect NA indices separately
   arma::uvec na_idx = arma::find_nonfinite(R_vec) + 1;
   if (na_idx.n_elem > 0) {
     iranks.push_back(na_idx);

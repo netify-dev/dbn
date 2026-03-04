@@ -4,7 +4,7 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::plugins(cpp11)]]
 
-// forward declaration
+// forward declaration for 6-arg version
 arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
                                  const arma::mat& mu,
                                  const arma::cube& A_array,
@@ -12,7 +12,7 @@ arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
                                  double sigma2_proc,
                                  double sigma2_obs);
 
-// 5-argument version for backward compatibility (ordinal/binary)
+// 5-argument wrapper for ordinal/binary (sigma2_obs defaults to 1)
 //' Structured FFBS for Theta
 //'
 //' @description Memory-efficient FFBS that avoids creating n^2 x n^2 matrices.
@@ -29,11 +29,11 @@ arma::cube ffbs_theta_struct_5arg_cpp(const arma::cube& Z,
                                       const arma::cube& A_array,
                                       const arma::cube& B_array,
                                       double sigma2) {
-  // call 6-argument version with sigma2_obs = 1.0
+  // delegate to 6-arg version with sigma2_obs = 1
   return ffbs_theta_struct_cpp(Z, mu, A_array, B_array, sigma2, 1.0);
 }
 
-// 6-argument version for gaussian family
+// full 6-argument version (gaussian family uses separate obs variance)
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -48,14 +48,14 @@ arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
   int n_col = Z.n_cols;
   int T = Z.n_slices;
 
-  // make sure variances aren't too small
+  // floor variances to avoid numerical issues
   sigma2_proc = std::max(sigma2_proc, 1e-6);
   sigma2_obs = std::max(sigma2_obs, 1e-6);
 
-  // set up output array (n_row x n_col x T)
+  // output array
   arma::cube Theta(n_row, n_col, T);
 
-  // Pre-compute centered observations for better cache usage
+  // center observations for better cache usage
   arma::cube Y(n_row, n_col, T);
   #ifdef _OPENMP
   #pragma omp parallel for
@@ -64,36 +64,33 @@ arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
     Y.slice(t) = Z.slice(t) - mu;
   }
 
-  // storage for forward pass
+  // forward pass storage
   // m_filt: filtered means (n_row x n_col x T)
-  // C_filt: row-covariance approximation (n_row x n_row x T)
-  //   treats each column of Theta independently with shared row covariance
+  // C_filt: shared row-covariance (n_row x n_row x T)
   arma::cube m_filt(n_row, n_col, T);
   arma::cube C_filt(n_row, n_row, T);
 
-  // initial conditions
+  // prior: zero mean, isotropic covariance
   m_filt.slice(0).zeros();
-  C_filt.slice(0) = sigma2_proc * arma::eye(n_row, n_row);  // prior variance
+  C_filt.slice(0) = sigma2_proc * arma::eye(n_row, n_row);
 
-  // forward pass
+  // forward filtering
   for (int t = 0; t < T; ++t) {
     if (t > 0) {
-      // prediction step: m_t|t-1 = a_t * m_{t-1} * b_t'
-      // A(n_row x n_row) * m_filt(n_row x n_col) * B'(n_col x n_col) -> n_row x n_col
+      // prediction: m_t|t-1 = A_t * m_{t-1} * B_t'
       m_filt.slice(t) = A_array.slice(t) * m_filt.slice(t-1) * B_array.slice(t).t();
-      // for scalar variance: c_t|t-1 = c_{t-1} + sigma2_proc * I
+      // prediction covariance: C_t|t-1 = C_{t-1} + sigma2_proc * I
       C_filt.slice(t) = C_filt.slice(t-1) + sigma2_proc * arma::eye(n_row, n_row);
     }
 
-    // forward update using full matrix form
+    // update step
     arma::mat R_pred = C_filt.slice(t) + sigma2_obs * arma::eye(n_row, n_row);
 
-    // add small regularization to ensure numerical stability
+    // small regularization for stability
     double reg_eps = std::max(1e-8, 1e-8 * arma::norm(R_pred, "fro"));
     R_pred.diag() += reg_eps;
 
-    // Kalman gain computation using Cholesky
-    // K is n_row x n_row, applied to each column of (Y - m_filt) independently
+    // kalman gain via cholesky of R_pred
     arma::mat K;
     arma::mat L_R;
     bool chol_success = arma::chol(L_R, force_sym(R_pred), "lower");
@@ -102,7 +99,7 @@ arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
         arma::mat temp = arma::solve(arma::trimatl(L_R), C_filt.slice(t));
         K = arma::solve(arma::trimatu(L_R.t()), temp).t();
     } else {
-        // Fallback with regularization
+        // fallback with regularization
         arma::mat R_sym = 0.5 * (R_pred + R_pred.t());
         arma::mat R_inv;
         bool inv_ok = arma::inv_sympd(R_inv, R_sym);
@@ -117,27 +114,27 @@ arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
         K = C_filt.slice(t) * R_inv;
     }
 
-    // K(n_row x n_row) * (Y - m_filt)(n_row x n_col) -> n_row x n_col
+    // apply kalman gain to innovation
     m_filt.slice(t) += K * (Y.slice(t) - m_filt.slice(t));
 
-    // Joseph form update for numerical stability
+    // joseph form covariance update for stability
     arma::mat I_minus_K = arma::eye(n_row, n_row) - K;
     C_filt.slice(t) = I_minus_K * C_filt.slice(t) * I_minus_K.t() + K * sigma2_obs * K.t();
   }
 
-  // backward sampling pass
-  // sample from posterior at final time point
+  // backward sampling
+  // sample terminal state
   arma::mat C_T_reg = C_filt.slice(T-1) + 1e-8 * arma::eye(n_row, n_row);
-  // force exact symmetry before cholesky
+  // symmetrize before cholesky
   C_T_reg = 0.5 * (C_T_reg + C_T_reg.t());
   arma::mat L_T;
   bool chol_T_ok = arma::chol(L_T, C_T_reg, "lower");
   arma::mat noise_T;
   if (chol_T_ok) {
-    // L_T(n_row x n_row) * randn(n_row x n_col) -> n_row x n_col noise
+    // cholesky-based noise generation
     noise_T = L_T * arma::randn(n_row, n_col);
   } else {
-    // Fallback: diagonal noise
+    // fallback: diagonal noise
     arma::vec diag_sd = arma::sqrt(arma::abs(C_T_reg.diag()));
     noise_T = arma::diagmat(diag_sd) * arma::randn(n_row, n_col);
   }
@@ -145,10 +142,10 @@ arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
 
   // backward recursion
   for (int t = T-2; t >= 0; --t) {
-    // prediction variance at t+1
+    // prediction covariance at t+1
     arma::mat R_pred = C_filt.slice(t) + sigma2_proc * arma::eye(n_row, n_row);
 
-    // backward smoother update using full matrix form
+    // smoother gain via safe inverse
     arma::mat R_sym = 0.5 * (R_pred + R_pred.t());
     arma::mat R_inv;
     bool inv_ok = arma::inv_sympd(R_inv, R_sym);
@@ -160,7 +157,7 @@ arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
         R_inv = arma::inv(R_sym);
       }
     }
-    arma::mat J = C_filt.slice(t) * R_inv;    // smoother gain
+    arma::mat J = C_filt.slice(t) * R_inv;
 
     arma::mat m_smooth = m_filt.slice(t) +
                          J * (Theta.slice(t + 1) - mu -
@@ -170,9 +167,9 @@ arma::cube ffbs_theta_struct_cpp(const arma::cube& Z,
     arma::mat C_smooth = C_filt.slice(t) -
                          J * (R_pred - C_filt.slice(t + 1)) * J.t();
 
-    // sample smoothed state
+    // draw from smoothed distribution
     arma::mat C_smooth_reg = C_smooth + 1e-8 * arma::eye(n_row, n_row);
-    // force exact symmetry before cholesky
+    // symmetrize before cholesky
     C_smooth_reg = 0.5 * (C_smooth_reg + C_smooth_reg.t());
     arma::mat L_smooth;
     bool chol_smooth_ok = arma::chol(L_smooth, C_smooth_reg, "lower");

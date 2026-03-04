@@ -13,19 +13,19 @@
 using namespace Rcpp;
 using namespace arma;
 
-// Zero-copy view of a column of a 2D matrix as an n_row x n_col matrix.
-// The returned mat shares memory with the source — no allocation or copy.
+// zero-copy view of a 2D matrix column as an n_row x n_col matrix
+// shares memory with the source, no allocation or copy
 static inline arma::mat col_as_mat(const arma::mat& M, int col, int n_row, int n_col) {
     return arma::mat(const_cast<double*>(M.colptr(col)), n_row, n_col, false, true);
 }
 
-// Forward declarations for existing functions
+// forward declarations
 arma::vec rz_fc_cpp(const arma::vec& R, const arma::vec& Z, const arma::vec& EZ, const List& iranks);
 arma::cube ffbs_theta_struct_5arg_cpp(const arma::cube& Z, const arma::mat& mu,
                                      const arma::cube& A_array, const arma::cube& B_array,
                                      double sigma2);
 
-// Safe symmetric positive definite inverse with regularization fallback
+// safe symmetric PD inverse with regularization fallback
 static arma::mat safe_inv_sympd(const arma::mat& M) {
     arma::mat M_sym = 0.5 * (M + M.t());
     arma::mat result;
@@ -42,21 +42,21 @@ static arma::mat safe_inv_sympd(const arma::mat& M) {
 }
 
 
-// Thread-safe multivariate normal sampling using thread-local RNG.
-// Uses manual Cholesky + std::mt19937_64 instead of arma::mvnrnd.
+// thread-safe multivariate normal sampling with thread-local RNG
+// uses manual Cholesky + std::mt19937_64 instead of arma::mvnrnd
 static arma::vec thread_safe_mvnrnd(const arma::vec& mu, const arma::mat& Sigma,
                                      std::mt19937_64& rng) {
     int d = mu.n_elem;
     arma::mat S = 0.5 * (Sigma + Sigma.t());
 
-    // generate standard normals from thread-local RNG
+    // draw standard normals from thread-local RNG
     std::normal_distribution<double> norm(0.0, 1.0);
     arma::vec z(d);
     for (int i = 0; i < d; i++) {
         z(i) = norm(rng);
     }
 
-    // try Cholesky decomposition
+    // try cholesky decomposition
     arma::mat L;
     bool ok = arma::chol(L, S, "lower");
     if (ok) {
@@ -71,17 +71,17 @@ static arma::vec thread_safe_mvnrnd(const arma::vec& mu, const arma::mat& Sigma,
         return mu + L * z;
     }
 
-    // fallback: diagonal sampling
+    // fallback to diagonal sampling
     return mu + arma::sqrt(arma::abs(S.diag())) % z;
 }
 
-// Initialize per-thread RNG engines with seeds from R's RNG.
-// Must be called from the main thread before any parallel region.
+// initialize per-thread RNG engines seeded from R's RNG
+// must be called from the main thread before any parallel region
 static std::vector<std::mt19937_64> init_thread_rngs(int n_threads) {
     std::vector<std::mt19937_64> rngs;
     rngs.reserve(n_threads);
     for (int i = 0; i < n_threads; i++) {
-        // use R's RNG to generate a seed for each thread
+        // seed each thread from R's RNG
         uint64_t seed = static_cast<uint64_t>(R::runif(0.0, 1.0) * 4294967296.0);
         seed ^= static_cast<uint64_t>(i + 1) * 2654435761ULL;
         rngs.emplace_back(seed);
@@ -89,7 +89,7 @@ static std::vector<std::mt19937_64> init_thread_rngs(int n_threads) {
     return rngs;
 }
 
-// Batch update z for ordinal data
+// batch update z for ordinal data
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -100,57 +100,57 @@ arma::mat batch_update_Z_ordinal(const arma::mat& R_4d,
                                  const List& IR,
                                  int n_row, int n_col, int p, int Tt) {
     int nc = n_row * n_col;
-    // create output array
+    // output array
     arma::mat Z_new(nc, p * Tt);
 
-    // process all relations
+    // loop over relations
     for(int j = 0; j < p; j++) {
-        // get rank indices for this relation
+        // rank indices for this relation
         List IR_j = IR[j];
 
-        // process all time points for this relation
+        // loop over time points
         for(int t = 0; t < Tt; t++) {
-            // extract columns
+            // extract column vectors
             int col_idx = j * Tt + t;
             arma::vec R_vec = R_4d.col(col_idx);
             arma::vec Z_vec = Z_4d.col(col_idx);
             arma::vec Theta_vec = Theta_4d.col(col_idx);
 
-            // compute EZ = Theta + M for this relation
+            // expected z = Theta + M for this relation
             arma::mat M_j = M.slice(j);
             arma::vec M_vec = vectorise(M_j);
             arma::vec EZ_vec = Theta_vec + M_vec;
 
-            // create adjusted IR for this specific time point
+            // build rank index list for this time point
             List IR_t;
             CharacterVector names = IR_j.names();
             for(int k = 0; k < IR_j.size(); k++) {
                 std::string rank_name = Rcpp::as<std::string>(names[k]);
                 arma::vec idx_vec = Rcpp::as<arma::vec>(IR_j[k]);
 
-                // filter indices for current time point
+                // keep indices belonging to this time point
                 arma::uvec local_indices;
                 for(unsigned int i = 0; i < idx_vec.n_elem; i++) {
-                    int global_idx = idx_vec(i) - 1; // convert to 0-based
+                    int global_idx = idx_vec(i) - 1; // to 0-based
                     int time_idx = global_idx / nc;
                     if(time_idx == t) {
                         int spatial_idx = global_idx % nc;
                         local_indices.resize(local_indices.n_elem + 1);
-                        local_indices(local_indices.n_elem - 1) = spatial_idx + 1; // convert back to 1-based
+                        local_indices(local_indices.n_elem - 1) = spatial_idx + 1; // back to 1-based
                     }
                 }
 
                 if(local_indices.n_elem > 0) {
                     IR_t[rank_name] = local_indices;
                 } else {
-                    IR_t[rank_name] = arma::uvec(); // empty vector
+                    IR_t[rank_name] = arma::uvec();
                 }
             }
 
-            // update Z using rank likelihood
+            // update z via rank likelihood
             arma::vec Z_updated = rz_fc_cpp(R_vec, Z_vec, EZ_vec, IR_t);
 
-            // store result
+            // store updated column
             Z_new.col(col_idx) = Z_updated;
         }
     }
@@ -158,7 +158,7 @@ arma::mat batch_update_Z_ordinal(const arma::mat& R_4d,
     return Z_new;
 }
 
-// Z update with preallocated memory and better cache usage
+// z update with preallocated memory and better cache usage
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -174,25 +174,25 @@ arma::mat batch_update_Z_ordinal_fast(const arma::mat& R_4d,
     // allocate output once
     arma::mat Z_new(nc, p * Tt);
 
-    // NOTE: no OpenMP here — rz_fc_cpp manipulates R List/SEXP objects
-    // which are not thread-safe (corrupts R's PROTECT stack)
+    // no OpenMP here -- rz_fc_cpp touches R SEXP objects
+    // which aren't thread-safe (corrupts R's PROTECT stack)
     for(int j = 0; j < p; j++) {
-        // get pre-computed time indices for this relation
+        // precomputed time indices for this relation
         List IR_j_time = IR_time_indices[j];
         arma::mat M_j = M.slice(j);
         arma::vec M_vec = vectorise(M_j);
 
-        // process time points with better memory access pattern
+        // loop over time with cache-friendly access
         for(int t = 0; t < Tt; t++) {
             int col_idx = j * Tt + t;
 
-            // use pre-computed indices for this time point
+            // precomputed indices for this time point
             List IR_t = IR_j_time[t];
 
-            // vectorized operations
+            // expected z
             arma::vec EZ_vec = Theta_4d.col(col_idx) + M_vec;
 
-            // update z
+            // rank likelihood z update
             Z_new.col(col_idx) = rz_fc_cpp(R_4d.col(col_idx), Z_4d.col(col_idx), EZ_vec, IR_t);
         }
     }
@@ -200,7 +200,7 @@ arma::mat batch_update_Z_ordinal_fast(const arma::mat& R_4d,
     return Z_new;
 }
 
-// Precompute time-specific rank indices to avoid repeated computation
+// precompute time-specific rank indices to avoid repeated work
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -213,7 +213,7 @@ List precompute_time_indices(const List& IR, int n_row, int n_col, int p, int Tt
         List IR_j_time(Tt);
         CharacterVector names = IR_j.names();
 
-        // precompute indices for each time point
+        // split indices by time point
         for(int t = 0; t < Tt; t++) {
             List IR_t;
 
@@ -221,12 +221,12 @@ List precompute_time_indices(const List& IR, int n_row, int n_col, int p, int Tt
                 std::string rank_name = Rcpp::as<std::string>(names[k]);
                 arma::vec idx_vec = Rcpp::as<arma::vec>(IR_j[k]);
 
-                // vectorized filtering
+                // filter to indices at time t
                 arma::uvec time_mask = (arma::floor((idx_vec - 1) / nc) == t);
                 arma::vec filtered_global = idx_vec.elem(find(time_mask));
 
                 if(filtered_global.n_elem > 0) {
-                    // convert to local indices
+                    // map global to local spatial indices
                     arma::uvec local_indices(filtered_global.n_elem);
                     for(unsigned int i = 0; i < filtered_global.n_elem; i++) {
                         int global_idx = filtered_global(i) - 1;
@@ -245,7 +245,7 @@ List precompute_time_indices(const List& IR, int n_row, int n_col, int p, int Tt
     return IR_time_indices;
 }
 
-// mu update with blocked computation for large networks
+// mu (baseline mean) update
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -258,9 +258,9 @@ List update_mu_dynamic(const arma::mat& Z_4d,
     double mu_var = 1.0 / (Tt + 1.0 / g2);
     arma::cube M(n_row, n_col, p);
 
-    // process relations sequentially (noise.randn() is not thread-safe)
+    // sequential: noise.randn() is not thread-safe
     for(int j = 0; j < p; j++) {
-        // blocked summation for numerical stability with large Tt
+        // accumulate z - theta across time
         arma::mat sum_diff(n_row, n_col, fill::zeros);
 
         // sum over time
@@ -278,7 +278,7 @@ List update_mu_dynamic(const arma::mat& Z_4d,
         M.slice(j) = mu_hat + sqrt(mu_var) * noise;
     }
 
-    // update g2 with stable computation
+    // update g2 (prior variance on M)
     double M_sum_sq = 0.0;
     for(int j = 0; j < p; j++) {
         M_sum_sq += accu(square(M.slice(j)));
@@ -294,7 +294,7 @@ List update_mu_dynamic(const arma::mat& Z_4d,
     );
 }
 
-// ffbs with pre-allocated workspace
+// FFBS across all relations
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -306,21 +306,21 @@ arma::cube batch_ffbs_all_relations(const arma::mat& Z_4d,
                            int n_row, int n_col, int p, int Tt) {
     arma::cube Theta_4d_out(n_row, n_col, p * Tt);
 
-    // sequential over relations (FFBS calls arma::randn which is not thread-safe)
+    // sequential: FFBS uses arma::randn which isn't thread-safe
     for(int j = 0; j < p; j++) {
-        // extract data for this relation
+        // gather slices for this relation
         arma::cube Z_j(n_row, n_col, Tt);
         int nc = n_row * n_col;
 
-        // vectorized extraction
+        // copy into contiguous cube
         for(int t = 0; t < Tt; t++) {
             Z_j.slice(t) = col_as_mat(Z_4d, j * Tt + t, n_row, n_col);
         }
 
-        // run ffbs — dimensions propagate automatically from Z_j
+        // run FFBS for this relation
         arma::cube Theta_j = ffbs_theta_struct_5arg_cpp(Z_j, M.slice(j), Aarray, Barray, sigma2);
 
-        // vectorized storage
+        // write back to output
         for(int t = 0; t < Tt; t++) {
             Theta_4d_out.slice(j * Tt + t) = Theta_j.slice(t);
         }
@@ -329,7 +329,7 @@ arma::cube batch_ffbs_all_relations(const arma::mat& Z_4d,
     return Theta_4d_out;
 }
 
-// AB update for networks
+// A/B update for networks
 // A is n_row x n_row (sender dynamics), B is n_col x n_col (receiver dynamics)
 //' @keywords internal
 //' @noRd
@@ -344,17 +344,16 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
     arma::cube Aarray(n_row, n_row, Tt);
     arma::cube Barray(n_col, n_col, Tt);
 
-    // precompute frequently used matrices
+    // cache frequently used quantities
     arma::mat eye_nr = eye(n_row, n_row);
     arma::mat eye_nc = eye(n_col, n_col);
     double inv_sigma2 = 1.0 / sigma2;
     double inv_tauA2 = 1.0 / tauA2;
     double inv_tauB2 = 1.0 / tauB2;
 
-    // --- Update A (sender dynamics, n_row x n_row) ---
-    // Each row i of A is independent: parallelize over rows with thread-local RNG.
-    // Use private per-row storage to avoid false sharing on the output cube
-    // (rows in column-major cubes are interleaved, sharing cache lines).
+    // --- update A (sender dynamics, n_row x n_row) ---
+    // each row of A is independent: parallelize with thread-local RNG
+    // private per-row storage avoids false sharing on column-major cubes
     set_dbn_threads();
 #ifdef _OPENMP
     int n_threads_A = std::min(omp_get_max_threads(), n_row);
@@ -363,7 +362,7 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
 #endif
     auto rngs_A = init_thread_rngs(n_threads_A);
 
-    // Private storage: A_private[i] is an n_row x Tt matrix (column t = row i's values at time t)
+    // A_private[i] holds row i's sampled values across time
     std::vector<arma::mat> A_private(n_row, arma::mat(n_row, Tt, arma::fill::zeros));
 
     #pragma omp parallel for schedule(static) num_threads(n_threads_A)
@@ -395,16 +394,16 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
             arma::vec m_post = V * (inv_sigma2 * (F_it.t() * y_it));
 
             if(ar1 && t > 1) {
-                // read from private storage (no false sharing)
+                // AR(1) prior contribution
                 m_post += (rhoA * inv_tauA2) * (V * A_private[i].col(t - 1));
             }
 
             arma::vec a_new = thread_safe_mvnrnd(m_post, V, rngs_A[tid]);
-            A_private[i].col(t) = a_new;  // write to private storage
+            A_private[i].col(t) = a_new;
         }
     }
 
-    // Copy private storage to output cube (single-threaded, cache-friendly)
+    // copy private storage into output cube
     Aarray.slice(0) = eye_nr;
     for(int t = 1; t < Tt; t++) {
         for(int i = 0; i < n_row; i++) {
@@ -412,9 +411,8 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
         }
     }
 
-    // --- Update B (receiver dynamics, n_col x n_col) ---
-    // Columns in column-major storage are contiguous, so false sharing is minimal.
-    // Still use private storage for consistency and AR(1) correctness.
+    // --- update B (receiver dynamics, n_col x n_col) ---
+    // private storage for AR(1) correctness and consistency with A
 #ifdef _OPENMP
     int n_threads_B = std::min(omp_get_max_threads(), n_col);
 #else
@@ -461,7 +459,7 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
         }
     }
 
-    // Copy private storage to output cube
+    // copy private storage into output cube
     Barray.slice(0) = eye_nc;
     for(int t = 1; t < Tt; t++) {
         for(int k = 0; k < n_col; k++) {
@@ -475,7 +473,7 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
     );
 }
 
-// Combined variance update with minimal memory allocation
+// sample process and observation variances
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -488,7 +486,7 @@ List update_variances_dynamic(const arma::mat& Theta_4d,
                            int n_row, int n_col, int p, int Tt,
                            bool is_gaussian = false) {
     int nc = n_row * n_col;
-    // compute process variance residuals with blocking
+    // process variance RSS
     double proc_rss = 0.0;
 
     #ifdef _OPENMP
@@ -501,11 +499,11 @@ List update_variances_dynamic(const arma::mat& Theta_4d,
             int idx_curr = j * Tt + t;
             int idx_prev = j * Tt + t - 1;
 
-            // use in-place operations to minimize memory allocation
+            // current and previous theta slices
             arma::mat Theta_curr = col_as_mat(Theta_4d, idx_curr, n_row, n_col);
             arma::mat Theta_prev = col_as_mat(Theta_4d, idx_prev, n_row, n_col);
 
-            // compute residual = Theta_curr - A_t * Theta_prev * B_t'
+            // residual: theta_t - A_t * theta_{t-1} * B_t'
             arma::mat pred = Aarray.slice(t) * Theta_prev * Barray.slice(t).t();
             local_rss += accu(square(Theta_curr - pred));
         }
@@ -547,7 +545,7 @@ List update_variances_dynamic(const arma::mat& Theta_4d,
     );
 }
 
-// FFBS for very large networks using blocked operations
+// FFBS for large networks using blocked operations
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -559,27 +557,27 @@ arma::cube batch_ffbs_all_relations_blocked(const arma::mat& Z_4d,
                                            int n_row, int n_col, int p, int Tt) {
     arma::cube Theta_4d_out(n_row, n_col, p * Tt);
 
-    // process relations in blocks
+    // block size for relation batching
     const int block_size = std::max(1, std::min(4, p));
 
-    // sequential: FFBS calls arma::randn which is not thread-safe
+    // sequential: FFBS uses arma::randn, not thread-safe
     for(int j_block = 0; j_block < p; j_block += block_size) {
         int j_end = std::min(j_block + block_size, p);
 
-        // process block of relations
+        // run FFBS for each relation in this block
         for(int j = j_block; j < j_end; j++) {
-            // preallocate workspace for this relation
+            // workspace for this relation
             arma::cube Z_j(n_row, n_col, Tt);
 
-            // vectorized extraction
+            // copy slices into contiguous cube
             for(int t = 0; t < Tt; t++) {
                 Z_j.slice(t) = col_as_mat(Z_4d, j * Tt + t, n_row, n_col);
             }
 
-            // ffbs
+            // run FFBS
             arma::cube Theta_j = ffbs_theta_struct_5arg_cpp(Z_j, M.slice(j), Aarray, Barray, sigma2);
 
-            // store
+            // write back
             for(int t = 0; t < Tt; t++) {
                 Theta_4d_out.slice(j * Tt + t) = Theta_j.slice(t);
             }
@@ -589,7 +587,7 @@ arma::cube batch_ffbs_all_relations_blocked(const arma::mat& Z_4d,
     return Theta_4d_out;
 }
 
-// AB update for very large m (>100)
+// A/B update for large networks (m > 100)
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -603,15 +601,15 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
     arma::cube Aarray(n_row, n_row, Tt);
     arma::cube Barray(n_col, n_col, Tt);
 
-    // precompute frequently used matrices
+    // cache frequently used quantities
     arma::mat eye_nr = eye(n_row, n_row);
     arma::mat eye_nc = eye(n_col, n_col);
     double inv_sigma2 = 1.0 / sigma2;
     double inv_tauA2 = 1.0 / tauA2;
     double inv_tauB2 = 1.0 / tauB2;
 
-    // --- Update A (sender dynamics) ---
-    // Private per-row storage to avoid false sharing
+    // --- update A (sender dynamics) ---
+    // private per-row storage avoids false sharing
     set_dbn_threads();
 #ifdef _OPENMP
     int n_threads_A = std::min(omp_get_max_threads(), n_row);
@@ -674,7 +672,7 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
         }
     }
 
-    // --- Update B (receiver dynamics) ---
+    // --- update B (receiver dynamics) ---
 #ifdef _OPENMP
     int n_threads_B = std::min(omp_get_max_threads(), n_col);
 #else
@@ -741,7 +739,7 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
     );
 }
 
-// Variance computation for large networks using blocking
+// process variance RSS for large networks (blocked over time)
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -758,7 +756,7 @@ double compute_process_variance_blocked(const arma::mat& Theta_4d,
     for(int j = 0; j < p; j++) {
         double local_rss = 0.0;
 
-        // process time in blocks
+        // loop over time in blocks
         for(int t_block = 1; t_block < Tt; t_block += block_size) {
             int t_end = std::min(t_block + block_size, Tt);
 
@@ -780,8 +778,8 @@ double compute_process_variance_blocked(const arma::mat& Theta_4d,
     return proc_rss;
 }
 
-// Compute gaussian observation residual sum of squares for dynamic model.
-// Takes the flat matrix layout (nc x p*Tt) used by the dynamic MCMC loop.
+// gaussian observation RSS for the dynamic model
+// takes the flat matrix layout (nc x p*Tt) used by the MCMC loop
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -808,7 +806,7 @@ double compute_gaussian_obs_residuals_dynamic_cpp(const arma::mat& Z_4d,
     return obs_rss;
 }
 
-// Compute AR(1) innovation sum of squares for tau update.
+// AR(1) innovation sum of squares for tau update
 // innov[t] = A[t] - rho * A[t-1] - (1 - rho) * I
 //' @keywords internal
 //' @noRd
@@ -827,7 +825,7 @@ double compute_ar1_innovation_ss_cpp(const arma::cube& ABarray, double rho, int 
     return ss;
 }
 
-// Compute numerator and denominator for rho AR(1) update.
+// numerator and denominator for AR(1) rho full conditional
 // diffA_t   = A[t]   - I
 // diffA_tm1 = A[t-1] - I
 // num   = sum(diffA_t * diffA_tm1)

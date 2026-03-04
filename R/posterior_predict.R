@@ -32,7 +32,7 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 		cli::cli_abort("Model fit does not contain family information.")
 	}
 
-	# determine which draws to use
+	# pick which draws to use
 	if (is.null(draws)) {
 		if (fit$model == "dynamic") {
 			n_total_draws <- length(fit$sigma2)
@@ -61,11 +61,11 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 	for (d in seq_along(draws)) {
 		draw_idx <- draws[d]
 
-		# extract theta based on model type
+		# get theta for this model type
 		if (fit$model == "dynamic") {
 
-			# use stored FFBS theta draws (includes absorbed baseline mean)
-			# only if Theta has the full time dimension (not time-thinned)
+			# use stored FFBS theta draws (includes absorbed baseline mean),
+			# but only when Theta has the full time dimension
 			Tt_orig <- fit$dims$Tt
 			Theta_has_full_time <- !is.null(fit$Theta) && is.array(fit$Theta) &&
 				length(dim(fit$Theta)) == 5 && dim(fit$Theta)[4] == Tt_orig
@@ -73,11 +73,11 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 				th <- fit$Theta[, , , , draw_idx, drop = FALSE]
 				dim(th) <- dim(fit$Theta)[1:4]
 			} else {
-				# fallback: reconstruct from A/B/M
+				# reconstruct from A/B/M when full Theta unavailable
 				if (is.null(fit$A) || is.null(fit$B) || is.null(fit$M)) {
 					cli::cli_abort(c(
-						"x" = "Cannot compute theta: Theta, A, B, or M not found in fit object.",
-						"i" = "Ensure the model was fitted properly."
+						"x" = "cannot compute theta: Theta, A, B, or M not found in fit object.",
+						"i" = "ensure the model was fitted properly."
 					))
 				}
 
@@ -90,7 +90,7 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 				} else if (is.list(fit$M)) {
 					M_draw <- fit$M[[draw_idx]]
 				} else {
-					cli::cli_abort("Unexpected M structure in dynamic model fit")
+					cli::cli_abort("unexpected M structure in dynamic model fit")
 				}
 
 				dims <- fit$dims
@@ -119,8 +119,8 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 
 			if (is.null(fit$draws$misc$B) || is.null(fit$draws$misc$M)) {
 				cli::cli_abort(c(
-					"x" = "Cannot compute theta: B matrices or M not found in fit object.",
-					"i" = "Ensure the model was fitted properly."
+					"x" = "cannot compute theta: B matrices or M not found in fit object.",
+					"i" = "ensure the model was fitted properly."
 				))
 			}
 
@@ -133,8 +133,8 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 				Z <- fit$Y
 			} else {
 				cli::cli_abort(c(
-					"x" = "Cannot determine Z values for theta computation.",
-					"i" = "Model family not supported for on-demand theta computation."
+					"x" = "cannot determine Z values for theta computation.",
+					"i" = "model family not supported for on-demand theta computation."
 				))
 			}
 
@@ -146,15 +146,15 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 
 		} else if (fit$model == "lowrank" || fit$model == "lowrank_accurate") {
 
-			# use stored FFBS theta draws when available
+			# use stored FFBS theta draws if available
 			if (!is.null(fit$draws$theta) && length(fit$draws$theta) >= draw_idx) {
 				th <- fit$draws$theta[[draw_idx]]
 			} else {
-				# fallback: reconstruct from U/alpha/B
+				# reconstruct from U/alpha/B when theta not stored
 				if (is.null(fit$U) || is.null(fit$alpha) || is.null(fit$B)) {
 					cli::cli_abort(c(
-						"x" = "Cannot reconstruct theta: U, alpha, or B not found in fit object.",
-						"i" = "Ensure the lowrank model was fitted properly."
+						"x" = "cannot reconstruct theta: U, alpha, or B not found in fit object.",
+						"i" = "ensure the lowrank model was fitted properly."
 					))
 				}
 
@@ -170,7 +170,7 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 				alpha_s <- fit$alpha[[draw_idx]]
 				B_s <- fit$B[[draw_idx]]
 
-				# extract M for initialization if available
+				# grab M for initialization if available
 				M_draw <- NULL
 				if (is.list(fit$M) && length(fit$M) >= draw_idx) {
 					M_draw <- fit$M[[draw_idx]]
@@ -210,14 +210,14 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 				th <- fit$draws$theta[[draw_idx]]
 			} else {
 				cli::cli_abort(c(
-					"x" = "Cannot extract theta for model type '{fit$model}'.",
-					"i" = "Model may not support posterior predictive checks yet."
+					"x" = "cannot extract theta for model type '{fit$model}'.",
+					"i" = "model may not support posterior predictive checks yet."
 				))
 			}
 		}
 		####
 
-		# extract miscellaneous parameters
+		# grab miscellaneous parameters
 		misc <- list()
 
 		if (fit$model == "dynamic" && !is.null(fit$M)) {
@@ -399,7 +399,7 @@ plot_ppc_ecdf <- function(fit, ppd = NULL, ndraws_plot = 20,
 		df <- rbind(df, df_rep)
 	}
 
-	# ggplot2 version
+	# ggplot2
 	if (requireNamespace("ggplot2", quietly = TRUE)) {
 		p <- ggplot2::ggplot(df, ggplot2::aes(
 			x = value, y = ecdf,
@@ -434,7 +434,7 @@ plot_ppc_ecdf <- function(fit, ppd = NULL, ndraws_plot = 20,
 	}
 	####
 
-	# base R fallback
+	# base R
 	plot(ecdf(obs_vals),
 		main = paste0("PPC: Relation ", rel),
 		xlab = "Y", ylab = "ECDF", lwd = 2
@@ -491,12 +491,12 @@ plot_ppc_density <- function(fit, ppd = NULL, rel = 1, time = NULL, Y_obs = NULL
 	obs_vals <- c(Y_obs[, , rel, time])
 	obs_vals <- obs_vals[!is.na(obs_vals)]
 
-	# discrete data dispatches to bar plot
+	# discrete data goes to bar plot
 	if (length(unique(obs_vals)) <= 20) {
 		return(plot_ppc_bars(fit, ppd, rel, time, Y_obs))
 	}
 
-	# ggplot2 version
+	# ggplot2
 	if (requireNamespace("ggplot2", quietly = TRUE)) {
 		df <- data.frame(value = obs_vals, type = "Observed")
 
@@ -525,7 +525,7 @@ plot_ppc_density <- function(fit, ppd = NULL, rel = 1, time = NULL, Y_obs = NULL
 	}
 	####
 
-	# base R fallback
+	# base R
 	plot(density(obs_vals),
 		main = paste0("PPC Density: Relation ", rel),
 		xlab = "Y", ylab = "Density", lwd = 2
@@ -590,7 +590,7 @@ plot_ppc_bars <- function(fit, ppd, rel = 1, time = NULL, Y_obs = NULL) {
 		rep_freq_upper[i] <- quantile(freqs, 0.95, na.rm = TRUE)
 	}
 
-	# ggplot2 version
+	# ggplot2
 	if (requireNamespace("ggplot2", quietly = TRUE)) {
 		df <- data.frame(
 			value = rep(all_vals, 2),
@@ -621,7 +621,7 @@ plot_ppc_bars <- function(fit, ppd, rel = 1, time = NULL, Y_obs = NULL) {
 	}
 	####
 
-	# base R fallback
+	# base R
 	barplot(rbind(as.numeric(obs_freq[all_vals]), rep_freq_mean),
 		beside = TRUE, names.arg = all_vals,
 		col = c("black", "grey60"),

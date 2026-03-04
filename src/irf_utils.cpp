@@ -17,7 +17,7 @@ arma::cube impulse_response_const(const arma::mat& A,
     int n_row = A.n_rows;
     int n_col = B.n_rows;
 
-    // Input validation (supports bipartite: A is n_row x n_row, B is n_col x n_col, S is n_row x n_col)
+    // validate dimensions
     if (A.n_rows != A.n_cols || B.n_rows != B.n_cols ||
         A.n_rows != S.n_rows || B.n_rows != S.n_cols) {
         Rcpp::stop("dimensions must be consistent: A(n_row x n_row), B(n_col x n_col), S(n_row x n_col)");
@@ -30,8 +30,8 @@ arma::cube impulse_response_const(const arma::mat& A,
     arma::cube Delta(n_row, n_col, H + 1);
     Delta.slice(0) = S;
 
-    arma::mat A_pow = A;           // A^1
-    arma::mat B_powT = B.t();      // (B^1)^T
+    arma::mat A_pow = A;
+    arma::mat B_powT = B.t();
 
     for (int h = 1; h <= H; ++h) {
         Delta.slice(h) = A_pow * S * B_powT;
@@ -64,14 +64,14 @@ arma::cube impulse_response_dynamic(const arma::cube& Aarray,
     int n_col = Barray.n_rows;
     int T = Aarray.n_slices;
 
-    // Input validation (supports bipartite: A is n_row x n_row, B is n_col x n_col, S is n_row x n_col)
+    // validate dimensions
     if (Aarray.n_rows != Aarray.n_cols || Barray.n_rows != Barray.n_cols ||
         Aarray.n_rows != S.n_rows || Barray.n_rows != S.n_cols) {
         Rcpp::stop("dimensions must be consistent: A(n_row x n_row), B(n_col x n_col), S(n_row x n_col)");
     }
     
     if (Aarray.n_slices != Barray.n_slices) {
-        Rcpp::stop("Aarray and Barray must have same number of time slices");
+        Rcpp::stop("Aarray and Barray must have the same number of time slices");
     }
     
     if (t0 < 0 || t0 >= T) {

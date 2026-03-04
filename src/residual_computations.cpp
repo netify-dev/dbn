@@ -8,11 +8,10 @@
 using namespace Rcpp;
 using namespace arma;
 
-// forward declaration for function defined in rank_likelihood_fast.cpp
+// forward declaration
 arma::vec rz_fc_cpp(const arma::vec& R, const arma::vec& Z, const arma::vec& EZ, const List& iranks);
 
-// fast bilinear product A * Theta * B^T avoiding intermediate matrices
-// A(n_row x n_row), Theta(n_row x n_col), B(n_col x n_col) -> result(n_row x n_col)
+// bilinear product A * Theta * B' computed element-wise
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -22,7 +21,7 @@ arma::mat bilinear_product_fast(const arma::mat& A, const arma::mat& Theta, cons
     int inner = Theta.n_cols; // = n_col
     arma::mat result(n_row, n_col);
 
-    // (A * Theta) * B^T element-wise to avoid large intermediate matrix
+    // avoid large intermediate matrix
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
@@ -41,7 +40,7 @@ arma::mat bilinear_product_fast(const arma::mat& A, const arma::mat& Theta, cons
     return result;
 }
 
-// compute bilinear residuals for all relations and time points in one pass
+// compute bilinear residuals across all relations and time points
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -75,7 +74,7 @@ double compute_bilinear_residuals(const arma::cube& Theta_flat,
     return total_rss;
 }
 
-// Bilinear residuals 
+// bilinear residuals with blocked time steps
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -85,7 +84,7 @@ double compute_bilinear_residuals_fast(const arma::cube& Theta,
                                       int m, int p, int Tt) {
     double total_rss = 0.0;
     
-    // process in blocks for better cache utilization
+    // process in blocks for cache locality
     const int block_size = std::min(10, Tt-1);
     
     #ifdef _OPENMP
@@ -97,7 +96,7 @@ double compute_bilinear_residuals_fast(const arma::cube& Theta,
             
             // process block of time steps
             for(int t = t_start; t < t_end; t++) {
-                // for 4D array, we need to flatten the index
+                // flatten index for 4D layout
                 int idx_curr = rel * Tt + t;
                 int idx_prev = rel * Tt + t - 1;
                 
@@ -107,7 +106,7 @@ double compute_bilinear_residuals_fast(const arma::cube& Theta,
                 const arma::mat& A_t = Aarray.slice(t);
                 const arma::mat& B_t = Barray.slice(t);
                 
-                // bilinear product using temp variable
+                // bilinear product
                 arma::mat temp = A_t * Theta_prev;
                 arma::mat pred = temp * B_t.t();
                 
@@ -153,7 +152,7 @@ double compute_observation_residuals(const arma::cube& Z_flat,
     return total_rss;
 }
 
-// vectorized z-score computation for preprocessing
+// vectorized z-score computation
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -184,7 +183,7 @@ arma::cube compute_zscores_batch(const arma::cube& Y, const arma::vec& means,
     return Z;
 }
 
-// batch update Z for all relations (vectorized version)
+// batch update Z for all relations
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -229,7 +228,7 @@ arma::cube update_Z_batch(const arma::cube& R_flat,
 }
 
 
-// vectorized regime array construction for hmm
+// vectorized regime array construction for HMM
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -242,7 +241,7 @@ List build_regime_arrays_vectorized(const IntegerVector& S,
     
     // vectorized assignment using advanced indexing
     for(int t = 0; t < Tt; t++) {
-        int regime = S[t] - 1; // convert to 0-based
+        int regime = S[t] - 1; // 0-based
         Aarray.slice(t) = as<arma::mat>(A_list[regime]);
         Barray.slice(t) = as<arma::mat>(B_list[regime]);
     }
@@ -253,7 +252,7 @@ List build_regime_arrays_vectorized(const IntegerVector& S,
     );
 }
 
-// compute all outer products at once for low-rank model
+// compute all outer products for low-rank model
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -272,7 +271,7 @@ arma::cube compute_outer_products_batch(const arma::mat& U) {
     return outer_prods;
 }
 
-// fast computation of all A matrices for low-rank model using preomputed outer products
+// compute all A matrices for low-rank model using precomputed outer products
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]

@@ -10,8 +10,8 @@ using namespace arma;
 double compute_residual_sum_squares(const List& Z_field, 
                                     const arma::cube& M,
                                     int p) {
-  // z_field contains p cubes, each of dimension m x m x tt
-  // m is m x m x p
+  // z_field contains p cubes, each m x m x Tt
+  // M is m x m x p
   
   double rss = 0.0;
   
@@ -21,7 +21,7 @@ double compute_residual_sum_squares(const List& Z_field,
     
     for(int t = 0; t < Tt; t++) {
       arma::mat diff = Z_j.slice(t) - M.slice(j);
-      // only sum over non-na values
+      // only sum over non-NA values
       arma::uvec finite_idx = find_finite(diff);
       rss += accu(diff.elem(finite_idx) % diff.elem(finite_idx));
     }
@@ -37,8 +37,7 @@ double compute_innovation_variance(const arma::cube& X_curr,
                                    const arma::cube& X_prev,
                                    bool ar1 = false,
                                    double rho = 0.0) {
-  // compute sum of squared innovations for AR(1) or random walk
-  // X_curr and X_prev are m x m x (Tt-1)
+  // sum of squared innovations for AR(1) or random walk
   
   arma::cube innovations;
   
@@ -56,7 +55,7 @@ double compute_innovation_variance(const arma::cube& X_curr,
 // [[Rcpp::export]]
 arma::cube compute_M_update(const List& Z_field,
                             double g2, int m, int p) {
-  // compute posterior mean of M given Z and g2
+  // posterior mean of M given Z and g2
   
   arma::cube M_sum = arma::zeros(m, m, p);
   arma::cube counts = arma::zeros(m, m, p);
@@ -92,7 +91,7 @@ arma::cube compute_M_update(const List& Z_field,
           double post_var = 1.0 / post_prec;
           M_new(i, k, j) = post_mean + sqrt(post_var) * randn();
         } else {
-          // No observations, sample from prior
+          // no observations, sample from prior
           M_new(i, k, j) = sqrt(g2) * randn();
         }
       }
@@ -110,7 +109,7 @@ List compute_AB_innovations(const arma::cube& Aarray,
                             bool ar1 = false,
                             double rhoA = 0.0,
                             double rhoB = 0.0) {
-  // compute innovations for both A and B arrays
+  // innovations for both A and B arrays
   int Tt = Aarray.n_slices;
   
   // extract relevant time slices

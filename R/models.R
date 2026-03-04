@@ -83,7 +83,7 @@ dbn <- function(data,
 	family <- match.arg(family)
 	model <- match.arg(model)
 
-	# load data
+	# load data from file path or use the array directly
 	if (is.character(data)) {
 		cli::cli_inform("Loading data from: {.path {data}}")
 		env <- new.env()
@@ -95,7 +95,7 @@ dbn <- function(data,
 	}
 	####
 
-	# validate and reshape
+	# validate dimensions and reshape 3D to 4D if needed
 	if (length(dim(Y)) == 3) {
 		dim_orig <- dim(Y)
 		Y <- array(Y, dim = c(dim_orig[1], dim_orig[2], 1, dim_orig[3]))
@@ -111,7 +111,7 @@ dbn <- function(data,
 	if (odens > nscan) cli::cli_abort("{.arg odens} ({odens}) too large: no iterations would be saved ({.arg nscan} = {nscan}).")
 	####
 
-	# cross-sectional guard
+	# enforce static model for single time point
 	Tt <- dim(Y)[4]
 	if (Tt < 2) {
 		if (model != "static") {
@@ -125,7 +125,7 @@ dbn <- function(data,
 	}
 	####
 
-	# dimension summary
+	# print dimension summary
 	if (verbose) {
 		n_row <- dim(Y)[1]
 		n_col <- dim(Y)[2]
@@ -148,7 +148,7 @@ dbn <- function(data,
 	}
 	####
 
-	# symmetric validation
+	# validate symmetric constraint
 	if (symmetric) {
 		n_r <- dim(Y)[1]
 		n_c <- dim(Y)[2]
@@ -171,7 +171,7 @@ dbn <- function(data,
 	}
 	####
 
-	# lowrank suggestion for large networks
+	# suggest lowrank for large networks
 	if (model == "dynamic" && max(dim(Y)[1], dim(Y)[2]) > 80 && verbose) {
 		cli::cli_inform(c(
 			"i" = "Large network ({max(dim(Y)[1], dim(Y)[2])} nodes). Consider {.code model = \"lowrank\"} for better scalability."
@@ -179,7 +179,7 @@ dbn <- function(data,
 	}
 	####
 
-	# dispatch
+	# dispatch to model-specific sampler
 	results <- switch(model,
 		static = dbn_static(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
 		dynamic = dbn_dynamic(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
@@ -225,7 +225,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 					   previous = NULL, init = NULL,
 					   symmetric = FALSE) {
 
-	# family setup and preprocessing
+	# set up family and preprocess data
 	family <- match.arg(family)
 	if (isTRUE(verbose)) verbose <- 100L
 	if (isFALSE(verbose)) verbose <- 0L
@@ -266,7 +266,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 	d <- c(n_row, n_col, p)
 	####
 
-	# initialization
+	# initialize parameters (warm-start from previous fit if available)
 	if (!is.null(previous)) {
 		s2 <- tail(previous$draws$pars$s2, 1)
 		t2 <- tail(previous$draws$pars$t2, 1)
@@ -285,7 +285,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 	}
 	####
 
-	# mcmc storage
+	# allocate MCMC storage
 	n_iter <- burn + nscan
 	keep_idx <- seq(burn + 1, n_iter, by = odens)
 	n_keep <- length(keep_idx)
@@ -327,7 +327,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 	# main MCMC loop
 	for (iter in 1:n_iter) {
 
-		# b update
+		# update B matrices
 		if (is_large_network) {
 			B[[1]] <- update_B_static_tiled(Z_cube, M, s2, t2, n_row, n_col, p, Tt)
 		} else {
@@ -335,12 +335,12 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		}
 		####
 
-		# t2 update
+		# update t2 (B precision)
 		sse <- compute_diagonal_sse(B, K)
 		t2 <- safe_rinv_gamma((sum(d) + 1) / 2, (sse + 1) / 2)
 		####
 
-		# z update (ordinal/binary)
+		# update latent Z (ordinal/binary families)
 		if (FAM$name == "binary") {
 			for (j in 1:p) {
 				for (t in 1:Tt) {
@@ -391,7 +391,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		}
 		####
 
-		# m update
+		# update baseline mean M
 		if (FAM$name == "ordinal" || iter %% 5 == 0) {
 			if (FAM$name != "ordinal") {
 				Z_flat <- array(Z, c(n_row, n_col, p * Tt))
@@ -409,7 +409,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		}
 		####
 
-		# s2 update
+		# update observation variance s2 (gaussian only)
 		if (FAM$name == "gaussian") {
 			if (is_large_network) {
 				rss <- compute_rss_static_parallel(Z_cube, M, n_row, n_col, p, Tt)
@@ -422,7 +422,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		}
 		####
 
-		# save samples
+		# store thinned samples
 		if (iter %in% keep_idx) {
 			idx <- which(keep_idx == iter)
 			B_samples[[1]][, , idx] <- B[[1]]
@@ -460,7 +460,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 
 	if (verbose) cli::cli_progress_done()
 
-	# output construction
+	# assemble output list
 	draws <- list(
 		theta = NULL,
 		z = if (FAM$name %in% c("ordinal", "binary")) Zsave else NULL,
@@ -588,7 +588,7 @@ dbn_dynamic <- function(Y,
 						init = NULL,
 						symmetric = FALSE) {
 
-	# family setup and preprocessing
+	# set up family and preprocess data
 	set.seed(seed)
 	family <- match.arg(family)
 	if (isTRUE(verbose)) verbose <- 100L
@@ -603,7 +603,7 @@ dbn_dynamic <- function(Y,
 		cli::cli_abort("Dynamic model requires at least 2 time points. Use {.code model = \"static\"} for cross-sectional data.")
 	}
 
-	# warn about dynamic binary with small networks
+	# small binary networks can be numerically unstable
 	if (family == "binary" && min(dim(Y)[1], dim(Y)[2]) < 15) {
 		cli::cli_warn(c(
 			"Dynamic binary models with small networks (n < 15) may encounter numerical singularities.",
@@ -628,7 +628,7 @@ dbn_dynamic <- function(Y,
 	d <- nc
 	####
 
-	# auto time-thinning and memory estimation
+	# configure time-thinning and estimate memory usage
 	if (is.null(time_thin)) {
 		time_thin <- max(1L, Tt %/% 20L)
 		if (time_thin > 1 && isTRUE(verbose > 0)) {
@@ -672,12 +672,12 @@ dbn_dynamic <- function(Y,
 	}
 	####
 
-	# flatten arrays
+	# flatten 4D arrays to matrices for vectorized operations
 	Z_4d <- matrix(Z, nrow = nc, ncol = p * Tt)
 	R_4d <- matrix(R, nrow = nc, ncol = p * Tt)
 	####
 
-	# initialization
+	# initialize parameters (warm-start from previous fit if available)
 	if (!is.null(previous)) {
 		if (is.null(previous$A) || is.null(previous$B) || is.null(previous$sigma2)) {
 			cli::cli_abort("{.arg previous} must be results from {.fun dbn_dynamic}.")
@@ -769,7 +769,7 @@ dbn_dynamic <- function(Y,
 	Theta_4d <- matrix(Theta_all, nrow = nc, ncol = p * Tt)
 	####
 
-	# mcmc storage
+	# allocate MCMC storage
 	n_iter <- burn + nscan
 	keep <- seq(burn + 1, n_iter, by = odens)
 	n_keep <- length(keep)
@@ -823,7 +823,7 @@ dbn_dynamic <- function(Y,
 	# main MCMC loop
 	for (g in 1:n_iter) {
 
-		# z update
+		# update latent Z (ordinal/binary families)
 		if (FAM$name == "ordinal") {
 			if (use_approx) {
 				EZ_cube[] <- Theta_4d + M_expanded
@@ -852,14 +852,14 @@ dbn_dynamic <- function(Y,
 		}
 		####
 
-		# m update
+		# update baseline mean M and g2
 		mu_result <- update_mu_dynamic(Z_4d, Theta_4d, g2, a_g, b_g, n_row, n_col, p, Tt)
 		M <- mu_result$M
 		g2 <- mu_result$g2
 		if (use_approx) M_expanded <- rep(as.vector(M), times = Tt)
 		####
 
-		# ffbs for theta
+		# FFBS for Theta
 		if (is_large_network && max(n_row, n_col) > 100) {
 			Theta_cube <- batch_ffbs_all_relations_blocked(Z_4d, M, Aarray, Barray, sigma2, n_row, n_col, p, Tt)
 		} else {
@@ -871,7 +871,7 @@ dbn_dynamic <- function(Y,
 		Theta_4d <- matrix(Theta_cube, nrow = nc, ncol = p * Tt)
 		####
 
-		# a/b update
+		# update A and B matrices
 		if (is_large_network && max(n_row, n_col) > 100) {
 			AB_result <- update_AB_batch_large(
 				Theta_4d, Aarray, Barray,
@@ -892,7 +892,7 @@ dbn_dynamic <- function(Y,
 		if (symmetric) Barray <- Aarray
 		####
 
-		# tau update
+		# update innovation variances tauA2, tauB2
 		if (ar1) {
 			innovA_ss <- compute_ar1_innovation_ss_cpp(Aarray, rhoA, n_row, Tt)
 			innovB_ss <- compute_ar1_innovation_ss_cpp(Barray, rhoB, n_col, Tt)
@@ -917,7 +917,7 @@ dbn_dynamic <- function(Y,
 		if (symmetric) tauB2 <- tauA2
 		####
 
-		# variance update
+		# update process and observation variances
 		if (is_large_network && max(n_row, n_col) > 100) {
 			proc_rss <- compute_process_variance_blocked(Theta_4d, Aarray, Barray, n_row, n_col, p, Tt)
 			if (exists("shape_sigma_proc")) {
@@ -943,7 +943,7 @@ dbn_dynamic <- function(Y,
 		}
 		####
 
-		# ar(1) coefficient update
+		# update AR(1) coefficients rhoA, rhoB
 		if (ar1 && update_rho) {
 			rhoA_result <- compute_rho_update_cpp(Aarray, n_row, Tt)
 			rho_mean <- rhoA_result$num / (rhoA_result$denom + 1e-10)
@@ -958,7 +958,7 @@ dbn_dynamic <- function(Y,
 		}
 		####
 
-		# save samples
+		# store thinned samples
 		if (g %in% keep) {
 			keep_id <- keep_id + 1
 
@@ -1000,7 +1000,7 @@ dbn_dynamic <- function(Y,
 
 	if (verbose) cli::cli_progress_done()
 
-	# output construction
+	# assemble output list
 	out <- list(
 		model = "dynamic",
 		Y = Y,

@@ -11,10 +11,6 @@ navbar:
       text: Methodology
       href: articles/methodology.html
 articles:
-  - title: "Methodology"
-    navbar: ~
-    contents:
-    - methodology
   - title: "Getting Started"
     navbar: ~
     contents:
@@ -23,6 +19,7 @@ articles:
     - impulse_response
   - title: internal
     contents:
+    - methodology
     - lowrank_dbn
     - hmm_dbn
 

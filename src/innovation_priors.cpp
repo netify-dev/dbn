@@ -14,29 +14,29 @@
 arma::mat rinvwishart_stable(int nu, const arma::mat& S) {
     int p = S.n_rows;
     
-    // make sure nu > p + 1 for proper distribution
+    // require nu > p + 1
     if (nu <= p + 1) {
-        Rcpp::stop("Degrees of freedom must be greater than dimension + 1");
+        Rcpp::stop("degrees of freedom must be greater than dimension + 1");
     }
     
-    // make sure s is positive definite
+    // ensure PD
     arma::mat S_pd = ensure_positive_definite(S);
     
-    // cholesky decomposition of s
+    // cholesky of scale matrix
     arma::mat L_S;
     if (!safe_cholesky(L_S, S_pd)) {
-        Rcpp::stop("Failed to compute Cholesky decomposition of scale matrix");
+        Rcpp::stop("cholesky of scale matrix failed");
     }
     
-    // generate wishart(nu, i) variate
+    // Wishart(nu, I) draw via Bartlett decomposition
     arma::mat A(p, p, arma::fill::zeros);
     
-    // fill diagonal with chi-squared variates
+    // diagonal: chi-squared
     for (int i = 0; i < p; i++) {
         A(i, i) = std::sqrt(R::rchisq(nu - i));
     }
     
-    // fill lower triangle with standard normals
+    // lower triangle: N(0,1)
     for (int i = 1; i < p; i++) {
         for (int j = 0; j < i; j++) {
             A(i, j) = R::rnorm(0, 1);
@@ -46,22 +46,22 @@ arma::mat rinvwishart_stable(int nu, const arma::mat& S) {
     // w = a * a'
     arma::mat W = A * A.t();
     
-    // transform to inverse wishart (use safe inversion)
+    // invert to get the inverse Wishart draw
     arma::mat W_pd = ensure_positive_definite(W);
     arma::mat W_inv;
     bool inv_ok = arma::inv_sympd(W_inv, W_pd);
     if (!inv_ok) {
-        // fallback: regularize and retry
+        // regularize and retry
         W_pd = ensure_positive_definite(W_pd, 1e-4);
         inv_ok = arma::inv_sympd(W_inv, W_pd);
         if (!inv_ok) {
-            // last resort: use general inverse
+            // last resort
             W_inv = arma::inv(W_pd);
         }
     }
     arma::mat result = L_S * W_inv * L_S.t();
     
-    // make sure result is symmetric and positive definite
+    // symmetrize and ensure PD
     result = 0.5 * (result + result.t());
     return ensure_positive_definite(result);
 }
@@ -132,13 +132,13 @@ Rcpp::List update_innovation_cov_adaptive(const arma::mat& Sigma_e_current,
     int nu_post = nu + (T - 1) * p;
     arma::mat S_post = S + SS;
     
-    // make sure s_post is positive definite
+    // ensure PD
     S_post = ensure_positive_definite(S_post);
     
     // sample proposal from posterior
     arma::mat Sigma_e_prop = rinvwishart_stable(nu_post, S_post);
     
-    // early rejection based on validity
+    // reject if poorly conditioned
     if (!is_valid_innovation_cov(Sigma_e_prop)) {
         return Rcpp::List::create(
             Rcpp::Named("Sigma_e") = Sigma_e_current,

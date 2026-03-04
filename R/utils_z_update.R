@@ -27,16 +27,16 @@ update_Z_optimized <- function(R, Z, Theta, M, IR = NULL, family = "ordinal") {
 
 	dims <- dim(R)
 
-	# binary: truncated normal
+	# binary via truncated normal
 	if (family == "binary") {
 		if (!requireNamespace("truncnorm", quietly = TRUE)) {
 			cli::cli_abort(c(
-				"Package {.pkg truncnorm} is required for binary outcomes.",
-				"i" = "Install with {.code install.packages(\"truncnorm\")}"
+				"package {.pkg truncnorm} is required for binary outcomes.",
+				"i" = "install with {.code install.packages(\"truncnorm\")}"
 			))
 		}
 
-		# broadcast M across time
+		# expand M across time
 		if (length(dim(M)) == 3 && length(dims) == 4) {
 			EZ <- Theta
 			for (j in 1:dims[3]) {
@@ -68,11 +68,11 @@ update_Z_optimized <- function(R, Z, Theta, M, IR = NULL, family = "ordinal") {
 	}
 	####
 
-	# ordinal: exact or approximate
+	# ordinal: pick exact or approximate sampling
 	use_approx <- should_use_gaussian_approximation(R) ||
 		(prod(dims) > 5000)
 
-	# broadcast M across time
+	# expand M across time
 	if (length(dim(M)) == 3 && length(dims) == 4) {
 		EZ <- Theta
 		for (j in 1:dims[3]) {

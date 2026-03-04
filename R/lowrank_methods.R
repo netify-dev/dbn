@@ -22,14 +22,14 @@ plot_lowrank <- function(x,
 	if (x$model != "lowrank") cli::cli_abort("Input is not a low-rank fit.")
 	if (!requireNamespace("ggplot2", quietly = TRUE)) {
 		cli::cli_abort(c(
-			"Package {.pkg ggplot2} is required for this function.",
-			"i" = "Install with {.code install.packages(\"ggplot2\")}"
+			"package {.pkg ggplot2} is required for this function.",
+			"i" = "install with {.code install.packages(\"ggplot2\")}"
 		))
 	}
-	# avoid R CMD CHECK notes
+	# avoid R CMD check notes
 	alpha <- NULL
 
-	# parameter traces
+	# parameter trace plots
 	df_trace <- data.frame(
 		iter = seq_along(x$sigma2),
 		sigma2 = x$sigma2,
@@ -49,7 +49,7 @@ plot_lowrank <- function(x,
 		ggplot2::theme_minimal()
 	####
 
-	# factor trajectories
+	# factor paths
 	r <- x$settings$r
 	S <- length(x$alpha)
 	Tt_ <- ncol(x$alpha[[1]])
@@ -79,7 +79,7 @@ plot_lowrank <- function(x,
 		ggplot2::theme_minimal()
 	####
 
-	# node loadings
+	# node loading heatmap
 	U_bar <- Reduce(`+`, x$U) / S
 
 	grid <- expand.grid(actor = seq_len(nrow(U_bar)), factor = seq_len(ncol(U_bar)))

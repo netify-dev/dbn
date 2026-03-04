@@ -11,7 +11,7 @@
 
 #include "thread_control.h"
 
-// helper function to regularize matrix for numerical stability
+// regularize a matrix for numerical stability
 arma::mat regularize_matrix(const arma::mat& M, 
                             double eps_scale = 5e-8, 
                             double min_eps = 1e-12, 
@@ -20,24 +20,24 @@ arma::mat regularize_matrix(const arma::mat& M,
   arma::mat M_reg = M + eps * arma::eye(M.n_rows, M.n_cols);
   
   if (force_pd) {
-    // make sure matrix is symmetric before eigendecomposition
+    // symmetrize before eigendecomposition
     M_reg = 0.5 * (M_reg + M_reg.t());
     
-    // check eigenvalues
+    // eigendecomposition to check for non-PD
     arma::vec eigval;
     arma::mat eigvec;
     arma::eig_sym(eigval, eigvec, M_reg);
     
     if (eigval.min() <= 0) {
-      // force positive definiteness by thresholding eigenvalues
+      // clamp eigenvalues to enforce positive definiteness
       double max_eig = eigval.max();
       if (max_eig <= min_eps) {
-        // all eigenvalues are very small, just use identity scaled by min_eps
+        // all eigenvalues tiny, fall back to scaled identity
         M_reg = arma::eye(M_reg.n_rows, M_reg.n_cols) * min_eps;
       } else {
         eigval = arma::clamp(eigval, min_eps, max_eig);
         M_reg = eigvec * arma::diagmat(eigval) * eigvec.t();
-        // force exact symmetry after reconstruction
+        // symmetrize after reconstruction
         M_reg = 0.5 * (M_reg + M_reg.t());
       }
     }
@@ -73,36 +73,36 @@ arma::mat ffbs_dlm_cpp(const Rcpp::List& y,
   int Tt = y.size();
   int r = m0.n_elem;
   
-  // allocate storage for forward pass
+  // forward pass storage
   std::vector<arma::vec> a(Tt), m(Tt);
   std::vector<arma::mat> R(Tt), C(Tt);
   
-  // initialize
+  // initial conditions
   a[0] = m0;
   R[0] = C0;
   
-  // transition matrix g
+  // transition matrix: identity or rho*I for AR(1)
   arma::mat G = ar1 ? arma::mat(arma::eye(r, r) * rho) : arma::mat(arma::eye(r, r));
   
-  // forward filtering pass
+  // forward filtering
   for (int t = 0; t < Tt; t++) {
-    // extract observation and design matrix
+    // observation and design matrix at time t
     arma::vec y_t = Rcpp::as<arma::vec>(y[t]);
     arma::mat F_t = Rcpp::as<arma::mat>(Flist[t]);
     
-    // prediction step (except for t=0)
+    // prediction step (skip at t=0)
     if (t > 0) {
       a[t] = G * m[t-1];
       R[t] = G * C[t-1] * G.t() + W;
     }
     
-    // update step
+    // kalman update step
     arma::mat Qt = F_t * R[t] * F_t.t() + V;
     
-    // regularize qt for numerical stability
+    // regularize for numerical stability
     Qt = regularize_matrix(Qt);
     
-    // kalman gain
+    // kalman gain via safe inverse
     arma::mat Qt_inv;
     bool qt_ok = arma::inv_sympd(Qt_inv, Qt);
     if (!qt_ok) {
@@ -113,19 +113,19 @@ arma::mat ffbs_dlm_cpp(const Rcpp::List& y,
     }
     arma::mat Kt = R[t] * F_t.t() * Qt_inv;
     
-    // update mean and covariance
+    // filtered mean and covariance
     arma::vec et = y_t - F_t * a[t];
     m[t] = a[t] + Kt * et;
     C[t] = R[t] - Kt * F_t * R[t];
     
-    // make sure c[t] is symmetric
+    // enforce symmetry on C[t]
     C[t] = 0.5 * (C[t] + C[t].t());
   }
   
-  // backward sampling pass
+  // backward sampling
   arma::mat theta(r, Tt);
   
-  // sample from terminal distribution
+  // sample terminal state
   arma::mat Ctt_reg = regularize_matrix(C[Tt-1], 5e-8, 1e-12, true);
   try {
     theta.col(Tt-1) = arma::mvnrnd(m[Tt-1], Ctt_reg);
@@ -135,10 +135,10 @@ arma::mat ffbs_dlm_cpp(const Rcpp::List& y,
 
   // backward recursion
   for (int t = Tt-2; t >= 0; t--) {
-    // make sure r[t+1] is positive definite
+    // regularize R[t+1] to ensure PD
     arma::mat Rt1_reg = regularize_matrix(R[t+1], 5e-8, 1e-12, true);
 
-    // backward kalman gain
+    // backward smoother gain
     arma::mat Rt1_inv;
     bool inv_ok = arma::inv_sympd(Rt1_inv, Rt1_reg);
     if (!inv_ok) {
@@ -149,11 +149,11 @@ arma::mat ffbs_dlm_cpp(const Rcpp::List& y,
     }
     arma::mat J = C[t] * G.t() * Rt1_inv;
 
-    // mean and covariance of conditional distribution
+    // smoothed mean and covariance
     arma::vec mt = m[t] + J * (theta.col(t+1) - a[t+1]);
     arma::mat Ct = C[t] - J * (R[t+1] - C[t+1]) * J.t();
 
-    // make sure it's positive definite
+    // regularize to ensure PD
     Ct = regularize_matrix(Ct, 5e-8, 1e-12, true);
 
     // sample
@@ -190,32 +190,28 @@ arma::cube ffbs_dlm_batch_cpp(const arma::mat& Y_batch,
                               const arma::mat& C0,
                               bool ar1 = false,
                               double rho = 0.0) {
-  set_dbn_threads(); // Set threads from R options
+  set_dbn_threads();
   
   int batch_size = Y_batch.n_rows;
   int Tt = Y_batch.n_cols;
   int r = m0.n_elem;
   
-  // f_batch is 4d: batch_size x t x state_dim x obs_dim
-  // but in practice f_batch will be batch_size x t x obs_dim x state_dim
-  // where obs_dim is m (number of nodes) and state_dim is r (state dimension)
+  // F_batch layout: batch_size x T x obs_dim x state_dim
   int obs_dim = F_batch.n_rows / (batch_size * Tt);
   int state_dim = r;
   
-  // output storage
+  // output: batch_size x r x Tt
   arma::cube theta_batch(batch_size, r, Tt);
   
-  // sequential: ffbs_dlm_cpp uses arma::mvnrnd which is not thread-safe
-  // Also, Rcpp::List creation is not thread-safe
+  // sequential: arma::mvnrnd and Rcpp::List aren't thread-safe
   for (int b = 0; b < batch_size; b++) {
-    // extract this batch's data
+    // build observation and design-matrix lists for this element
     Rcpp::List y_list(Tt);
     Rcpp::List F_list(Tt);
     
     for (int t = 0; t < Tt; t++) {
       y_list[t] = Rcpp::wrap(arma::vec(1, arma::fill::value(Y_batch(b, t))));
-      // extract the slice and convert to matrix
-      // f_batch is flattened, so we need to extract the right portion
+      // extract design matrix from flattened F_batch
       arma::mat F_slice(obs_dim, state_dim);
       for (int i = 0; i < obs_dim; i++) {
         for (int j = 0; j < state_dim; j++) {
@@ -225,13 +221,13 @@ arma::cube ffbs_dlm_batch_cpp(const arma::mat& Y_batch,
       F_list[t] = Rcpp::wrap(F_slice);
     }
     
-    // observation variance for this batch element
+    // scalar observation variance for this element
     arma::mat V_b = arma::eye(1, 1) * V_batch(b);
     
-    // run ffbs for this batch element
+    // run FFBS
     arma::mat theta_b = ffbs_dlm_cpp(y_list, F_list, V_b, W, m0, C0, ar1, rho);
     
-    // store result
+    // pack into output cube
     for (int t = 0; t < Tt; t++) {
       theta_batch.subcube(b, 0, t, b, r-1, t) = theta_b.col(t).t();
     }

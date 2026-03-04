@@ -1,5 +1,5 @@
 ####
-# hmm model
+# HMM model
 ####
 
 test_that("simulate_hmm_dbn produces valid output structure", {
@@ -10,7 +10,7 @@ test_that("simulate_hmm_dbn produces valid output structure", {
 	expect_equal(dim(sim$Y)[2], 8)
 	expect_equal(dim(sim$Y)[3], 1)
 	expect_equal(dim(sim$Y)[4], 15)
-	# Y should be ordinal (positive integers)
+	# ordinal: positive integers
 	y_vals <- sim$Y[!is.na(sim$Y)]
 	expect_true(all(y_vals == round(y_vals)))
 	expect_true(all(y_vals > 0))
@@ -27,7 +27,7 @@ test_that("dbn_hmm fits ordinal data and returns expected object", {
 						 nscan = 100, burn = 50, verbose = FALSE, R = 2)
 	expect_s3_class(fit, "dbn")
 	expect_equal(fit$model, "hmm")
-	# check required components
+	# required components
 	expect_true(!is.null(fit$A))
 	expect_true(!is.null(fit$B))
 	expect_true(!is.null(fit$sigma2))
@@ -67,7 +67,7 @@ test_that("summary and print work for HMM model", {
 	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 48)
 	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
 						 nscan = 80, burn = 40, verbose = FALSE, R = 2)
-	# these should not error
+	# should not error
 	expect_output(print(fit))
 	expect_output(summary(fit))
 })
@@ -76,12 +76,12 @@ test_that("HMM regime probabilities are valid", {
 	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 10, R = 2, seed = 49)
 	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
 						 nscan = 100, burn = 50, verbose = FALSE, R = 2)
-	# Pi should be a list of transition matrices
+	# Pi: list of transition matrices
 	expect_true(is.list(fit$Pi))
 	Pi_1 <- fit$Pi[[1]]
-	# rows should sum to 1
+	# rows sum to 1
 	expect_true(all(abs(rowSums(Pi_1) - 1) < 1e-6))
-	# all probabilities should be non-negative
+	# non-negative
 	expect_true(all(Pi_1 >= 0))
 })
 

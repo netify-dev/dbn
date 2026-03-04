@@ -10,7 +10,7 @@ test_that("simulate_lowrank_dbn produces valid output structure", {
 	expect_equal(dim(sim$Y)[2], 8)
 	expect_equal(dim(sim$Y)[3], 1)
 	expect_equal(dim(sim$Y)[4], 10)
-	# Y should be ordinal (positive integers)
+	# ordinal: positive integers
 	y_vals <- sim$Y[!is.na(sim$Y)]
 	expect_true(all(y_vals == round(y_vals)))
 	expect_true(all(y_vals > 0))
@@ -27,7 +27,7 @@ test_that("dbn_lowrank fits ordinal data and returns expected object", {
 						 nscan = 100, burn = 50, verbose = FALSE, r = 2)
 	expect_s3_class(fit, "dbn")
 	expect_equal(fit$model, "lowrank")
-	# check required components
+	# required components
 	expect_true(!is.null(fit$U))
 	expect_true(!is.null(fit$alpha))
 	expect_true(!is.null(fit$B))
@@ -38,11 +38,11 @@ test_that("lowrank U loadings have correct dimensions", {
 	sim <- simulate_lowrank_dbn(n = 8, p = 1, time = 8, r = 2, seed = 45)
 	fit <- dbn(sim$Y, model = "lowrank", family = "ordinal",
 						 nscan = 100, burn = 50, verbose = FALSE, r = 2)
-	# U should be n_row x r
+	# U: n_row x r
 	U_1 <- fit$U[[1]]
 	expect_equal(nrow(U_1), 8)
 	expect_equal(ncol(U_1), 2)
-	# U should be semi-orthogonal: U'U approx I
+	# semi-orthogonal: U'U ~ I
 	UtU <- t(U_1) %*% U_1
 	expect_true(max(abs(UtU - diag(2))) < 0.5)
 })

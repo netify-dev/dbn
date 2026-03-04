@@ -13,7 +13,7 @@ init_lowrank <- function(Y, r) {
 	m <- dim(Y)[1]
 	Tt <- dim(Y)[4]
 
-	# svd of time-averaged adjacency for starting directions
+	# SVD of time-averaged adjacency gives starting directions
 	Ybar <- apply(Y, c(1, 2), mean, na.rm = TRUE)
 	Ybar[is.na(Ybar)] <- 0
 	sv <- svd(Ybar, nu = r, nv = r)
@@ -99,7 +99,7 @@ dbn_lowrank_accurate <- function(Y,
 		))
 	}
 
-	# family setup and validation
+	# family setup
 	family <- match.arg(family)
 	if (isTRUE(verbose)) verbose <- 100L
 	if (isFALSE(verbose)) verbose <- 0L
@@ -116,7 +116,7 @@ dbn_lowrank_accurate <- function(Y,
 	}
 	####
 
-	# shared preprocessing
+	# preprocessing
 	pre <- shared_preprocess(Y, family = family)
 	dims <- pre$dims
 	n_row <- dims$n_row
@@ -127,7 +127,7 @@ dbn_lowrank_accurate <- function(Y,
 	Tt <- dims$Tt
 	nc <- n_row * n_col
 
-	# bipartite networks are not yet supported for low-rank model
+	# bipartite networks not yet supported for low-rank
 	if (is_bipartite) {
 		cli::cli_abort(c(
 			"Low-rank model does not yet support bipartite (rectangular) networks.",
@@ -136,7 +136,7 @@ dbn_lowrank_accurate <- function(Y,
 		))
 	}
 
-	# validate rank
+	# check rank bounds
 	if (r < 1) cli::cli_abort("{.arg r} must be at least 1.")
 	if (r > min(n_row, n_col)) cli::cli_abort("{.arg r} ({r}) cannot exceed min(n_row, n_col) = {min(n_row, n_col)}.")
 	####
@@ -151,7 +151,7 @@ dbn_lowrank_accurate <- function(Y,
 		U <- previous$U[[last_idx]]
 		alpha <- previous$alpha[[last_idx]]
 
-		# expand alpha to full time grid if needed
+		# expand alpha to full time grid if thinned
 		if (ncol(alpha) < Tt) {
 			alpha_full <- matrix(0, r, Tt)
 			prev_times <- seq(1, Tt, by = previous$settings$time_thin)
@@ -212,7 +212,7 @@ dbn_lowrank_accurate <- function(Y,
 	}
 	####
 
-	# mcmc setup and storage
+	# MCMC storage
 	n_iter <- burn + nscan
 	keep_idx <- ((burn + 1):n_iter)[((burn + 1):n_iter) %% odens == 0]
 	S <- length(keep_idx)
@@ -246,7 +246,7 @@ dbn_lowrank_accurate <- function(Y,
 
 	Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
-	# pre-flatten arrays to avoid repeated conversions
+	# flatten arrays for batch operations
 	total_slices <- p * Tt
 	Z_flat <- array(0, dim = c(n_row, n_col, total_slices))
 	Theta_flat <- array(0, dim = c(n_row, n_col, total_slices))
@@ -277,7 +277,7 @@ dbn_lowrank_accurate <- function(Y,
 			Z_flat[] <- tmp
 		}
 
-		# vectorized mu update on flattened arrays
+		# M update (vectorized on flat arrays)
 		for (j in 1:p) {
 			offset <- (j-1) * Tt
 			resid_sum <- Z_flat[, , offset + seq_len(Tt), drop = FALSE] -
@@ -289,11 +289,11 @@ dbn_lowrank_accurate <- function(Y,
 		M_ss <- sum(M_flat^2)
 		g2 <- safe_rinv_gamma(10 + length(M_flat)/2, 10 + M_ss/2)
 
-		# batch theta update
+		# Theta update via FFBS
 		Theta_flat <- ffbs_theta_all_relations(Z_flat, M_flat, Aarray, Barray,
 											  sigma2_proc, sigma2_obs, m, p, Tt)
 
-		# batch alpha update using block operations
+		# alpha update (blocked)
 		alpha <- update_alpha_batch(Theta_flat, U, Barray,
 								   sigma2_proc,
 								   tau_alpha2,
@@ -301,7 +301,7 @@ dbn_lowrank_accurate <- function(Y,
 
 		Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
-		# parallel B update
+		# B update (parallelized)
 		Barray <- update_B_parallel(Theta_flat, Aarray,
 										 sigma2_proc,
 										 tau_B2,
@@ -316,7 +316,7 @@ dbn_lowrank_accurate <- function(Y,
 		innov_ss <- sum(innov^2)
 		tau_alpha2 <- safe_rinv_gamma(a_tau + 0.5 * r * (Tt - 1), b_tau + 0.5 * innov_ss)
 
-		# update rho_alpha (optional MH step)
+		# rho_alpha MH step (optional)
 		if (ar1_alpha && update_rho_alpha) {
 			rho_prop <- rho_alpha + rnorm(1, 0, 0.05)
 			if (abs(rho_prop) < 1) {
@@ -328,7 +328,7 @@ dbn_lowrank_accurate <- function(Y,
 			}
 		}
 
-		# update U via Metropolis on Stiefel manifold
+		# U via Metropolis on the Stiefel manifold
 		u_update_freq <- max(5, floor(m / 10))
 		if (g %% u_update_freq == 0) {
 			W_vec <- rnorm(m * (m - 1) / 2)
@@ -346,7 +346,7 @@ dbn_lowrank_accurate <- function(Y,
 			half_W <- epsilon * W / 2
 			U_prop <- U + 2 * half_W %*% solve(I_m - half_W %*% half_W) %*% U
 
-			# average theta across relations for likelihood
+			# average Theta across relations for the likelihood
 			if (p == 1L) {
 				Theta_avg <- Theta_flat[, , 1:Tt, drop = FALSE]
 			} else {
@@ -375,7 +375,7 @@ dbn_lowrank_accurate <- function(Y,
 		innovB_ss <- sum(innovB^2)
 		tau_B2 <- safe_rinv_gamma(a_tau + n_col * n_col * (Tt - 1) / 2, b_tau + innovB_ss / 2)
 
-		# update rho_B (optional MH step)
+		# rho_B MH step (optional)
 		if (ar1_B && update_rho_B) {
 			rho_prop <- rho_B + rnorm(1, 0, 0.05)
 			if (abs(rho_prop) < 1) {
@@ -389,17 +389,17 @@ dbn_lowrank_accurate <- function(Y,
 			}
 		}
 
-		# update sigma2_proc via batch C++ residual computation
+		# sigma2_proc via batch C++ residuals
 		resid_ss <- compute_sigma2_lowrank_batch(Theta_flat, Aarray, Barray, m, p, Tt)
 		sigma2_proc <- safe_rinv_gamma(a_tau + nc * p * (Tt - 1) / 2, b_tau + resid_ss / 2)
 
-		# update observation variance for gaussian
+		# observation variance for gaussian
 		if (FAM$name == "gaussian") {
 			resid_obs <- compute_gaussian_obs_residuals_flat(Z_flat, Theta_flat, M_flat, m, p, Tt)
 			sigma2_obs <- safe_rinv_gamma(a_tau + nc * p * Tt / 2, b_tau + resid_obs / 2)
 		}
 
-		# save draws
+		# store draws
 		if (g %in% keep_idx) {
 			s <- s + 1
 			Usave[[s]] <- U
@@ -425,7 +425,7 @@ dbn_lowrank_accurate <- function(Y,
 			Thetasave[[s]] <- Theta_4d
 		}
 
-		# adapt epsilon for U proposal
+		# adapt step size for U proposal
 		if (g %% (u_update_freq * 20) == 0) {
 			accept_rate <- accept_U / 20
 			if (accept_rate < 0.2) {
@@ -447,10 +447,10 @@ dbn_lowrank_accurate <- function(Y,
 	}
 	####
 
-	# output construction
+	# assemble output
 	if (verbose) cli::cli_progress_done()
 
-	# copy flattened arrays back to original structure
+	# unflatten arrays back to 4D
 	for (j in 1:p) {
 		pre$M[, , j] <- M_flat[, , j]
 		slice_idx <- ((j-1)*Tt + 1):(j*Tt)
@@ -460,7 +460,7 @@ dbn_lowrank_accurate <- function(Y,
 		}
 	}
 
-	# construct A arrays from U and alpha draws
+	# reconstruct A arrays from U and alpha draws
 	Asave <- vector("list", S)
 	for (s in 1:S) {
 		A_s <- array(0, dim = c(n_row, n_row, length(time_keep)))
@@ -587,7 +587,7 @@ dbn_lowrank <- function(Y,
 		))
 	}
 
-	# family setup and validation
+	# family setup
 	family <- match.arg(family)
 	if (isTRUE(verbose)) verbose <- 100L
 	if (isFALSE(verbose)) verbose <- 0L
@@ -604,7 +604,7 @@ dbn_lowrank <- function(Y,
 	}
 	####
 
-	# shared preprocessing
+	# preprocessing
 	pre <- shared_preprocess(Y, family = family)
 	dims <- pre$dims
 	n_row <- dims$n_row
@@ -615,7 +615,7 @@ dbn_lowrank <- function(Y,
 	Tt <- dims$Tt
 	nc <- n_row * n_col
 
-	# bipartite networks are not yet supported for low-rank model
+	# bipartite networks not yet supported for low-rank
 	if (is_bipartite) {
 		cli::cli_abort(c(
 			"Low-rank model does not yet support bipartite (rectangular) networks.",
@@ -624,7 +624,7 @@ dbn_lowrank <- function(Y,
 		))
 	}
 
-	# validate rank
+	# check rank bounds
 	if (r < 1) cli::cli_abort("{.arg r} must be at least 1.")
 	if (r > min(n_row, n_col)) cli::cli_abort("{.arg r} ({r}) cannot exceed min(n_row, n_col) = {min(n_row, n_col)}.")
 	####
@@ -639,7 +639,7 @@ dbn_lowrank <- function(Y,
 		U <- previous$U[[last_idx]]
 		alpha <- previous$alpha[[last_idx]]
 
-		# expand alpha to full time grid if needed
+		# expand alpha to full time grid if thinned
 		if (ncol(alpha) < Tt) {
 			alpha_full <- matrix(0, r, Tt)
 			prev_times <- seq(1, Tt, by = previous$settings$time_thin)
@@ -700,7 +700,7 @@ dbn_lowrank <- function(Y,
 	}
 	####
 
-	# mcmc setup and storage
+	# MCMC storage
 	n_iter <- burn + nscan
 	keep_idx <- ((burn + 1):n_iter)[((burn + 1):n_iter) %% odens == 0]
 	S <- length(keep_idx)
@@ -734,7 +734,7 @@ dbn_lowrank <- function(Y,
 
 	Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
-	# pre-flatten arrays to avoid repeated conversions
+	# flatten arrays for batch operations
 	total_slices <- p * Tt
 	Z_flat <- array(0, dim = c(n_row, n_col, total_slices))
 	Theta_flat <- array(0, dim = c(n_row, n_col, total_slices))
@@ -765,7 +765,7 @@ dbn_lowrank <- function(Y,
 			Z_flat[] <- tmp
 		}
 
-		# vectorized mu update on flattened arrays
+		# M update (vectorized on flat arrays)
 		for (j in 1:p) {
 			offset <- (j-1) * Tt
 			resid_sum <- Z_flat[, , offset + seq_len(Tt), drop = FALSE] -
@@ -777,11 +777,11 @@ dbn_lowrank <- function(Y,
 		M_ss <- sum(M_flat^2)
 		g2 <- safe_rinv_gamma(10 + length(M_flat)/2, 10 + M_ss/2)
 
-		# theta update using blocked C++ function
+		# Theta update via blocked FFBS
 		Theta_flat <- ffbs_theta_blocked(Z_flat, M_flat, Aarray, Barray,
 										sigma2_proc, sigma2_obs, m, p, Tt)
 
-		# alpha update
+		# alpha update (optimized)
 		alpha <- update_alpha_optimized(Theta_flat, U, Barray,
 									   sigma2_proc,
 									   tau_alpha2,
@@ -789,7 +789,7 @@ dbn_lowrank <- function(Y,
 
 		Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
-		# b update
+		# B update (parallelized)
 		Barray <- update_B_parallel(Theta_flat, Aarray,
 									sigma2_proc,
 									tau_B2,
@@ -804,7 +804,7 @@ dbn_lowrank <- function(Y,
 		innov_ss <- sum(innov^2)
 		tau_alpha2 <- safe_rinv_gamma(a_tau + 0.5 * r * (Tt - 1), b_tau + 0.5 * innov_ss)
 
-		# update rho_alpha (optional MH step)
+		# rho_alpha MH step (optional)
 		if (ar1_alpha && update_rho_alpha) {
 			rho_prop <- rho_alpha + rnorm(1, 0, 0.05)
 			if (abs(rho_prop) < 1) {
@@ -816,21 +816,21 @@ dbn_lowrank <- function(Y,
 			}
 		}
 
-		# update U via Stiefel manifold Metropolis step
+		# U via Stiefel manifold Metropolis step
 		u_update_freq <- max(5, floor(m / 10))
 		if (g %% u_update_freq == 0) {
 			W <- generate_skew_proposal(m, sqrt(m) * epsilon)
 
-			# cayley transform for stiefel manifold
+			# Cayley transform proposal
 			U_prop <- cayley_transform(U, W, epsilon)
 
-			# stiefel drift guard: re-orthogonalize if needed
+			# re-orthogonalize if numerical drift exceeds tolerance
 			orth_err <- norm(crossprod(U_prop) - diag(ncol(U_prop)), "F")
 			if (orth_err > 1e-10) {
 				U_prop <- qr.Q(qr(U_prop))
 			}
 
-			# average theta across relations for likelihood
+			# average Theta across relations for the likelihood
 			Theta_avg <- array(0, dim = c(n_row, n_col, Tt))
 			if (p == 1) {
 				Theta_avg <- Theta_flat[, , 1:Tt]
@@ -862,7 +862,7 @@ dbn_lowrank <- function(Y,
 		innovB_ss <- sum(innovB^2)
 		tau_B2 <- safe_rinv_gamma(a_tau + n_col * n_col * (Tt - 1) / 2, b_tau + innovB_ss / 2)
 
-		# update rho_B (optional MH step)
+		# rho_B MH step (optional)
 		if (ar1_B && update_rho_B) {
 			rho_prop <- rho_B + rnorm(1, 0, 0.05)
 			if (abs(rho_prop) < 1) {
@@ -876,17 +876,17 @@ dbn_lowrank <- function(Y,
 			}
 		}
 
-		# update sigma2_proc via SIMD residual computation
+		# sigma2_proc via SIMD residuals
 		resid_ss <- compute_sigma2_simd(Theta_flat, U, alpha, Barray, m, p, Tt, r)
 		sigma2_proc <- safe_rinv_gamma(a_tau + nc * p * (Tt - 1) / 2, b_tau + resid_ss / 2)
 
-		# update observation variance for gaussian
+		# observation variance for gaussian
 		if (FAM$name == "gaussian") {
 			resid_obs <- compute_gaussian_obs_residuals_flat(Z_flat, Theta_flat, M_flat, m, p, Tt)
 			sigma2_obs <- safe_rinv_gamma(a_tau + nc * p * Tt / 2, b_tau + resid_obs / 2)
 		}
 
-		# save draws
+		# store draws
 		if (g %in% keep_idx) {
 			s <- s + 1
 			Usave[[s]] <- U
@@ -912,7 +912,7 @@ dbn_lowrank <- function(Y,
 			Thetasave[[s]] <- Theta_4d
 		}
 
-		# adapt epsilon for U proposal
+		# adapt step size for U proposal
 		if (g %% (u_update_freq * 20) == 0) {
 			accept_rate <- accept_U / 20
 			if (accept_rate < 0.2) {
@@ -934,10 +934,10 @@ dbn_lowrank <- function(Y,
 	}
 	####
 
-	# output construction
+	# assemble output
 	if (verbose) cli::cli_progress_done()
 
-	# copy flattened arrays back to original structure
+	# unflatten arrays back to 4D
 	for (j in 1:p) {
 		pre$M[, , j] <- M_flat[, , j]
 		for (t in 1:Tt) {
@@ -947,7 +947,7 @@ dbn_lowrank <- function(Y,
 		}
 	}
 
-	# construct A arrays from U and alpha draws
+	# reconstruct A arrays from U and alpha draws
 	Asave <- vector("list", S)
 	for (s in 1:S) {
 		A_s <- array(0, dim = c(n_row, n_row, length(time_keep)))

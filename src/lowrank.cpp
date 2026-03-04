@@ -9,7 +9,7 @@
 using namespace Rcpp;
 using namespace arma;
 
-// declarations for functions defined in other files
+// forward declarations
 arma::mat ffbs_dlm_cpp(const List& y, const List& Flist, const arma::mat& V, 
                        const arma::mat& W, const arma::vec& m0, const arma::mat& C0, 
                        bool ar1, double rho);
@@ -18,7 +18,7 @@ arma::cube ffbs_bilinear(const arma::cube& Z, const arma::mat& mu,
                              const arma::cube& A_array, const arma::cube& B_array,
                              double sigma2_proc, double sigma2_obs);
 
-// A_t = U * diag(alpha_t) * U'
+// compute A_t = U * diag(alpha_t) * U'
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -33,7 +33,7 @@ arma::mat compute_A_lowrank(const arma::mat& U, const arma::vec& alpha_t) {
         // vector: A = U * diag(alpha) * U'
         arma::mat A(m, m);
         
-        // computation using outer products
+        // sum of weighted outer products
         A.zeros();
         for(int k = 0; k < r; k++) {
             A += alpha_t(k) * U.col(k) * U.col(k).t();
@@ -43,7 +43,7 @@ arma::mat compute_A_lowrank(const arma::mat& U, const arma::vec& alpha_t) {
     }
 }
 
-// Batch computation of all A matrices
+// batch computation of all A matrices
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -53,7 +53,7 @@ arma::cube compute_all_A_lowrank(const arma::mat& U, const arma::mat& alpha,
     int r = U.n_cols;
     arma::cube Aarray(m, m, Tt);
     
-    // pre-compute outer products once — reused across all Tt time points
+    // precompute outer products (reused across all time points)
     arma::cube U_outer(m, m, r);
     #ifdef _OPENMP
     #pragma omp parallel for
@@ -79,7 +79,7 @@ arma::cube compute_all_A_lowrank(const arma::mat& U, const arma::mat& alpha,
     return Aarray;
 }
 
-// Build design matrix F for alpha update (single time/relation)
+// build design matrix F for alpha update (single time/relation)
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -106,7 +106,7 @@ arma::mat build_F_alpha_vectorized(const arma::mat& U,
     return F_block;
 }
 
-// Build observation vector y for alpha update
+// build observation vector y for alpha update
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -137,7 +137,7 @@ arma::vec build_y_alpha_vectorized(const arma::cube& Theta_flat,
     return y_all;
 }
 
-// Log-likelihood for U update
+// log-likelihood for U update
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -172,7 +172,7 @@ double loglik_U(const arma::mat& U, const arma::mat& alpha,
     return -0.5 * total_ss / sigma2;
 }
 
-// Cayley transform for Stiefel manifold update 
+// Cayley transform for Stiefel manifold update
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -180,24 +180,24 @@ arma::mat cayley_transform(const arma::mat& U, const arma::mat& W, double epsilo
     int m = U.n_rows;
     int r = U.n_cols;
     
-    // for small epsilon, use Woodbury formula again
+    // for small epsilon, use Woodbury formula
     if (std::abs(epsilon) < 0.1 && m > 50) {
         double eps_half = 0.5 * epsilon;
         double eps2_quarter = 0.25 * epsilon * epsilon;
         
-        // Compute W^2
+        // compute W^2
         arma::mat W2 = W * W;
         
         // 
         arma::mat inner = arma::eye(m, m) - eps2_quarter * W2;
         
-        // solve using Cholesky if possible
+        // solve using Cholesky
         arma::mat inner_inv;
         arma::mat L;
         bool chol_success = arma::chol(L, force_sym(inner), "lower");
         
         if (chol_success) {
-            // cholesky decomp
+            // forward/backward substitution
             arma::mat temp = arma::solve(arma::trimatl(L), arma::eye(m, m));
             inner_inv = arma::solve(arma::trimatu(L.t()), temp);
         } else {
@@ -212,25 +212,24 @@ arma::mat cayley_transform(const arma::mat& U, const arma::mat& W, double epsilo
             }
         }
         
-        // Correct Cayley: (I-aW)^{-1}(I+aW) = (I+aW)*inner_inv*(I+aW)
-        // where inner = (I-aW)(I+aW) = I - a^2*W^2
+        // Cayley: (I - aW)^{-1}(I + aW) via inner = I - a^2 W^2
         arma::mat right_factor = arma::eye(m, m) + eps_half * W;
         arma::mat cayley_mat = right_factor * inner_inv * right_factor;
 
-        // apply to U using matrix multiplication
+        // apply to U
         return cayley_mat * U;
     } else {
-        // standard implementation for larger epsilon or smaller matrices
+        // standard form for larger epsilon or smaller matrices
         arma::mat I_m = eye(m, m);
         arma::mat A = I_m - 0.5 * epsilon * W;
         arma::mat B = I_m + 0.5 * epsilon * W;
         
-        // Solve AX = B for X, then multiply by U
+        // solve AX = B, then multiply by U
         arma::mat X;
         bool success = solve(X, A, B);
         
         if(!success) {
-            // Fall back to simple update
+            // fallback to first-order update
             return U + epsilon * W * U;
         }
         
@@ -238,7 +237,7 @@ arma::mat cayley_transform(const arma::mat& U, const arma::mat& W, double epsilo
     }
 }
 
-// Generate skew-symmetric proposal for U update
+// generate skew-symmetric proposal for U update
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -255,7 +254,7 @@ arma::mat generate_skew_proposal(int m, double norm_cap) {
     return W;
 }
 
-// Batch B update using parallel FFBS
+// batch B update via FFBS
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -268,10 +267,10 @@ arma::cube update_B_lowrank_batch(const arma::cube& Theta_flat,
                                  int m, int p, int Tt) {
     arma::cube Barray(m, m, Tt);
     
-    // build all a mats
+    // build all A matrices
     arma::cube Aarray = compute_all_A_lowrank(U, alpha, Tt);
     
-    // Update each column of B sequentially (safe_mvnrnd_lr is not thread-safe)
+    // update each column of B sequentially
     for(int k = 0; k < m; k++) {
         // build y and F for this column
         arma::vec y_all;
@@ -339,7 +338,7 @@ arma::cube update_B_lowrank_batch(const arma::cube& Theta_flat,
     return Barray;
 }
 
-// Compute all residuals for sigma2 update
+// compute all residuals for sigma2 update
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -351,7 +350,7 @@ double compute_lowrank_residuals(const arma::cube& Theta_flat,
                                 int m, int p, int Tt) {
     double rss = 0.0;
     
-    // precompute all A mats
+    // precompute all A matrices
     arma::cube Aarray = compute_all_A_lowrank(U, alpha, Tt);
     
     #ifdef _OPENMP
@@ -366,10 +365,10 @@ double compute_lowrank_residuals(const arma::cube& Theta_flat,
             arma::mat Theta_prev = Theta_flat.slice(idx_prev);
             arma::mat M_rel = M.slice(rel);
             
-            // Prediction
+            // prediction
             arma::mat pred = M_rel + Aarray.slice(t) * (Theta_prev - M_rel) * Barray.slice(t).t();
             
-            // Residual
+            // residual
             arma::mat resid = Theta_t - pred;
             rss += accu(resid % resid);
         }
@@ -378,7 +377,7 @@ double compute_lowrank_residuals(const arma::cube& Theta_flat,
     return rss;
 }
 
-// batch residual computation using pre-computed arrays
+// batch residual computation using precomputed arrays
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -397,7 +396,7 @@ double compute_sigma2_lowrank_batch(const arma::cube& Theta,
         arma::mat B_t_trans = B_t.t();
         
         for(int rel = 0; rel < p; rel++) {
-            // residual computation without temporary matrices
+            // residual
             arma::mat pred = A_t * Theta.slice(rel * Tt + t - 1) * B_t_trans;
             arma::mat diff = Theta.slice(rel * Tt + t) - pred;
             total_ss += arma::dot(diff, diff);
@@ -407,7 +406,7 @@ double compute_sigma2_lowrank_batch(const arma::cube& Theta,
     return total_ss;
 }
 
-// sigma2 computation
+// sigma2 computation with precomputed U*alpha
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -418,7 +417,7 @@ double compute_sigma2_simd(const arma::cube& Theta,
                           int m, int p, int Tt, int r) {
     double total_ss = 0.0;
     
-    // pre-compute U*alpha for all time points
+    // precompute U*alpha for all time points
     arma::mat Ualpha(m, r * Tt);
     for(int t = 0; t < Tt; t++) {
         for(int k = 0; k < r; k++) {
@@ -433,7 +432,7 @@ double compute_sigma2_simd(const arma::cube& Theta,
         arma::mat B_t = Barray.slice(t);
         arma::mat B_t_trans = B_t.t();
         
-        // compute A_t using pre-computed values
+        // compute A_t from precomputed values
         arma::mat A_t(m, m, arma::fill::zeros);
         for(int k = 0; k < r; k++) {
             A_t += Ualpha.col(t * r + k) * U.col(k).t();
@@ -455,7 +454,7 @@ double compute_sigma2_simd(const arma::cube& Theta,
     return total_ss;
 }
 
-// batch ffbs for all theta relations simultaneously
+// batch FFBS for all theta relations
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -469,7 +468,7 @@ arma::cube ffbs_theta_all_relations(const arma::cube& Z_all,
     
     arma::cube Theta_all(m, m, p * Tt);
     
-    // process each relation using fast bilinear ffbs
+    // process each relation via bilinear FFBS
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
@@ -495,7 +494,7 @@ arma::cube ffbs_theta_all_relations(const arma::cube& Z_all,
     return Theta_all;
 }
 
-// theta update using blocked operations and cache-friendly access
+// theta update using blocked operations
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -509,7 +508,7 @@ arma::cube ffbs_theta_blocked(const arma::cube& Z_all,
     
     arma::cube Theta_all(m, m, p * Tt);
     
-    // process multiple relations in blocks for better cache usage
+    // process relations in blocks for cache locality
     const int block_size = std::min(4, p);  // process 4 relations at a time
     
     #ifdef _OPENMP
@@ -542,7 +541,7 @@ arma::cube ffbs_theta_blocked(const arma::cube& Z_all,
     return Theta_all;
 }
 
-// alpha update with reduced memory allocations
+// alpha update via Kalman filter/smoother
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -555,7 +554,7 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
                                 double rho_alpha,
                                 int m, int p, int Tt, int r) {
     
-    // preallocate all working memory
+    // preallocate working memory
     arma::mat alpha(r, Tt);
     arma::mat m_filt(r, Tt);
     arma::cube P_filt(r, r, Tt);
@@ -573,7 +572,7 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
     m_filt.col(0).zeros();
     P_filt.slice(0) = tau_alpha2 * arma::eye(r, r);
     
-    // preallocate working arrays for the entire filter
+    // working arrays for the filter
     int obs_per_time = p * m * m;
     arma::vec y_t(obs_per_time);
     arma::mat H_t(obs_per_time, r);
@@ -605,7 +604,7 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
             }
         }
         
-        // kalman update with numerical stability
+        // Kalman update
         arma::vec m_pred;
         arma::mat P_pred;
         if (ar1_alpha) {
@@ -616,7 +615,7 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
             P_pred = P_filt.slice(t-1) + tau_alpha2 * arma::eye(r, r);
         }
         
-        // use Cholesky decomposition for numerical stability
+        // Cholesky-based Kalman gain for numerical stability
         arma::mat HtPH = H_t * P_pred * H_t.t();
         HtPH.diag() += sigma2_proc;  // add observation noise
         HtPH = 0.5 * (HtPH + HtPH.t());
@@ -626,11 +625,11 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
         bool chol_ok = arma::chol(S_chol, HtPH, "lower");
 
         if (chol_ok) {
-            // solve for Kalman gain using forward/backward substitution
+            // Kalman gain via forward/backward substitution
             K = arma::solve(arma::trimatl(S_chol), PHt.t()).t();
             K = arma::solve(arma::trimatu(S_chol.t()), K.t()).t();
         } else {
-            // Fallback: regularize and use inv_sympd
+            // fallback: regularize and invert
             double reg = 1e-6 * arma::norm(HtPH, "fro") + 1e-8;
             HtPH.diag() += reg;
             arma::mat S_inv;
@@ -648,7 +647,7 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
         P_filt.slice(t) = 0.5 * (P_filt.slice(t) + P_filt.slice(t).t());
     }
     
-    // backward sampling with numerical stability
+    // backward sampling
     arma::mat P_final = P_filt.slice(Tt-1);
     P_final = 0.5 * (P_final + P_final.t());
     P_final += 1e-6 * arma::eye(r, r);
@@ -669,7 +668,7 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
             P_pred = P_filt.slice(t) + tau_alpha2 * arma::eye(r, r);
         }
         
-        // use Cholesky for stable inversion
+        // Cholesky-based inversion
         arma::mat P_pred_reg = P_pred + 1e-6 * arma::eye(r, r);
         P_pred_reg = 0.5 * (P_pred_reg + P_pred_reg.t());
         arma::mat P_pred_chol;
@@ -710,7 +709,7 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
     return alpha;
 }
 
-// B update using blocked operations
+// B update via blocked Kalman filter/smoother
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -724,7 +723,7 @@ arma::cube update_B_blocked(const arma::cube& Theta,
     
     arma::cube Barray(m, m, Tt);
     
-    // process columns in blocks for better cache usage
+    // process columns in blocks for cache locality
     const int block_size = std::min(8, m);
     
     #ifdef _OPENMP
@@ -733,7 +732,7 @@ arma::cube update_B_blocked(const arma::cube& Theta,
     for(int block_start = 0; block_start < m; block_start += block_size) {
         int block_end = std::min(block_start + block_size, m);
         
-        // preallocate working memory for this block
+        // working memory for this block
         int block_cols = block_end - block_start;
         arma::mat m_filt(block_cols, Tt);
         arma::cube P_filt(block_cols, block_cols, Tt);
@@ -765,7 +764,7 @@ arma::cube update_B_blocked(const arma::cube& Theta,
                     ATheta.cols(block_start, block_end - 1);
             }
             
-            // kalman update for block
+            // Kalman update for block
             arma::vec y_vec = vectorise(Y_block);
             arma::mat F_mat = F_block;
             
@@ -865,7 +864,7 @@ arma::cube update_B_blocked(const arma::cube& Theta,
         }
     }
     
-    // fill off-diag elems
+    // zero out off-diagonal elements
     for(int t = 0; t < Tt; t++) {
         for(int i = 0; i < m; i++) {
             for(int j = 0; j < m; j++) {
@@ -877,7 +876,7 @@ arma::cube update_B_blocked(const arma::cube& Theta,
     return Barray;
 }
 
-// ordinal z update - handles global indices correctly
+// ordinal z update with global indexing
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -976,7 +975,7 @@ void update_Z_ordinal_global(arma::cube& Z_all,
                     double u = R::runif(p_a, p_b);
                     z_all_vec(curr_idx(j)) = R::qnorm(u, mu, 1.0, true, false);
                 } else {
-                    z_all_vec(curr_idx(j)) = mu;  // fallback
+                    z_all_vec(curr_idx(j)) = mu;  // truncation infeasible, keep mean
                 }
             }
         }

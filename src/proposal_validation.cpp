@@ -84,7 +84,7 @@ Rcpp::List propose_transition_adaptive(const arma::mat& A_current,
         arma::mat A_prop = A_current + eps_A;
         arma::mat B_prop = B_current + eps_B;
         
-        // stabilize if needed ... or try to 
+        // stabilize
         A_prop = stabilize_spectral_radius(A_prop);
         B_prop = stabilize_spectral_radius(B_prop);
         
@@ -103,7 +103,7 @@ Rcpp::List propose_transition_adaptive(const arma::mat& A_current,
         step_size_B *= 0.8;
     }
     
-    // failed to find valid proposal ... return current values
+    // no valid proposal found, return current
     return Rcpp::List::create(
         Rcpp::Named("A") = A_current,
         Rcpp::Named("B") = B_current,
@@ -151,7 +151,7 @@ Rcpp::List check_edge_cases(const arma::cube& Y) {
     
     // check for zero variance
     arma::vec Y_vec = arma::vectorise(Y);
-    // Remove NaN/Inf
+    // remove NaN/Inf
     Y_vec = Y_vec(arma::find_finite(Y_vec)); 
     double variance = 0.0;
     if (Y_vec.n_elem > 1) {

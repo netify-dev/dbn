@@ -31,7 +31,7 @@ update_AB_optimized <- function(Theta_all, Aarray, Barray,
 	p <- dims[3]
 	Tt <- dims[4]
 
-	# convert 4D array to list of 3D cubes
+	# reshape 4D array into list of 3D cubes
 	Theta_cubes <- list(
 		Theta_all[, , 1, , drop = FALSE],
 		if (p >= 2) Theta_all[, , 2, , drop = FALSE] else array(0, c(n_row, n_col, Tt)),

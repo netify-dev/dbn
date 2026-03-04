@@ -8,11 +8,11 @@
 
 inline void set_dbn_threads() {
 #ifdef _OPENMP
-    // get the thread count from R options
+    // read dbn.n_threads from R options
     Rcpp::Environment base = Rcpp::Environment::base_env();
     Rcpp::Function getOption = base["getOption"];
     
-    // try to get dbn.n_threads option
+    // query the option
     SEXP result = getOption("dbn.n_threads");
     
     if (!Rf_isNull(result)) {

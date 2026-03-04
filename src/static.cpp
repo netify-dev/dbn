@@ -76,7 +76,7 @@ double compute_deviation_sum(const arma::cube& ABarray, int m, int Tt) {
     double sum_sq = 0.0;
     arma::mat I = arma::eye(m, m);
 
-    // start from t=2 (index 1) as per R code
+    // start from t=2 (index 1), matching the R code
     for (int t = 1; t < Tt; t++) {
         arma::mat diff = ABarray.slice(t) - I;
         sum_sq += arma::accu(diff % diff);
@@ -137,7 +137,7 @@ double compute_rss_static(const NumericVector& Z_4d, const arma::cube& M,
     double rss = 0.0;
     int nc = n_row * n_col;
 
-    // wrap the raw R vector as a column-major matrix for zero-copy views
+    // wrap raw R vector for zero-copy column-major views
     const double* z_ptr = REAL(Z_4d);
 
     for (int j = 0; j < p; j++) {
@@ -145,7 +145,7 @@ double compute_rss_static(const NumericVector& Z_4d, const arma::cube& M,
 
         for (int t = 0; t < Tt; t++) {
             int offset = j * nc + t * nc * p;
-            // zero-copy view of the (n_row x n_col) slice
+            // zero-copy view of this n_row x n_col slice
             arma::mat Z_jt(const_cast<double*>(z_ptr + offset), n_row, n_col, false, true);
             arma::mat diff = Z_jt - M_j;
             rss += arma::accu(diff % diff);
@@ -282,12 +282,11 @@ arma::mat update_B_static_tiled(const arma::cube& Z_cube, const arma::cube& M,
                                 double s2, double t2, int n_row, int n_col, int p, int Tt) {
     set_dbn_threads();
 
-    // B[[1]] is sender effects: n_row x n_row
+    // sender effects: n_row x n_row
     arma::mat XtX(n_row, n_row, arma::fill::zeros);
     arma::mat XtY(n_row, n_row, arma::fill::zeros);
 
-    // compute XtX = Tt * sum_j M_j * M_j' (n_row x n_row)
-    // and XtY = sum_{j,t} Z_jt * M_j' (n_row x n_row)
+    // XtX = Tt * sum_j M_j * M_j', XtY = sum_{j,t} Z_jt * M_j'
     #ifdef _OPENMP
     #pragma omp parallel
     {
@@ -297,14 +296,14 @@ arma::mat update_B_static_tiled(const arma::cube& Z_cube, const arma::cube& M,
         #pragma omp for schedule(static)
         for (int j = 0; j < p; j++) {
             arma::mat M_j = M.slice(j);
-            // XtX contribution: M_j * M_j' (n_row x n_col) * (n_col x n_row) = n_row x n_row
+            // M_j * M_j': (n_row x n_col) * (n_col x n_row) = n_row x n_row
             local_XtX += Tt * (M_j * M_j.t());
 
             arma::mat sum_Z(n_row, n_col, arma::fill::zeros);
             for (int t = 0; t < Tt; t++) {
                 sum_Z += Z_cube.slice(j * Tt + t);
             }
-            // XtY: (n_row x n_col) * (n_col x n_row) = n_row x n_row
+            // (n_row x n_col) * (n_col x n_row) = n_row x n_row
             local_XtY += sum_Z * M_j.t();
         }
 
@@ -327,7 +326,7 @@ arma::mat update_B_static_tiled(const arma::cube& Z_cube, const arma::cube& M,
     }
     #endif
 
-    // posterior calculations
+    // posterior precision and mean
     double lambda = 1.0 / t2;
     double gamma = 1.0 / s2;
 
@@ -344,7 +343,7 @@ arma::mat update_B_static_tiled(const arma::cube& Z_cube, const arma::cube& M,
         bool svd_ok = arma::svd_econ(U, s, V, XtX);
 
         if (!svd_ok || s.n_elem == 0) {
-            // degenerate case: return identity + noise
+            // degenerate: return identity + noise
             return arma::eye(n_row, n_row) + 0.01 * arma::randn(n_row, n_row);
         }
 

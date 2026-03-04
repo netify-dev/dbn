@@ -1,6 +1,5 @@
 ####
-# test-symmetric.R
-# Tests for symmetric network support (B = A constraint)
+# symmetric network (B = A constraint)
 ####
 
 ####
@@ -65,7 +64,7 @@ test_that("dbn dynamic + symmetric + ordinal enforces A == B in output", {
 		nscan = 100, burn = 50, verbose = FALSE, symmetric = TRUE)
 	expect_s3_class(fit, "dbn")
 	expect_true(fit$dims$is_symmetric)
-	# check A == B for stored draws
+	# A == B in stored draws
 	for (s in seq_along(fit$A)) {
 		expect_equal(fit$A[[s]], fit$B[[s]], tolerance = 1e-10)
 	}
@@ -103,7 +102,7 @@ test_that("dbn hmm + symmetric enforces A == B per regime", {
 		nscan = 100, burn = 50, verbose = FALSE, R = 2, symmetric = TRUE)
 	expect_s3_class(fit, "dbn")
 	expect_true(fit$dims$is_symmetric)
-	# check A == B for each regime in each stored draw
+	# A == B per regime per draw
 	for (s in seq_along(fit$A)) {
 		R_dim <- dim(fit$A[[s]])[3]
 		for (r in 1:R_dim) {
@@ -113,7 +112,7 @@ test_that("dbn hmm + symmetric enforces A == B per regime", {
 })
 
 ####
-# error handling tests
+# error handling
 ####
 
 test_that("symmetric + bipartite errors in dbn()", {

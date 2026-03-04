@@ -52,12 +52,12 @@ theta_slice <- function(fit, draws = NULL, i = NULL, j = NULL, rel = NULL, time 
 		th[i, j, rel, time, drop = FALSE]
 	})
 
-	# single value: return as vector
+	# single value: return as a vector
 	if (length(i) == 1 && length(j) == 1 && length(rel) == 1 && length(time) == 1) {
 		return(unlist(out))
 	}
 
-	# single dyad/rel with multiple times: return as matrix
+	# single dyad/rel with multiple times: return as a matrix
 	if (length(i) == 1 && length(j) == 1 && length(rel) == 1 && length(time) > 1) {
 		return(do.call(rbind, lapply(out, as.vector)))
 	}
@@ -95,7 +95,7 @@ theta_summary <- function(fit, fun = mean,
 		draws <- seq_len(n_draws)
 	}
 
-	# non-linear functions require all draws at once
+	# non-linear functions need all draws at once
 	if (!identical(fun, mean) && chunk < length(draws)) {
 		chunk <- length(draws)
 	}
@@ -110,7 +110,7 @@ theta_summary <- function(fit, fun = mean,
 			return(NULL)
 		}
 
-		# single value case
+		# single value
 		if (is.vector(slices) && !is.list(slices)) {
 			res <- fun(slices)
 			if (length(res) == 1) {
@@ -148,7 +148,7 @@ theta_summary <- function(fit, fun = mean,
 		}
 		####
 
-		# general array case
+		# general array
 		if (requireNamespace("abind", quietly = TRUE)) {
 			arr <- do.call(abind::abind, c(slices, list(along = 5)))
 		} else {
@@ -199,7 +199,7 @@ theta_summary <- function(fit, fun = mean,
 		####
 	}
 
-	# aggregate chunked results
+	# combine chunked results
 	if (!is.null(out) && nrow(out) > 0) {
 		key_cols <- intersect(c("i", "j", "rel", "time"), names(out))
 
@@ -322,7 +322,7 @@ latent_summary <- function(fit, fun = mean, draws = NULL, rel = NULL, chunk = 20
 		draws <- seq_len(n_draws)
 	}
 
-	# non-linear functions require all draws at once
+	# non-linear functions need all draws at once
 	if (!identical(fun, mean) && chunk < length(draws)) {
 		chunk <- length(draws)
 	}
@@ -411,7 +411,7 @@ latent_summary <- function(fit, fun = mean, draws = NULL, rel = NULL, chunk = 20
 		out <- rbind(out, df)
 	}
 
-	# aggregate chunked results
+	# combine chunked results
 	if (!is.null(out) && nrow(out) > 0) {
 		key_cols <- intersect(c("i", "j", "rel"), names(out))
 
@@ -559,7 +559,7 @@ derive_draws <- function(fit, fun, draws = NULL, chunk = 20, name = "derived") {
 		}
 	}
 
-	# simplify if all elements are numeric vectors of same length
+	# simplify if all elements are numeric vectors of the same length
 	if (length(out) > 0 && is.numeric(out[[1]])) {
 		lens <- sapply(out, length)
 		if (all(lens == lens[1])) {

@@ -4,9 +4,9 @@
 #include <Rcpp.h>
 #include <omp.h>
 
-// function to set the number of threads from r options
+// read dbn.n_threads from R options and apply it
 inline void set_dbn_threads() {
-    // get thread count from r options
+    // look up the option
     Rcpp::Environment base("package:base");
     Rcpp::Function getOption = base["getOption"];
     
@@ -22,7 +22,7 @@ inline void set_dbn_threads() {
             }
         }
     } catch(...) {
-        // fallback to 1 thread if any error
+        // fallback to 1 thread
         n_threads = 1;
     }
     

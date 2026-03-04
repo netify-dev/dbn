@@ -194,7 +194,7 @@ compute_irf_single <- function(fit, draw_idx, shock, H, t0 = 1, stat_fun = stat_
 	n_col <- as.integer(dims$n_col)
 	p <- as.integer(dims$p)
 
-	# dynamic model
+	# handle dynamic model with time-varying A, B
 	if (fit$model == "dynamic") {
 		if (is.null(fit$A) || is.null(fit$B)) {
 			cli::cli_abort(c(
@@ -219,7 +219,7 @@ compute_irf_single <- function(fit, draw_idx, shock, H, t0 = 1, stat_fun = stat_
 		Delta <- impulse_response_dynamic(A_array, B_array, shock, t0_stored - 1, H)
 	####
 
-	# static model
+	# handle static model with constant A = I
 	} else if (fit$model == "static") {
 		if (is.null(fit$B)) cli::cli_abort(c(
 			"Static model requires {.code B} matrix.",
@@ -242,7 +242,7 @@ compute_irf_single <- function(fit, draw_idx, shock, H, t0 = 1, stat_fun = stat_
 		))
 	}
 
-	# compute network statistic at each horizon
+	# evaluate the network statistic at each horizon
 	irf_vals <- numeric(H + 1)
 	for (h in 0:H) {
 		baseline <- extract_baseline(fit, draw_idx, n_row, n_col, p)
@@ -334,7 +334,7 @@ compute_irf <- function(fit, shock, H = 20, t0 = 1,
 	n_row <- dims$n_row
 	n_col <- dims$n_col
 
-	# guard against ggplot2::stat_density masking dbn::stat_density
+	# detect if ggplot2::stat_density is masking dbn::stat_density
 	test_mat <- matrix(0, n_row, n_col)
 	tryCatch(stat_fun(test_mat), error = function(e) {
 		if (grepl("mapping.*aes|ggplot|stat_density", conditionMessage(e),
@@ -351,7 +351,7 @@ compute_irf <- function(fit, shock, H = 20, t0 = 1,
 		))
 	})
 
-	# build shock matrix if needed
+	# construct shock matrix from string shorthand if needed
 	if (is.character(shock)) {
 		shock_args <- c(list(m = n_row, n_col = n_col, type = shock), shock_pars)
 		shock <- do.call(build_shock, shock_args)
@@ -363,7 +363,7 @@ compute_irf <- function(fit, shock, H = 20, t0 = 1,
 	}
 	####
 
-	# determine number of draws
+	# determine how many posterior draws to use
 	if (is.null(n_draws)) {
 		if (fit$model == "dynamic") {
 			if (!is.null(fit$A) && is.list(fit$A)) {
@@ -400,7 +400,7 @@ compute_irf <- function(fit, shock, H = 20, t0 = 1,
 	n_draws <- min(n_draws, available_draws)
 	####
 
-	# check time bounds for dynamic
+	# validate time bounds for dynamic model
 	if (fit$model == "dynamic") {
 		T_total <- dims$Tt
 		if (is.null(T_total)) cli::cli_abort(c(
@@ -416,7 +416,7 @@ compute_irf <- function(fit, shock, H = 20, t0 = 1,
 	}
 	####
 
-	# compute IRF for each posterior draw
+	# loop over posterior draws and compute per-draw IRF
 	irf_array <- matrix(NA, n_draws, H + 1)
 	cli::cli_progress_bar("Computing IRFs", total = n_draws)
 
@@ -435,7 +435,7 @@ compute_irf <- function(fit, shock, H = 20, t0 = 1,
 	cli::cli_progress_done()
 	####
 
-	# posterior summaries
+	# summarize across draws (mean, median, quantiles)
 	valid_draws <- complete.cases(irf_array)
 	if (sum(valid_draws) < n_draws) {
 		warning(n_draws - sum(valid_draws), " draws failed and were removed")

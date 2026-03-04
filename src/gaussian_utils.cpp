@@ -12,7 +12,7 @@ using namespace arma;
 double compute_gaussian_obs_residuals_cpp(const arma::cube& Z, 
                                          const arma::cube& Theta, 
                                          const arma::cube& M) {
-    // set number of threads from r options
+    // set thread count from R options
     set_dbn_threads();
     
     const int m = Z.n_rows;
@@ -38,7 +38,7 @@ double compute_gaussian_obs_residuals_4d_cpp(const arma::cube& Z_flat,
                                              const arma::cube& Theta_flat,
                                              const arma::cube& M_flat,
                                              int m, int p, int Tt) {
-    // set number of threads from r options
+    // set thread count from R options
     set_dbn_threads();
     
     double resid_obs = 0.0;
@@ -60,33 +60,33 @@ double compute_gaussian_obs_residuals_4d_cpp(const arma::cube& Z_flat,
     return resid_obs;
 }
 
-// vectorized version for better performance with large arrays
+// batch version for large arrays
 // [[Rcpp::export]]
 double compute_gaussian_obs_residuals_batch_cpp(const arma::cube& Z,
                                                const arma::cube& Theta,
                                                const arma::mat& M,
                                                int m, int p, int Tt) {
-    // set number of threads from r options
+    // set thread count from R options
     set_dbn_threads();
     
     const int n_total = p * Tt;
     double resid_obs = 0.0;
     
-    // parallel over time-relation combinations
+    // parallelize over time-relation pairs
     #pragma omp parallel reduction(+:resid_obs)
     {
         #pragma omp for
         for (int idx = 0; idx < n_total; idx++) {
-            int j = idx / Tt;  // relation index
-            int t = idx % Tt;  // time index
+            int j = idx / Tt;
+            int t = idx % Tt;
             int slice_idx = j * Tt + t;
             
-            // compute residual for this slice
+            // observation residual for this slice
             mat diff = Z.slice(slice_idx) - Theta.slice(slice_idx);
             
-            // subtract appropriate M slice
+            // subtract mean for this relation
             if (M.n_cols == p) {
-                // M is vectorized (m*m x p)
+                // M stored as vectorized columns (m*m x p)
                 mat M_j(m, m);
                 for (int i = 0; i < m; i++) {
                     for (int k = 0; k < m; k++) {

@@ -25,7 +25,7 @@ arma::mat stabilize_spectral_radius(const arma::mat& M, double threshold) {
     }
     
     if (max_abs_eigenvalue > threshold) {
-        // scale down the matrix to make it stable
+        // rescale to enforce spectral radius bound
         return M * (threshold / max_abs_eigenvalue);
     }
     
@@ -43,7 +43,7 @@ arma::mat stabilize_spectral_radius(const arma::mat& M, double threshold) {
 // [[Rcpp::export]]
 bool safe_cholesky(arma::mat& L, const arma::mat& A, double reg) {
     for (int attempt = 0; attempt < MAX_CHOLESKY_ATTEMPTS; attempt++) {
-        // start fresh each attempt to avoid accumulating regularization bias
+        // fresh copy each attempt to avoid accumulating regularization
         arma::mat A_reg = 0.5 * (A + A.t());  // enforce symmetry
 
         if (attempt > 0) {
@@ -58,12 +58,12 @@ bool safe_cholesky(arma::mat& L, const arma::mat& A, double reg) {
         }
     }
     
-    // last attempt: force the matrix to be positive definite
+    // last resort: force positive definiteness
     arma::mat A_final = ensure_positive_definite(A, reg);
     A_final = 0.5 * (A_final + A_final.t());  // enforce symmetry
     bool ok = arma::chol(L, A_final, "lower");
     if (!ok) {
-        // absolute last resort: use identity
+        // absolute last resort: identity
         L = arma::eye(arma::size(A));
     }
     return ok;
@@ -78,7 +78,7 @@ bool safe_cholesky(arma::mat& L, const arma::mat& A, double reg) {
 //' @noRd
 // [[Rcpp::export]]
 arma::mat ensure_positive_definite(const arma::mat& M, double min_eigenvalue) {
-    // make sure matrix is symmetric by averaging with its transpose
+    // enforce symmetry
     arma::mat M_sym = 0.5 * (M + M.t());
     
     arma::vec eigenvalues;
@@ -86,14 +86,14 @@ arma::mat ensure_positive_definite(const arma::mat& M, double min_eigenvalue) {
     
     arma::eig_sym(eigenvalues, eigenvectors, M_sym);
     
-    // make sure all eigenvalues are at least the minimum threshold
+    // clamp eigenvalues to minimum threshold
     for (size_t i = 0; i < eigenvalues.n_elem; i++) {
         if (eigenvalues(i) < min_eigenvalue) {
             eigenvalues(i) = min_eigenvalue;
         }
     }
     
-    // rebuild the matrix from the corrected eigenvalues
+    // reconstruct from corrected eigenvalues
     return eigenvectors * arma::diagmat(eigenvalues) * eigenvectors.t();
 }
 
@@ -108,14 +108,13 @@ arma::mat ensure_positive_definite(const arma::mat& M, double min_eigenvalue) {
 //' @noRd
 // [[Rcpp::export]]
 bool is_stationary(const arma::mat& A, const arma::mat& B, int p, int q) {
-    // parameters p, q are kept for backward compatibility but not used
+    // p, q unused but kept in signature for API consistency
     (void)p; (void)q;
     
-    // for bilinear models, avoid forming the expensive kronecker product
-    // use the fact that bilinear dynamics are stationary when ρ(A)*ρ(B) < 1
-    // this avoids the o(n^4) memory allocation of the full kronecker product
+    // bilinear stationarity check: rho(A)*rho(B) < 1
+    // avoids forming the full Kronecker product
     
-    // compute spectral radius of matrix a
+    // spectral radius of A
     arma::cx_vec eigenvalues_A;
     arma::eig_gen(eigenvalues_A, A);
     double rho_A = 0.0;
@@ -124,7 +123,7 @@ bool is_stationary(const arma::mat& A, const arma::mat& B, int p, int q) {
         if (abs_val > rho_A) rho_A = abs_val;
     }
     
-    // compute spectral radius of matrix b  
+    // spectral radius of B
     arma::cx_vec eigenvalues_B;
     arma::eig_gen(eigenvalues_B, B);
     double rho_B = 0.0;
@@ -133,13 +132,13 @@ bool is_stationary(const arma::mat& A, const arma::mat& B, int p, int q) {
         if (abs_val > rho_B) rho_B = abs_val;
     }
     
-    // for bilinear models: stationary if ρ(a)*ρ(b) < 1
+    // stationary if rho(A)*rho(B) < 1
     return (rho_A * rho_B) < SPECTRAL_RADIUS_THRESHOLD;
 }
 
-// get or compute kronecker product with caching to avoid recomputation
+// cached Kronecker product computation
 arma::mat KroneckerCache::get_or_compute(const arma::mat& A, const arma::mat& B) {
-    // create cache key using memory addresses and dimensions to prevent collisions
+    // cache key from memory addresses and dimensions
     std::uintptr_t idA = reinterpret_cast<std::uintptr_t>(A.memptr());
     std::uintptr_t idB = reinterpret_cast<std::uintptr_t>(B.memptr());
     CacheKey key = std::make_tuple(idA, idB, A.n_rows, A.n_cols, B.n_rows, B.n_cols);
@@ -149,7 +148,7 @@ arma::mat KroneckerCache::get_or_compute(const arma::mat& A, const arma::mat& B)
         return it->second;
     }
     
-    // compute the result and store it in cache
+    // compute and cache
     arma::mat result = arma::kron(A, B);
     cache[key] = result;
     return result;

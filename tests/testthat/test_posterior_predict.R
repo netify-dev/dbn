@@ -1,5 +1,5 @@
 ####
-# posterior prediction for all model types
+# PPD for all model types
 ####
 
 test_that("posterior_predict_dbn works for static model", {
@@ -8,21 +8,21 @@ test_that("posterior_predict_dbn works for static model", {
 	p <- 2
 	Tt <- 15
 	
-	# Simulate data
+	# simulate data
 	Y <- array(sample(1:5, n*n*p*Tt, replace = TRUE), dim = c(n, n, p, Tt))
 	
-	# Fit static model
+	# fit static
 	fit <- dbn_static(Y, family = "ordinal", nscan = 100, burn = 50, verbose = FALSE)
 	
-	# Generate posterior predictions
+	# PPD
 	ppd <- posterior_predict_dbn(fit, ndraws = 20, seed = 123)
 	
-	# Check structure
+	# structure
 	expect_type(ppd, "list")
 	expect_equal(length(ppd), 20)
 	expect_equal(dim(ppd[[1]]), dim(Y))
 	
-	# Check values are in valid range for ordinal
+	# ordinal range
 	vals <- unique(unlist(ppd))
 	vals <- vals[!is.na(vals)]
 	expect_true(all(vals %in% 1:5))
@@ -34,21 +34,21 @@ test_that("posterior_predict_dbn works for dynamic model", {
 	p <- 1
 	Tt <- 10
 	
-	# Simulate data
+	# simulate data
 	Y <- array(sample(1:5, n*n*p*Tt, replace = TRUE), dim = c(n, n, p, Tt))
 	
-	# Fit dynamic model
+	# fit dynamic
 	fit <- dbn_dynamic(Y, family = "ordinal", nscan = 100, burn = 50, verbose = FALSE)
 	
-	# Generate posterior predictions
+	# PPD
 	ppd <- posterior_predict_dbn(fit, ndraws = 15, seed = 456)
 	
-	# Check structure
+	# structure
 	expect_type(ppd, "list")
 	expect_equal(length(ppd), 15)
 	expect_equal(dim(ppd[[1]]), dim(Y))
 	
-	# Check values are in valid range
+	# valid range
 	vals <- unique(unlist(ppd))
 	vals <- vals[!is.na(vals)]
 	expect_true(all(vals %in% 1:5))
@@ -60,23 +60,23 @@ test_that("posterior_predict_dbn works for dynamic model with time thinning", {
 	p <- 2
 	Tt <- 20
 	
-	# Simulate data
+	# simulate data
 	Y <- array(sample(1:5, n*n*p*Tt, replace = TRUE), dim = c(n, n, p, Tt))
 	
-	# Fit dynamic model with time thinning
+	# fit dynamic with time thinning
 	fit <- dbn_dynamic(Y, family = "ordinal", nscan = 100, burn = 50, 
 										 time_thin = 2, verbose = FALSE)
 	
-	# Check that A and B have reduced time dimension
-	expect_equal(dim(fit$A[[1]])[3], 10)  # Tt/2
+	# A and B have reduced time dim
+	expect_equal(dim(fit$A[[1]])[3], 10)  # Tt / 2
 	
-	# Generate posterior predictions - should still work
+	# PPD works with thinned draws
 	ppd <- posterior_predict_dbn(fit, ndraws = 10, seed = 789)
 	
-	# Check structure
+	# structure
 	expect_type(ppd, "list")
 	expect_equal(length(ppd), 10)
-	expect_equal(dim(ppd[[1]]), dim(Y))  # Should match original Y dimensions
+	expect_equal(dim(ppd[[1]]), dim(Y))  # matches original Y
 })
 
 test_that("posterior_predict_dbn works for gaussian family", {
@@ -85,10 +85,10 @@ test_that("posterior_predict_dbn works for gaussian family", {
 	p <- 1
 	Tt <- 10
 	
-	# Simulate gaussian data
+	# gaussian data
 	Y <- array(rnorm(n*n*p*Tt), dim = c(n, n, p, Tt))
 	
-	# Test static model
+	# static
 	fit_static <- dbn_static(Y, family = "gaussian", nscan = 80, burn = 40, verbose = FALSE)
 	ppd_static <- posterior_predict_dbn(fit_static, ndraws = 10, seed = 111)
 	
@@ -96,7 +96,7 @@ test_that("posterior_predict_dbn works for gaussian family", {
 	expect_equal(length(ppd_static), 10)
 	expect_equal(dim(ppd_static[[1]]), dim(Y))
 	
-	# Test dynamic model
+	# dynamic
 	fit_dynamic <- dbn_dynamic(Y, family = "gaussian", nscan = 80, burn = 40, verbose = FALSE)
 	ppd_dynamic <- posterior_predict_dbn(fit_dynamic, ndraws = 10, seed = 222)
 	
@@ -111,10 +111,10 @@ test_that("posterior_predict_dbn works for binary family", {
 	p <- 1
 	Tt <- 8
 	
-	# Simulate binary data
+	# binary data
 	Y <- array(sample(0:1, n*n*p*Tt, replace = TRUE), dim = c(n, n, p, Tt))
 	
-	# Test static model
+	# static
 	fit_static <- dbn_static(Y, family = "binary", nscan = 60, burn = 30, verbose = FALSE)
 	ppd_static <- posterior_predict_dbn(fit_static, ndraws = 8, seed = 333)
 	
@@ -122,7 +122,7 @@ test_that("posterior_predict_dbn works for binary family", {
 	expect_equal(length(ppd_static), 8)
 	expect_equal(dim(ppd_static[[1]]), dim(Y))
 	
-	# Check binary values
+	# binary values
 	vals <- unique(unlist(ppd_static))
 	vals <- vals[!is.na(vals)]
 	expect_true(all(vals %in% 0:1))
@@ -136,16 +136,16 @@ test_that("posterior_predict_dbn works for lowrank model", {
 	p <- 1
 	Tt <- 12
 	
-	# Simulate data
+	# simulate data
 	Y <- array(sample(1:5, n*n*p*Tt, replace = TRUE), dim = c(n, n, p, Tt))
 	
-	# Fit lowrank model
+	# fit lowrank
 	fit <- dbn_lowrank(Y, family = "ordinal", r = 2, nscan = 80, burn = 40, verbose = FALSE)
 	
-	# Generate posterior predictions
+	# PPD
 	ppd <- posterior_predict_dbn(fit, ndraws = 10, seed = 444)
 	
-	# Check structure
+	# structure
 	expect_type(ppd, "list")
 	expect_equal(length(ppd), 10)
 	expect_equal(dim(ppd[[1]]), dim(Y))
@@ -157,16 +157,16 @@ test_that("posterior_predict_dbn works for hmm model", {
 	p <- 1
 	Tt <- 15
 	
-	# Simulate data
+	# simulate data
 	Y <- array(sample(1:5, n*n*p*Tt, replace = TRUE), dim = c(n, n, p, Tt))
 	
-	# Fit HMM model with 2 regimes
+	# fit HMM, R=2
 	fit <- dbn_hmm(Y, family = "ordinal", R = 2, nscan = 100, burn = 50, verbose = FALSE)
 	
-	# Generate posterior predictions
+	# PPD
 	ppd <- posterior_predict_dbn(fit, ndraws = 12, seed = 555)
 	
-	# Check structure
+	# structure
 	expect_type(ppd, "list")
 	expect_equal(length(ppd), 12)
 	expect_equal(dim(ppd[[1]]), dim(Y))
@@ -178,19 +178,19 @@ test_that("posterior_predict_dbn handles edge cases", {
 	p <- 1
 	Tt <- 5
 	
-	# Small data
+	# small data
 	Y <- array(sample(1:3, n*n*p*Tt, replace = TRUE), dim = c(n, n, p, Tt))
 	
-	# Fit with minimal iterations
+	# minimal iterations
 	fit <- dbn_static(Y, family = "ordinal", nscan = 20, burn = 10, verbose = FALSE)
 	
-	# Request more draws than available
+	# more draws than available
 	ppd <- posterior_predict_dbn(fit, ndraws = 50, seed = 666)
 	
-	# Should sample with replacement when requesting more than available
+	# samples with replacement
 	expect_equal(length(ppd), 50)
 	
-	# Request specific draws
+	# specific draws
 	ppd_specific <- posterior_predict_dbn(fit, draws = c(1, 5, 10), seed = 777)
 	expect_equal(length(ppd_specific), 3)
 })
@@ -200,20 +200,20 @@ test_that("posterior_predict_dbn works with 3D input data", {
 	n <- 5
 	Tt <- 10
 	
-	# Create 3D array (single relation)
+	# 3D array (single relation)
 	Y_3d <- array(sample(1:5, n*n*Tt, replace = TRUE), dim = c(n, n, Tt))
 	
-	# Fit static model with 3D input
+	# fit static with 3D input
 	suppressMessages({
 		fit <- dbn(Y_3d, family = "ordinal", model = "static", 
 							 nscan = 50, burn = 25, verbose = FALSE)
 	})
 	
-	# Generate predictions
+	# predictions
 	ppd <- posterior_predict_dbn(fit, ndraws = 10, seed = 888)
 	
-	# Check that predictions match the expanded 4D structure
+	# matches expanded 4D structure
 	expect_type(ppd, "list")
 	expect_equal(length(ppd), 10)
-	expect_equal(dim(ppd[[1]]), c(n, n, 1, Tt))  # Should be 4D with p=1
+	expect_equal(dim(ppd[[1]]), c(n, n, 1, Tt))  # 4D with p=1
 })

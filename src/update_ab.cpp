@@ -29,7 +29,7 @@ Rcpp::List update_AB_static_cpp(const arma::cube& Theta_prev,
   int n_col = Theta_prev.n_cols;
   int n_times = Theta_prev.n_slices;
 
-  // initialize return matrices: A is n_row x n_row, B is n_col x n_col
+  // A is n_row x n_row, B is n_col x n_col
   arma::mat A(n_row, n_row, arma::fill::zeros);
   arma::mat B = B_init;
 

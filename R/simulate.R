@@ -36,7 +36,7 @@ simulate_static_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	if (symmetric && is_bipartite) cli::cli_abort("Symmetric networks require {.code n_row == n_col}.")
 	nc <- n_row * n_col
 
-	# generate true parameters
+	# true parameters
 	A <- diag(n_row) + matrix(rnorm(n_row^2, 0, sqrt(tau2)), n_row, n_row)
 	B <- diag(n_col) + matrix(rnorm(n_col^2, 0, sqrt(tau2)), n_col, n_col)
 
@@ -49,7 +49,7 @@ simulate_static_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	M <- array(rnorm(nc * p, 0, 1), dim = c(n_row, n_col, p))
 	####
 
-	# generate latent Z
+	# latent Z
 	Z <- array(NA, dim = c(n_row, n_col, p, time))
 	for (r in 1:p) {
 		Z[, , r, 1] <- M[, , r] + matrix(rnorm(nc, 0, sqrt(sigma2)), n_row, n_col)
@@ -65,7 +65,7 @@ simulate_static_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# compute Theta
+	# theta
 	Theta <- array(NA, dim = c(n_row, n_col, p, time))
 	Theta[, , , 1] <- M
 	if (time > 1) {
@@ -78,7 +78,7 @@ simulate_static_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# convert to ordinal Y
+	# ordinal Y
 	Y <- array(NA, dim = c(n_row, n_col, p, time))
 	cuts <- vector("list", p)
 	for (r in 1:p) {
@@ -93,7 +93,7 @@ simulate_static_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# mask self-loops for unipartite
+	# mask self-loops in unipartite networks
 	if (!is_bipartite) {
 		for (t in 1:time) {
 			for (r in 1:p) {
@@ -151,7 +151,7 @@ simulate_dynamic_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	if (symmetric && is_bipartite) cli::cli_abort("Symmetric networks require {.code n_row == n_col}.")
 	nc <- n_row * n_col
 
-	# time-varying A and B
+	# time-varying A and B matrices
 	Aarray <- array(0, dim = c(n_row, n_row, time))
 	Barray <- array(0, dim = c(n_col, n_col, time))
 	Aarray[, , 1] <- diag(n_row)
@@ -177,7 +177,7 @@ simulate_dynamic_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# baseline mean and latent Z
+	# baseline mean M and latent Z
 	M <- array(rnorm(nc * p, 0, 1), dim = c(n_row, n_col, p))
 	Z <- array(NA, dim = c(n_row, n_col, p, time))
 	for (r in 1:p) {
@@ -194,7 +194,7 @@ simulate_dynamic_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# compute Theta
+	# theta
 	Theta <- array(NA, dim = c(n_row, n_col, p, time))
 	Theta[, , , 1] <- M
 	if (time > 1) {
@@ -207,7 +207,7 @@ simulate_dynamic_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# convert to ordinal Y
+	# ordinal Y
 	Y <- array(NA, dim = c(n_row, n_col, p, time))
 	cuts <- vector("list", p)
 	for (r in 1:p) {
@@ -222,7 +222,7 @@ simulate_dynamic_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# mask self-loops for unipartite
+	# mask self-loops in unipartite networks
 	if (!is_bipartite) {
 		for (t in 1:time) {
 			for (r in 1:p) {
@@ -281,7 +281,7 @@ simulate_lowrank_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	is_bipartite <- (n_row != n_col)
 	nc <- n_row * n_col
 
-	# latent roles and factor paths
+	# latent factor paths
 	U_init <- matrix(rnorm(n_row * r), n_row, r)
 	U <- qr.Q(qr(U_init))
 
@@ -295,7 +295,7 @@ simulate_lowrank_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# build A_t, B_t
+	# A_t and B_t
 	Aarray <- array(0, c(n_row, n_row, time))
 	for (t in 1:time) {
 		if (r == 1) {
@@ -317,7 +317,7 @@ simulate_lowrank_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# baseline mean and state-space dynamics
+	# baseline mean M and state-space dynamics
 	M <- array(rnorm(nc * p, 0, 1), dim = c(n_row, n_col, p))
 	Theta <- array(0, c(n_row, n_col, p, time))
 	Z <- array(NA, dim = c(n_row, n_col, p, time))
@@ -337,7 +337,7 @@ simulate_lowrank_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# convert to ordinal Y
+	# ordinal Y
 	cuts <- vector("list", p)
 	Y <- array(NA_integer_, dim = c(n_row, n_col, p, time))
 	for (rel in 1:p) {
@@ -350,7 +350,7 @@ simulate_lowrank_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# mask self-loops for unipartite
+	# mask self-loops in unipartite networks
 	if (!is_bipartite) {
 		for (rel in 1:p) {
 			for (t in 1:time) {
@@ -413,7 +413,7 @@ simulate_hmm_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	if (symmetric && is_bipartite) cli::cli_abort("Symmetric networks require {.code n_row == n_col}.")
 	nc <- n_row * n_col
 
-	# regime-specific parameters
+	# regime-specific A and B
 	A_list <- B_list <- vector("list", R)
 	for (r in 1:R) {
 		A_list[[r]] <- diag(n_row) + matrix(rnorm(n_row^2, 0, sqrt(tau_A2)), n_row)
@@ -429,7 +429,7 @@ simulate_hmm_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	if (symmetric) for (r in 1:R) B_list[[r]] <- A_list[[r]]
 	####
 
-	# markov chain
+	# Markov chain for regime sequence
 	Pi <- matrix((1 - transition_prob) / (R - 1), R, R)
 	diag(Pi) <- transition_prob
 	S <- integer(time)
@@ -439,7 +439,7 @@ simulate_hmm_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# baseline mean and state-space dynamics
+	# baseline mean M and state-space dynamics
 	M <- array(rnorm(nc * p, 0, 1), dim = c(n_row, n_col, p))
 	Theta <- array(0, c(n_row, n_col, p, time))
 	Z <- array(NA, dim = c(n_row, n_col, p, time))
@@ -459,7 +459,7 @@ simulate_hmm_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# convert to ordinal Y
+	# ordinal Y
 	cuts <- vector("list", p)
 	Y <- array(NA_integer_, c(n_row, n_col, p, time))
 	for (rel in 1:p) {
@@ -472,7 +472,7 @@ simulate_hmm_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	}
 	####
 
-	# mask self-loops for unipartite
+	# mask self-loops in unipartite networks
 	if (!is_bipartite) {
 		for (rel in 1:p) {
 			for (t in 1:time) {

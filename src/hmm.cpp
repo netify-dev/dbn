@@ -8,7 +8,7 @@
 using namespace Rcpp;
 using namespace arma;
 
-// Fast log-sum-exp trick for numerical stability
+// log-sum-exp trick for numerical stability
 inline double log_sum_exp(const arma::vec& log_vals) {
     double max_val = log_vals.max();
     if(!std::isfinite(max_val)) {
@@ -17,7 +17,7 @@ inline double log_sum_exp(const arma::vec& log_vals) {
     return max_val + log(sum(exp(log_vals - max_val)));
 }
 
-// Forward algorithm for HMM
+// forward algorithm for HMM
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -35,7 +35,7 @@ arma::mat forward_hmm(const arma::cube& Theta_avg,
     double log_norm_const = -0.5 * m * m * log(2 * M_PI * sigma2);
     double inv_2sigma2 = 0.5 / sigma2;
     
-    // precompuite log transition matrix
+    // precompute log transition matrix
     arma::mat log_Pi(R, R);
     for(int i = 0; i < R; i++) {
         for(int j = 0; j < R; j++) {
@@ -46,7 +46,7 @@ arma::mat forward_hmm(const arma::cube& Theta_avg,
     // log forward probs
     arma::mat log_alpha(R, Tt);
     
-    // prealloc workspace for parallel computation
+    // preallocate workspace for parallel computation
     #ifdef _OPENMP
     int n_threads = omp_get_max_threads();
     std::vector<arma::mat> workspace(n_threads, arma::mat(m, m));
@@ -70,12 +70,12 @@ arma::mat forward_hmm(const arma::cube& Theta_avg,
         arma::mat A_r = as<arma::mat>(A_list[r]);
         arma::mat B_r = as<arma::mat>(B_list[r]);
         
-        // compute mu_1 under regime r using temporary workspace
+        // predicted value under regime r
         temp = A_r * Theta_avg.slice(0);
         arma::mat mu_1 = temp * B_r.t();
         
         // log density
-        mu_1 -= Theta_avg.slice(0);  // In-place subtraction
+        mu_1 -= Theta_avg.slice(0);  // residual
         double quad_form = arma::dot(arma::vectorise(mu_1), arma::vectorise(mu_1));
         
         log_p1(r) = log(pi0(r)) + log_norm_const - inv_2sigma2 * quad_form;
@@ -85,11 +85,11 @@ arma::mat forward_hmm(const arma::cube& Theta_avg,
     double log_c1 = log_sum_exp(log_p1);
     log_alpha.col(0) = log_p1 - log_c1;
     
-    // fwd recursion with improved cache usage
+    // forward recursion with cache-friendly access
     for(int t = 1; t < Tt; t++) {
         arma::vec log_pt(R);
         
-        // extract current and previous time slices for better cache usage
+        // extract current and previous time slices
         arma::mat Theta_curr = Theta_avg.slice(t);
         arma::mat Theta_prev = Theta_avg.slice(t-1);
         
@@ -108,16 +108,16 @@ arma::mat forward_hmm(const arma::cube& Theta_avg,
             arma::mat A_r = as<arma::mat>(A_list[r]);
             arma::mat B_r = as<arma::mat>(B_list[r]);
             
-            // prediction under regime r with workspace reuse
+            // prediction under regime r
             temp = A_r * Theta_prev;
             arma::mat pred = temp * B_r.t();
-            pred -= Theta_curr;  // In-place residual computation
+            pred -= Theta_curr;  // residual
             
             double quad_form = arma::dot(arma::vectorise(pred), arma::vectorise(pred));
             log_pt(r) = -inv_2sigma2 * quad_form;
         }
         
-        // transition step - more robust implementation
+        // transition step
         arma::vec log_alpha_prev = log_alpha.col(t-1);
         arma::vec log_alpha_new(R);
         
@@ -130,7 +130,7 @@ arma::mat forward_hmm(const arma::cube& Theta_avg,
             log_alpha_new(j) = log_sum_exp(log_trans) + log_pt(j);
         }
         
-        // normlaize
+        // normalize
         double log_ct = log_sum_exp(log_alpha_new);
         log_alpha.col(t) = log_alpha_new - log_ct;
     }
@@ -138,7 +138,7 @@ arma::mat forward_hmm(const arma::cube& Theta_avg,
     return log_alpha;
 }
 
-// Forward algorithm with beam search for very long sequences
+// forward algorithm with beam search for long sequences
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -158,7 +158,7 @@ arma::mat forward_hmm_fast(const arma::cube& Theta_avg,
         return forward_hmm(Theta_avg, A_list, B_list, Pi, sigma2, pi0);
     }
     
-    // log fwd probs - use sparse representation for beam
+    // log forward probs (sparse for beam search)
     arma::mat log_alpha(R, Tt);
     log_alpha.fill(-datum::inf);
     
@@ -166,7 +166,7 @@ arma::mat forward_hmm_fast(const arma::cube& Theta_avg,
     double log_norm_const = -0.5 * m * m * log(2 * M_PI * sigma2);
     double inv_sigma2 = 1.0 / sigma2;
     
-    // cache A and B matrices for faster access
+    // cache A and B matrices
     std::vector<arma::mat> A_cache(R), B_cache(R);
     for(int r = 0; r < R; r++) {
         A_cache[r] = as<arma::mat>(A_list[r]);
@@ -189,11 +189,11 @@ arma::mat forward_hmm_fast(const arma::cube& Theta_avg,
     double log_c1 = log_sum_exp(log_p1);
     log_alpha.col(0) = log_p1 - log_c1;
     
-    // identify top beam_width states for first time
+    // keep top beam_width states
     arma::uvec active_states = arma::sort_index(log_alpha.col(0), "descend");
     active_states = active_states.head(beam_width);
     
-    // fwd recursion with beam search
+    // forward recursion with beam search
     for(int t = 1; t < Tt; t++) {
         arma::vec log_alpha_new(R);
         log_alpha_new.fill(-datum::inf);
@@ -233,7 +233,7 @@ arma::mat forward_hmm_fast(const arma::cube& Theta_avg,
     return log_alpha;
 }
 
-// Backward sampling for HMM states
+// backward sampling for HMM states
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -246,23 +246,23 @@ IntegerVector backward_sample(const arma::mat& log_alpha,
     
     // sample final state
     arma::vec probs = exp(log_alpha.col(Tt-1));
-    probs = probs / sum(probs); // Ensure normalized
+    probs = probs / sum(probs); // normalize
     
     double u = R::runif(0, 1);
     double cumsum = 0;
     for(int r = 0; r < R; r++) {
         cumsum += probs(r);
         if(u <= cumsum) {
-            S[Tt-1] = r + 1; // R uses 1-based indexing
+            S[Tt-1] = r + 1; // 1-based indexing for R
             break;
         }
     }
     
     // backward sampling
     for(int t = Tt-2; t >= 0; t--) {
-        int s_next = S[t+1] - 1; // convert to 0-based
-        
-        // P(S_t = j | S_{t+1} = s_next, Y_{1:t})
+        int s_next = S[t+1] - 1; // 0-based
+
+        // P(S_t = j | S_{t+1}, Y_{1:t})
         arma::vec log_probs(R);
         for(int j = 0; j < R; j++) {
             log_probs(j) = log_alpha(j, t) + log(Pi(j, s_next));
@@ -287,7 +287,7 @@ IntegerVector backward_sample(const arma::mat& log_alpha,
     return S;
 }
 
-// Fast backward sampling for beam search
+// backward sampling using Gumbel-max trick
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -298,8 +298,7 @@ IntegerVector backward_sample_fast(const arma::mat& log_alpha,
     
     IntegerVector S(Tt);
     
-    // use Gumbel-max trick for faster sampling
-    // sample final state
+    // sample final state via Gumbel-max
     arma::vec log_probs_T = log_alpha.col(Tt-1);
     arma::vec gumbel_noise(R);
     for(int r = 0; r < R; r++) {
@@ -309,7 +308,7 @@ IntegerVector backward_sample_fast(const arma::mat& log_alpha,
     arma::vec perturbed = log_probs_T + gumbel_noise;
     S[Tt-1] = perturbed.index_max() + 1;
     
-    // backward sampling with caching
+    // backward sampling with cached log-transition column
     arma::vec log_Pi_col(R);
     
     for(int t = Tt-2; t >= 0; t--) {
@@ -323,7 +322,7 @@ IntegerVector backward_sample_fast(const arma::mat& log_alpha,
         // compute posterior
         arma::vec log_probs = log_alpha.col(t) + log_Pi_col;
         
-        // Gumbel-max sampling
+        // Gumbel-max
         for(int r = 0; r < R; r++) {
             double u = R::runif(0, 1);
             gumbel_noise(r) = -log(-log(u));
@@ -335,7 +334,7 @@ IntegerVector backward_sample_fast(const arma::mat& log_alpha,
     return S;
 }
 
-// Build time-varying arrays from regime assignments
+// build time-varying arrays from regime assignments
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -343,7 +342,7 @@ List build_regime_arrays(const IntegerVector& S,
                         const List& A_list,
                         const List& B_list,
                         int m, int Tt) {
-    // Infer dimensions from the actual matrices in the lists
+    // infer dimensions from the actual matrices
     arma::mat A0 = as<arma::mat>(A_list[0]);
     arma::mat B0 = as<arma::mat>(B_list[0]);
     int n_row = A0.n_rows;
@@ -351,7 +350,7 @@ List build_regime_arrays(const IntegerVector& S,
     arma::cube Aarray(n_row, n_row, Tt);
     arma::cube Barray(n_col, n_col, Tt);
     
-    // preextract matrices from lists to avoid repeated conversions
+    // pre-extract matrices to avoid repeated list conversions
     int R = A_list.size();
     std::vector<arma::mat> A_vec(R), B_vec(R);
     for(int r = 0; r < R; r++) {
@@ -359,7 +358,7 @@ List build_regime_arrays(const IntegerVector& S,
         B_vec[r] = as<arma::mat>(B_list[r]);
     }
     
-    // process in blocks for better cache usage
+    // process in blocks for cache locality
     const int block_size = 32;
     
     #ifdef _OPENMP
@@ -369,9 +368,9 @@ List build_regime_arrays(const IntegerVector& S,
         int t_end = std::min(t_block + block_size, Tt);
         
         for(int t = t_block; t < t_end; t++) {
-            int regime = S[t] - 1; // Convert to 0-based
-            
-            // direct memory copy for efficiency
+            int regime = S[t] - 1; // 0-based
+
+            // direct memory copy
             std::memcpy(Aarray.slice_memptr(t), A_vec[regime].memptr(), n_row * n_row * sizeof(double));
             std::memcpy(Barray.slice_memptr(t), B_vec[regime].memptr(), n_col * n_col * sizeof(double));
         }
@@ -383,14 +382,14 @@ List build_regime_arrays(const IntegerVector& S,
     );
 }
 
-// Collect theta pairs for a specific regime
+// collect theta pairs for a specific regime
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
 List collect_regime_thetas(const arma::cube& Theta_avg,
                           const IntegerVector& S,
                           int regime, int m) {
-    // Infer dimensions from the cube (supports rectangular Theta)
+    // infer dimensions (supports rectangular Theta)
     int nr = Theta_avg.n_rows;
     int nc = Theta_avg.n_cols;
 
@@ -431,7 +430,7 @@ List collect_regime_thetas(const arma::cube& Theta_avg,
     );
 }
 
-// Fast transition counting
+// count regime transitions
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -439,7 +438,7 @@ arma::mat count_transitions(const IntegerVector& S, int R) {
     arma::mat n_ij(R, R, fill::zeros);
     
     for(int t = 1; t < S.size(); t++) {
-        int from = S[t-1] - 1; // Convert to 0-based
+        int from = S[t-1] - 1; // 0-based
         int to = S[t] - 1;
         n_ij(from, to) += 1;
     }
@@ -447,7 +446,7 @@ arma::mat count_transitions(const IntegerVector& S, int R) {
     return n_ij;
 }
 
-// Compute residuals for all regimes at once
+// compute residuals for all regimes at once
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -465,7 +464,7 @@ double compute_regime_residuals(const List& A_list,
     return rss;
 }
 
-// State sequence initialization using spectral clustering
+// state sequence initialization via spectral clustering
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -473,8 +472,7 @@ IntegerVector init_states_spectral(const arma::cube& Y,
                                   int R, int m, int p, int Tt) {
     IntegerVector S(Tt);
     
-    // compute similarity matrix based on network snapshots
-    // should incorporate this into netify
+    // compute similarity matrix from network snapshots
     arma::mat sim_mat(Tt, Tt, fill::zeros);
     
     #ifdef _OPENMP
@@ -485,7 +483,7 @@ IntegerVector init_states_spectral(const arma::cube& Y,
             double sim = 0.0;
             int count = 0;
             
-            // avg similarity across relations
+            // average similarity across relations
             for(int rel = 0; rel < p; rel++) {
                 // extract slices for this relation
                 arma::mat Y1(m, m);
@@ -517,7 +515,7 @@ IntegerVector init_states_spectral(const arma::cube& Y,
         }
     }
     
-    // simple k-means on similarity features
+    // k-means on similarity features
     arma::mat features = sim_mat;
     arma::mat centroids;
     
@@ -532,7 +530,7 @@ IntegerVector init_states_spectral(const arma::cube& Y,
             for(int r = 0; r < R; r++) {
                 dists(r) = norm(features.col(t) - centroids.col(r), 2);
             }
-            S[t] = dists.index_min() + 1; // Convert to 1-based
+            S[t] = dists.index_min() + 1; // 1-based for R
         }
     } else {
         // fall back to random initialization

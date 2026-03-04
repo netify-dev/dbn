@@ -40,7 +40,7 @@ plot_trace <- function(fit, pars = NULL, ncol = 2) {
 		}
 	}
 
-	# extract trace data
+	# get trace data
 	if (!is.null(fit$draws$pars)) {
 		trace_data <- fit$draws$pars[, pars, drop = FALSE]
 	} else {
@@ -52,7 +52,7 @@ plot_trace <- function(fit, pars = NULL, ncol = 2) {
 	trace_data$iteration <- seq_len(nrow(trace_data))
 	####
 
-	# ggplot2 version
+	# ggplot2
 	if (requireNamespace("ggplot2", quietly = TRUE)) {
 		df_long <- do.call(rbind, lapply(pars, function(p) {
 			if (p %in% names(trace_data)) {
@@ -82,7 +82,7 @@ plot_trace <- function(fit, pars = NULL, ncol = 2) {
 	}
 	####
 
-	# base R fallback
+	# base R
 	n_pars <- length(pars)
 	nrow <- ceiling(n_pars / ncol)
 	if (n_pars > 1) {
@@ -139,7 +139,7 @@ plot_theta <- function(fit, time = 1, rel = 1, fun = mean, ...) {
 	if (all(is.na(theta_mat))) return(invisible(NULL))
 	theta_mat[!is.finite(theta_mat)] <- NA
 
-	# ggplot2 version
+	# ggplot2
 	if (requireNamespace("ggplot2", quietly = TRUE)) {
 		df <- expand.grid(sender = seq_len(n_row), receiver = seq_len(n_col))
 		df$value <- as.vector(theta_mat)
@@ -162,7 +162,7 @@ plot_theta <- function(fit, time = 1, rel = 1, fun = mean, ...) {
 	}
 	####
 
-	# base R fallback
+	# base R
 	image(seq_len(n_col), seq_len(n_row), t(theta_mat),
 		main = paste0("Theta: Relation ", rel, ", Time ", time),
 		xlab = "Receiver (j)", ylab = "Sender (i)", col = heat.colors(100))
@@ -195,7 +195,7 @@ plot_regime_probs <- function(fit) {
 	times <- seq_len(nrow(probs))
 	R <- ncol(probs)
 
-	# ggplot2 version
+	# ggplot2
 	if (requireNamespace("ggplot2", quietly = TRUE)) {
 		df <- do.call(rbind, lapply(1:R, function(r) {
 			data.frame(time = times, prob = probs[, r], regime = paste("Regime", r))
@@ -212,7 +212,7 @@ plot_regime_probs <- function(fit) {
 	}
 	####
 
-	# base R fallback
+	# base R
 	plot(times, probs[, 1], type = "n", ylim = c(0, 1),
 		main = "Posterior Regime Probabilities",
 		xlab = "Time", ylab = "Probability")

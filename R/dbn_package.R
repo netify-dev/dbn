@@ -4,12 +4,6 @@
 
 #' @keywords internal
 #'
-#' @section Armadillo warnings:
-#' During MCMC sampling you may see \code{warning: chol(): given matrix is not
-#' symmetric} printed to the console. This is a harmless diagnostic from the
-#' Armadillo C++ library; the package detects the near-symmetry and applies a
-#' small regularization before retrying the decomposition. No user action is
-#' required.
 #'
 #' @section Known limitations:
 #' \describe{
@@ -43,8 +37,7 @@
 
 #' DBN Package Options
 #'
-#' @description The dbn package uses several options to control behavior,
-#'   particularly for toggling between R and C++ implementations.
+#' @description options controlling R vs C++ backend selection.
 #'
 #' @section Performance Options:
 #' \describe{

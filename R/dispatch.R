@@ -1,5 +1,5 @@
 ####
-# s3 method dispatch
+# s3 method dispatch for dbn objects
 ####
 
 #' S3 Methods for DBN Objects
@@ -50,10 +50,10 @@ summary.dbn <- function(object, ...) {
 #' @method predict dbn
 predict.dbn <- function(object, ...) {
 	if (!inherits(object, "dbn")) cli::cli_abort("{.arg object} must be a {.cls dbn} object.")
-	# hmm and lowrank have dedicated forecast functions with H/draws/summary args
+	# HMM and lowrank have dedicated forecast functions with H/draws/summary args
 	if (object$model == "hmm") return(predict_hmm(object, ...))
 	if (object$model %in% c("lowrank", "lowrank_accurate")) return(predict_lowrank(object, ...))
-	# check if caller is requesting forecasting (H or S args)
+	# check whether the caller is requesting a forecast (H or S args)
 	dots <- list(...)
 	is_forecast <- any(c("H", "S", "summary") %in% names(dots))
 	if (!is_forecast && length(dots) > 0) {
@@ -68,7 +68,7 @@ predict.dbn <- function(object, ...) {
 		}
 	}
 	if (is_forecast) {
-		# use model-specific simulation/forecast functions
+		# route to model-specific simulation/forecast function
 		predict_fun <- switch(object$model,
 			static = "simulate_static",
 			dynamic = "simulate_dynamic",
@@ -76,14 +76,14 @@ predict.dbn <- function(object, ...) {
 		)
 		return(do.call(predict_fun, list(object, ...)))
 	}
-	# use posterior predictive distribution (requires family info)
+	# default to posterior predictive distribution (requires family info)
 	# only pass recognized PPD args (ndraws, seed, draws)
 	ppd_args <- dots[intersect(names(dots), c("ndraws", "seed", "draws"))]
 	fam <- tryCatch(get_family(object), error = function(e) NULL)
 	if (!is.null(fam)) {
 		return(do.call(posterior_predict_dbn, c(list(object), ppd_args)))
 	}
-	# fallback for objects without family info
+	# no family info available, try simulation instead
 	predict_fun <- switch(object$model,
 		static = "simulate_static",
 		dynamic = "simulate_dynamic",
@@ -111,7 +111,7 @@ plot_dbn <- function(x, ...) plot.dbn(x, ...)
 summary_dbn <- function(object, ...) summary.dbn(object, ...)
 
 ####
-# print method
+# print method for dbn objects
 ####
 
 #' @export
@@ -126,7 +126,7 @@ print.dbn <- function(x, ...) {
 	# model type
 	cat("Model Type: ", toupper(x$model), "\n", sep = "")
 
-	# family
+	# distribution family
 	if (!is.null(x$family)) {
 		fam_name <- if (is.list(x$family) && !is.null(x$family$name)) x$family$name
 					else if (is.character(x$family)) x$family
@@ -149,7 +149,7 @@ print.dbn <- function(x, ...) {
 		}
 	}
 
-	# mcmc settings
+	# MCMC settings
 	if (!is.null(x$settings)) {
 		cat("\nMCMC Settings:\n")
 		cat("  Iterations: ", x$settings$nscan, "\n", sep = "")
@@ -158,14 +158,14 @@ print.dbn <- function(x, ...) {
 		cat("  Saved draws: ", x$settings$draws, "\n", sep = "")
 	}
 
-	# model-specific info
+	# model-specific details
 	if (x$model == "hmm" && !is.null(x$R)) {
 		cat("\nRegimes: ", x$R, "\n", sep = "")
 	} else if (x$model == "lowrank" && !is.null(x$rank)) {
 		cat("\nRank: ", x$rank, "\n", sep = "")
 	}
 
-	# components
+	# stored components
 	cat("\nModel Components:\n")
 	component_names <- names(x)
 	exclude <- c("model", "family", "dims", "settings", "meta", "diagnostics")

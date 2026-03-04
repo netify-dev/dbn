@@ -8,15 +8,15 @@
 using namespace Rcpp;
 using namespace arma;
 
-// Fast tensor product for static model B updates
+// tensor product for static model B updates
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
 arma::cube compute_XB_tensor(const arma::cube& X, 
                                   const List& B,
                                   int m, int p, int n) {
-    // compute X tensor B using batched matrix operations
-    // X is m x m x p x n, B is list of 3 matrices
+    // X tensor B via batched matrix operations
+    // X is m x m x p x n, B is a list of 3 matrices
     
     arma::mat B1 = as<arma::mat>(B[0]);
     arma::mat B2 = as<arma::mat>(B[1]);
@@ -24,7 +24,7 @@ arma::cube compute_XB_tensor(const arma::cube& X,
     
     arma::cube XB(m * m * p, n, 1);
     
-    // use OpenMP for parallel computation if available
+    // parallelize over time if OpenMP available
     #ifdef _OPENMP
     #ifdef _OPENMP
     #pragma omp parallel for
@@ -33,18 +33,18 @@ arma::cube compute_XB_tensor(const arma::cube& X,
     for(int t = 0; t < n; t++) {
         for(int r = 0; r < p; r++) {
             arma::mat X_slice(m, m);
-            // Extract X[,,r,t]
+            // extract X[,,r,t]
             for(int i = 0; i < m; i++) {
                 for(int j = 0; j < m; j++) {
                     X_slice(i, j) = X(i + j*m + r*m*m + t*m*m*p);
                 }
             }
             
-            // compute tensor product 
+            // tensor product B1 * X * B2' scaled by B3
             arma::mat result = B1 * X_slice * B2.t();
-            result *= B3(r, r); // Only diagonal of B3 matters for relation r
+            result *= B3(r, r); // only diagonal of B3 matters for relation r
             
-            // store result
+            // pack result back into flat storage
             for(int i = 0; i < m; i++) {
                 for(int j = 0; j < m; j++) {
                     XB(i + j*m + r*m*m, t, 0) = result(i, j);
@@ -53,40 +53,40 @@ arma::cube compute_XB_tensor(const arma::cube& X,
         }
     }
     
-    // reshape to match original dimensions
+    // reshape to original dimensions
     XB.reshape(m, m, p*n);
     return XB;
 }
 
-// Static model B[[1]] (sender effects) update - returns n_row x n_row matrix
+// static model B[[1]] (sender effects) update, returns n_row x n_row matrix
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
 arma::mat update_B_static(const arma::cube& Z, const arma::cube& M,
                               double s2, double t2, int n_row, int n_col, int p, int n) {
-    // B[[1]] is sender effects: n_row x n_row
-    // Model: Z[,,j,t] = B * M[,,j] + E
-    // Column-wise regression: z_c = B * m_c
+    // sender effects: n_row x n_row
+    // model: Z[,,j,t] = B * M[,,j] + E
+    // column-wise regression: z_c = B * m_c
     // XtX = sum M_j * M_j' (n_row x n_row), XtY = sum Z_jt * M_j' (n_row x n_row)
 
     arma::mat XtX(n_row, n_row, arma::fill::zeros);
     arma::mat XtY(n_row, n_row, arma::fill::zeros);
 
-    // loop over relations
+    // accumulate sufficient statistics over relations
     for (int j = 0; j < p; j++) {
         arma::mat M_j = M.slice(j);
-        // M_j * M_j': (n_row x n_col) * (n_col x n_row) = n_row x n_row
+        // (n_row x n_col) * (n_col x n_row) = n_row x n_row
         XtX += n * (M_j * M_j.t());
 
         arma::mat sum_Z(n_row, n_col, arma::fill::zeros);
         for (int t = 0; t < n; t++) {
             sum_Z += Z.slice(j * n + t);
         }
-        // Z * M_j': (n_row x n_col) * (n_col x n_row) = n_row x n_row
+        // (n_row x n_col) * (n_col x n_row) = n_row x n_row
         XtY += sum_Z * M_j.t();
     }
 
-    // posterior calculations
+    // posterior precision and mean
     double lambda = 1.0 / t2;
     double gamma = 1.0 / s2;
 
@@ -103,7 +103,7 @@ arma::mat update_B_static(const arma::cube& Z, const arma::cube& M,
         bool svd_ok = arma::svd_econ(U, s, V, XtX);
 
         if (!svd_ok || s.n_elem == 0) {
-            // degenerate case: return identity + noise
+            // degenerate: return identity + noise
             return arma::eye(n_row, n_row) + 0.01 * arma::randn(n_row, n_row);
         }
 
@@ -126,13 +126,13 @@ arma::mat update_B_static(const arma::cube& Z, const arma::cube& M,
     return B_new;
 }
 
-// Fast broadcast and residual computation for static model
+// broadcast M across time and add noise for static model
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
 arma::cube broadcast_M_and_compute_EZ(const arma::cube& M, double s2,
                                       int n_row, int n_col, int p, int Tt) {
-    // M is n_row x n_col x p, broadcast to n_row x n_col x p x Tt and add noise
+    // M is n_row x n_col x p; replicate across time with gaussian noise
     arma::cube EZ(n_row, n_col, p * Tt);
 
     #ifdef _OPENMP
@@ -149,7 +149,7 @@ arma::cube broadcast_M_and_compute_EZ(const arma::cube& M, double s2,
     return EZ;
 }
 
-// Vectorized s2 update for static model
+// observation variance update for static model
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -157,7 +157,7 @@ double compute_s2_update(const List& Z_field,
                              const arma::cube& M,
                              int m, int p, int Tt,
                              double a_prior, double b_prior) {
-    // compute residual sum of squares 
+    // RSS across all relations and time points
     double rss = 0.0;
     int n_obs = 0;
     
@@ -180,14 +180,14 @@ double compute_s2_update(const List& Z_field,
         }
     }
     
-    // sample from inverse gamma
+    // sample from inverse-gamma posterior
     double shape = (n_obs + a_prior) / 2.0;
     double scale = (rss + b_prior) / 2.0;
     
     return scale / randg(distr_param(shape, 1.0));
 }
 
-// Batch update for multiple variance parameters
+// batch update for multiple variance parameters
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -207,7 +207,7 @@ arma::vec update_variances_batch(const arma::vec& sum_squares,
     return variances;
 }
 
-// Fast matrix stabilization for numerical stability
+// stabilize a symmetric matrix by clamping eigenvalues
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -217,13 +217,13 @@ arma::mat stabilize_matrix(const arma::mat& M, double min_eig = 1e-6) {
     
     eig_sym(eigval, eigvec, M);
     
-    // ensure all eigenvalues are at least min_eig
+    // floor eigenvalues at min_eig
     eigval = clamp(eigval, min_eig, datum::inf);
     
     return eigvec * diagmat(eigval) * eigvec.t();
 }
 
-// Z update for dynamic model
+// z update for dynamic model
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -233,7 +233,7 @@ arma::cube update_Z_dynamic(const arma::cube& R, const arma::cube& Z_current,
     int nc = n_row * n_col;
     arma::cube Z_new = Z_current;
 
-    // compute EZ = Theta + M
+    // expected z = Theta + M
     arma::cube EZ(n_row, n_col, p * Tt);
 
     #ifdef _OPENMP
@@ -243,7 +243,7 @@ arma::cube update_Z_dynamic(const arma::cube& R, const arma::cube& Z_current,
         arma::mat M_j = M.slice(j);
         for(int t = 0; t < Tt; t++) {
             int idx = j * Tt + t;
-            // Extract Theta[,,j,t]
+            // extract Theta[,,j,t]
             arma::mat Theta_jt(n_row, n_col);
             for(int i = 0; i < n_row; i++) {
                 for(int k = 0; k < n_col; k++) {
@@ -257,7 +257,7 @@ arma::cube update_Z_dynamic(const arma::cube& R, const arma::cube& Z_current,
     return Z_new;
 }
 
-// Pre-compute and cache matrix products
+// precompute and cache A'*B products across time
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]

@@ -44,7 +44,7 @@ test_that("R = 1 HMM works (single regime)", {
 test_that("all-constant Y matrix runs for gaussian family", {
 	Y <- array(3, dim = c(5, 5, 1, 5))
 	for (t in 1:5) diag(Y[,,1,t]) <- NA
-	# constant data is valid input for gaussian family (just uninformative)
+	# constant data is valid for gaussian (uninformative)
 	fit <- dbn(Y, model = "static", family = "gaussian", nscan = 30, burn = 10, verbose = FALSE)
 	expect_s3_class(fit, "dbn")
 })
@@ -87,14 +87,14 @@ test_that("negative nscan errors", {
 
 test_that("verbose = TRUE works like verbose = 100", {
 	sim <- simulate_static_dbn(n = 5, time = 3, seed = 108)
-	# should not error with verbose = TRUE
+	# verbose = TRUE should not error
 	expect_no_error(
 		dbn(sim$Y, model = "static", nscan = 50, burn = 20, verbose = TRUE)
 	)
 })
 
 ####
-# bipartite guard rails for HMM and lowrank
+# bipartite guards for HMM and lowrank
 ####
 
 test_that("bipartite data errors for HMM model", {

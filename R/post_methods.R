@@ -1,7 +1,7 @@
 ####
 # post_methods.R
 # plot, summary, convergence, and prediction methods for dbn model objects.
-# generic plot.dbn dispatch lives in zzz-dispatch.R.
+# see the S3 dispatch methods for the generic plot.dbn entry point
 ####
 
 ####
@@ -14,7 +14,7 @@
 #' @keywords internal
 plot_static <- function(results, alpha = 0.01) {
 	if (!requireNamespace("ggplot2", quietly = TRUE)) cli::cli_abort(c("Package {.pkg ggplot2} is required for this function.", "i" = "Install with {.code install.packages(\"ggplot2\")}"))
-	# avoid R CMD CHECK notes
+	# suppress R CMD check notes for NSE variables
 	iteration <- value <- parameter <- s2 <- t2 <- g2 <- NULL
 	from_x <- from_y <- to_x <- to_y <- color <- x <- y <- label <- NULL
 
@@ -22,7 +22,7 @@ plot_static <- function(results, alpha = 0.01) {
 		cli::cli_abort("results$params is NULL -- nothing to plot")
 	}
 
-	# parameter traces
+	# trace plots for scalar parameters
 	params_df <- as.data.frame(results$params)
 	params_df$iteration <- seq_len(nrow(params_df))
 
@@ -39,7 +39,7 @@ plot_static <- function(results, alpha = 0.01) {
 		ggplot2::theme_minimal() +
 		ggplot2::theme(legend.position = "none")
 
-	# histograms
+	# posterior histograms
 	p_hist_s2 <- ggplot2::ggplot(params_df, ggplot2::aes(x = s2)) +
 		ggplot2::geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
 		ggplot2::labs(title = "s2 Posterior", x = "s2", y = "Count") +
@@ -55,14 +55,14 @@ plot_static <- function(results, alpha = 0.01) {
 		ggplot2::labs(title = "g2 Posterior", x = "g2", y = "Count") +
 		ggplot2::theme_minimal()
 
-	# network plot for first B matrix
+	# network plot of the first B matrix
 	if (length(results$B) >= 1 && !is.null(results$B[[1]])) {
 		B_post <- results$B[[1]]
 		EB <- apply(B_post, c(1, 2), mean)
 		diag(EB) <- 0
 		SB <- apply(B_post, c(1, 2), sd)
 
-		# identify significant edges
+		# find edges with large posterior mean and narrow credible intervals
 		BIG <- abs(EB) > quantile(abs(EB), 1 - alpha, na.rm = TRUE)
 		SIG <- abs(EB) > qnorm(1 - alpha / 2) * SB
 		if (all(SB == 0, na.rm = TRUE)) {
@@ -77,12 +77,12 @@ plot_static <- function(results, alpha = 0.01) {
 			EB_sub <- EB[csig, csig]
 			nodes_sub <- which(csig)
 
-			# circular layout
+			# arrange nodes in a circle
 			n_nodes <- nrow(BSG_sub)
 			angles <- seq(0, 2 * pi, length.out = n_nodes + 1)[1:n_nodes]
 			xy <- cbind(x = cos(angles), y = sin(angles))
 
-			# build edge data (vectorized)
+			# build edge data frame (vectorized)
 			idx <- which(BSG_sub != 0, arr.ind = TRUE)
 			if (nrow(idx) > 0) {
 				edges <- data.frame(
@@ -132,7 +132,7 @@ plot_static <- function(results, alpha = 0.01) {
 	}
 	####
 
-	# combine plots
+	# arrange all panels into a single figure
 	if (requireNamespace("gridExtra", quietly = TRUE)) {
 		tryCatch(
 			{
@@ -167,7 +167,7 @@ plot_static <- function(results, alpha = 0.01) {
 #' @keywords internal
 plot_dynamic <- function(results, time_points = NULL) {
 	if (!requireNamespace("ggplot2", quietly = TRUE)) cli::cli_abort(c("Package {.pkg ggplot2} is required for this function.", "i" = "Install with {.code install.packages(\"ggplot2\")}"))
-	# avoid R CMD CHECK notes
+	# suppress R CMD check notes for NSE variables
 	iteration <- value <- parameter <- g2 <- NULL
 
 	dims <- results$meta$dims %||% results$dims
@@ -177,7 +177,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 		time_points <- c(1, floor(Tt / 2), Tt)
 	}
 
-	# extract parameter traces
+	# build data frame of scalar parameter traces
 	if (!is.null(results$draws$pars)) {
 		pars <- results$draws$pars
 		trace_df <- data.frame(
@@ -202,7 +202,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 	}
 	####
 
-	# reshape for plotting
+	# reshape to long format for ggplot2
 	plist <- c("sigma^2", "tauA^2", "tauB^2")
 	trace_long <- data.frame(
 		iteration = rep(trace_df$iteration, 3),
@@ -228,7 +228,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 		ggplot2::labs(title = "Parameter Traces", x = "Iteration", y = "Value") +
 		ggplot2::theme_minimal()
 
-	# a matrix distribution at selected time points
+	# distribution of A matrix entries at selected time points
 	if (!is.null(results$draws$misc$A)) {
 		last_A <- results$draws$misc$A[[length(results$draws$misc$A)]]
 	} else {
@@ -263,7 +263,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 		ggplot2::theme_minimal()
 	####
 
-	# ar(1) parameter traces
+	# AR(1) parameter traces
 	if ("rhoA" %in% names(trace_df) && "rhoB" %in% names(trace_df)) {
 		rho_df <- data.frame(
 			iteration = trace_df$iteration,
@@ -304,7 +304,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 	}
 	####
 
-	# g2 trace
+	# g2 (mean variance) trace
 	if ("g2" %in% names(trace_df)) {
 		p_g2 <- ggplot2::ggplot(
 			data.frame(iteration = trace_df$iteration, g2 = trace_df$g2),
@@ -318,7 +318,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 	}
 	####
 
-	# assemble and arrange
+	# collect panels and arrange
 	plots <- list(traces = p_traces, A_hist = p_A_hist)
 	if (!is.null(p_rho)) plots$rho <- p_rho
 	if (!is.null(p_g2)) plots$g2 <- p_g2
@@ -480,7 +480,7 @@ check_convergence <- function(results) {
 			" " = "Showing basic diagnostics instead..."
 		))
 
-		# basic diagnostics without coda
+		# basic diagnostics when coda is not installed
 		if (results$model == "static") {
 			params <- results$params
 		} else {
@@ -506,7 +506,7 @@ check_convergence <- function(results) {
 		return(invisible(NULL))
 	}
 
-	# full coda diagnostics
+	# coda-based diagnostics (ESS, Geweke, autocorrelation)
 	if (results$model == "static") {
 		params_mcmc <- coda::mcmc(results$params)
 	} else {
@@ -552,7 +552,7 @@ check_convergence <- function(results) {
 #' @export
 compare_dbn <- function(...) {
 	if (!requireNamespace("ggplot2", quietly = TRUE)) cli::cli_abort(c("Package {.pkg ggplot2} is required for this function.", "i" = "Install with {.code install.packages(\"ggplot2\")}"))
-	# avoid R CMD CHECK notes
+	# suppress R CMD check notes for NSE variables
 	iteration <- value <- model <- NULL
 
 	results_list <- list(...)
@@ -586,14 +586,14 @@ compare_dbn <- function(...) {
 		compare_df <- rbind(compare_df, temp_df)
 	}
 
-	# trace comparison
+	# overlay parameter traces across models
 	p_compare <- ggplot2::ggplot(compare_df, ggplot2::aes(x = iteration, y = value, color = model)) +
 		ggplot2::geom_line() +
 		ggplot2::facet_wrap(~parameter, scales = "free") +
 		ggplot2::labs(title = "Model Comparison", x = "Iteration", y = "Value", color = "Model") +
 		ggplot2::theme_minimal()
 
-	# density comparison
+	# overlay posterior densities across models
 	p_density <- ggplot2::ggplot(compare_df, ggplot2::aes(x = value, fill = model)) +
 		ggplot2::geom_density(alpha = 0.5) +
 		ggplot2::facet_wrap(~parameter, scales = "free") +
@@ -633,7 +633,7 @@ ppc_ecdf <- function(fit, n_rep = 20) {
 	ecdf_orig <- ecdf(c(y_orig))
 	stat_orig <- ecdf_orig(sort(unique(c(y_orig))))
 
-	# simulate one replicate
+	# draw one replicated dataset from the posterior
 	draw_rep <- function() {
 		if (fit$model == "static") {
 			idx <- sample(seq_len(dim(fit$B[[1]])[3]), 1)
@@ -656,7 +656,7 @@ ppc_ecdf <- function(fit, n_rep = 20) {
 			M_draw <- if (length(dim(fit$M)) == 4) fit$M[, , , idx] else fit$M[[idx]]
 			Yhat <- sweep(Theta, 1:3, M_draw, "+")
 		}
-		# clamp to observed support
+		# round and clip to observed ordinal range
 		vals <- sort(unique(c(y_orig)))
 		Yrep <- pmax(min(vals), pmin(max(vals), round(Yhat)))
 		ecdf(c(Yrep))(vals)
@@ -715,7 +715,7 @@ dyad_path <- function(fit, i, j, rel = NULL, facet = TRUE, cred = c(0.025, 0.975
 		rel <- seq_len(p)
 	}
 
-	# compute trajectory for one relation
+	# posterior trajectory for one relation
 	compute_trajectory <- function(r) {
 		if (fit$model == "dynamic") {
 			n_keep <- length(fit$A)
@@ -756,7 +756,7 @@ dyad_path <- function(fit, i, j, rel = NULL, facet = TRUE, cred = c(0.025, 0.975
 			}
 		}
 
-		# map stored indices back to original time scale
+		# convert stored indices to original time scale
 		time_vals <- 1:Tt
 		if (!is.null(fit$settings$time_thin) && fit$settings$time_thin > 1) {
 			time_vals <- (time_vals - 1) * fit$settings$time_thin + 1
@@ -812,7 +812,7 @@ role_trajectory <- function(fit, mat = c("A", "B"), comp = 1) {
 	mat <- match.arg(mat)
 	n_keep <- length(fit[[mat]])
 	Tt <- dim(fit[[mat]][[1]])[3]
-	# a indexes n_row, b indexes n_col
+	# A indexes n_row, B indexes n_col
 	m <- if (mat == "A") {
 		fit$dims$n_row
 	} else {
@@ -820,7 +820,7 @@ role_trajectory <- function(fit, mat = c("A", "B"), comp = 1) {
 	}
 	scores <- matrix(NA, Tt, m)
 
-	# posterior mean at each time
+	# compute posterior mean SVD at each time point
 	for (t in 1:Tt) {
 		Mbar <- Reduce(`+`, lapply(fit[[mat]], function(M) M[, , t])) / n_keep
 		sv <- svd(Mbar)
@@ -873,18 +873,18 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 		Th_all <- array(NA, dim = c(n_row, n_col, length(fit$A)))
 	}
 
-	# auto-detect sparse mode for large networks
+	# use sparse point plot for large networks
 	if (is.null(sparse)) {
 		sparse <- max(n_row, n_col) > 150
 	}
 
-	# account for time thinning
+	# adjust index for time thinning
 	t_idx <- t
 	if (!is.null(fit$settings$time_thin) && fit$settings$time_thin > 1) {
 		t_idx <- ceiling(t / fit$settings$time_thin)
 	}
 
-	# compute posterior mean Theta by model type
+	# average Theta across posterior draws, model-specific computation
 	if (fit$model == "dynamic") {
 		n_keep <- length(fit$A)
 		if (t_idx > dim(fit$A[[1]])[3]) {
@@ -928,7 +928,7 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 	}
 	####
 
-	# significance masking
+	# zero out cells whose credible interval contains zero
 	if (show_significant) {
 		alpha <- 1 - cred_level
 		lower_q <- alpha / 2
@@ -948,9 +948,9 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 	}
 	####
 
-	# render plot
+	# render the heatmap or sparse point plot
 	if (sparse) {
-		# threshold small values, preserve NAs from significance masking
+		# threshold small values, keep NAs from significance masking
 		if (!show_significant) {
 			Th[abs(Th) < eps] <- 0
 		} else {
@@ -991,7 +991,7 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 			) +
 			ggplot2::theme_minimal()
 	} else {
-		# heatmap for smaller networks
+		# tile heatmap for smaller networks
 		df <- expand.grid(i = 1:n_row, j = 1:n_col)
 		df$val <- c(Th)
 
@@ -1035,7 +1035,7 @@ tidy_dbn <- function(fit, what = c("A", "B", "Theta"), time_subset = NULL) {
 
 	out <- list()
 
-	# posterior mean A
+	# posterior mean of A
 	if ("A" %in% what && fit$model == "dynamic") {
 		time_idx <- time_subset
 		if (!is.null(fit$settings$time_thin) && fit$settings$time_thin > 1) {
@@ -1048,7 +1048,7 @@ tidy_dbn <- function(fit, what = c("A", "B", "Theta"), time_subset = NULL) {
 	}
 	####
 
-	# posterior mean B
+	# posterior mean of B
 	if ("B" %in% what && fit$model == "dynamic") {
 		time_idx <- time_subset
 		if (!is.null(fit$settings$time_thin) && fit$settings$time_thin > 1) {
@@ -1061,7 +1061,7 @@ tidy_dbn <- function(fit, what = c("A", "B", "Theta"), time_subset = NULL) {
 	}
 	####
 
-	# posterior mean Theta
+	# posterior mean of Theta
 	if ("Theta" %in% what) {
 		if (fit$model == "static") {
 			out$Theta <- fit$M
@@ -1131,7 +1131,7 @@ plot_group_influence <- function(fit,
 	fun <- match.arg(fun)
 	measure <- match.arg(measure)
 
-	# sender groups index A (n_row), target groups index B (n_col)
+	# sender groups index rows of A, target groups index columns of B
 	n_row <- fit$dims$n_row
 	n_col <- fit$dims$n_col
 	m_check <- if (type == "sender") n_row else n_col
@@ -1157,7 +1157,7 @@ plot_group_influence <- function(fit,
 
 	agg_fun <- if (fun == "mean") base::mean else base::sum
 
-	# compute influence per MCMC draw
+	# accumulate influence across MCMC draws
 	for (s in seq_len(S)) {
 		if (type == "sender") {
 			for (t in seq_len(Tt)) {
@@ -1172,10 +1172,10 @@ plot_group_influence <- function(fit,
 		}
 	}
 
-	# posterior summaries
+	# compute posterior credible bands
 	band <- apply(influence, 2, quantile, probs = c((1 - cred) / 2, 0.5, 1 - (1 - cred) / 2))
 
-	# map back to original time scale
+	# convert to original time scale (undo time thinning)
 	time_vals <- 1:Tt
 	if (!is.null(fit$settings$time_thin) && fit$settings$time_thin > 1) {
 		time_vals <- (time_vals - 1) * fit$settings$time_thin + 1
@@ -1246,7 +1246,7 @@ get_group_influence <- function(fit,
 	measure <- match.arg(measure)
 	fun <- match.arg(fun)
 
-	# sender groups index A (n_row), target groups index B (n_col)
+	# sender groups index rows of A, target groups index columns of B
 	n_row <- fit$dims$n_row
 	n_col <- fit$dims$n_col
 	m_check <- if (type == "sender") n_row else n_col
@@ -1272,7 +1272,7 @@ get_group_influence <- function(fit,
 
 	agg_fun <- if (fun == "mean") base::mean else base::sum
 
-	# compute influence per MCMC draw
+	# accumulate influence across MCMC draws
 	for (s in seq_len(S)) {
 		if (type == "sender") {
 			for (t in seq_len(Tt)) {
@@ -1287,11 +1287,11 @@ get_group_influence <- function(fit,
 		}
 	}
 
-	# posterior quantiles and mean
+	# posterior quantiles and mean across draws
 	quants <- apply(influence, 2, quantile, probs = probs)
 	means <- colMeans(influence)
 
-	# map back to original time scale
+	# convert to original time scale (undo time thinning)
 	time_vals <- 1:Tt
 	if (!is.null(fit$settings$time_thin) && fit$settings$time_thin > 1) {
 		time_vals <- (time_vals - 1) * fit$settings$time_thin + 1
@@ -1422,7 +1422,7 @@ simulate_static <- function(fit, S, summary = "none") {
 	for (s in seq_len(S)) {
 		Bdraw <- lapply(fit$B, function(b) b[, , idx[s]])
 
-		# y = tprod(m, b) + noise
+		# Y = tprod(M, B) + noise
 		Yrep <- tprod(fit$M, Bdraw)
 
 		s2 <- fit$params[idx[s], "s2"]
@@ -1470,14 +1470,14 @@ simulate_dynamic <- function(fit, H, S, summary = "none") {
 		B_last <- fit$B[[idx[s]]][, , Tt]
 		sigma2 <- fit$sigma2[idx[s]]
 
-		# start from equilibrium mean
+		# initialize at zero (equilibrium mean)
 		Theta_curr <- array(0, c(n_row, n_col, p))
 
 		for (h in seq_len(H)) {
 			Theta_new <- array(0, c(n_row, n_col, p))
 
 			for (rel in seq_len(p)) {
-				# theta_t = a_t * theta_{t-1} * b_t' + noise
+				# Theta_t = A_t * Theta_{t-1} * B_t' + noise
 				Theta_new[, , rel] <- A_last %*% Theta_curr[, , rel] %*% t(B_last) +
 					sqrt(sigma2) * matrix(rnorm(n_row * n_col), n_row, n_col)
 			}
@@ -1508,12 +1508,12 @@ predict_ordinal <- function(fit, draws = 100, H = NULL) {
 	if (fit$model == "static") {
 		Z_pred <- predict(fit, S = draws, summary = "none")
 
-		# add baseline mean
+		# add baseline mean M to latent predictions
 		for (s in seq_len(draws)) {
 			Z_pred[, , , , s] <- sweep(Z_pred[, , , , s], 1:3, fit$M, "+")
 		}
 
-		# convert latent to ordinal via empirical CDF
+		# map latent scores to ordinal categories via empirical CDF
 		vals <- sort(unique(c(fit$R)))
 		Z_vec <- c(Z_pred)
 

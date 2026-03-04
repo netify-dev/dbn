@@ -4,7 +4,7 @@
 using namespace Rcpp;
 using namespace arma;
 
-// Safe symmetric positive definite inverse with regularization fallback
+// safe symmetric PD inverse with regularization fallback
 static arma::mat safe_inv_sympd_ab(const arma::mat& M) {
     arma::mat M_sym = 0.5 * (M + M.t());
     arma::mat result;
@@ -20,7 +20,7 @@ static arma::mat safe_inv_sympd_ab(const arma::mat& M) {
     return result;
 }
 
-// Safe mvnrnd with regularization
+// safe mvnrnd with regularization
 static arma::vec safe_mvnrnd_ab(const arma::vec& mu, const arma::mat& Sigma) {
     arma::mat S = 0.5 * (Sigma + Sigma.t());
     try {
@@ -36,12 +36,9 @@ static arma::vec safe_mvnrnd_ab(const arma::vec& mu, const arma::mat& Sigma) {
     }
 }
 
-// Update A using FFBS (forward-filter backward-sample)
+// update A via FFBS (forward-filter backward-sample)
 // A is n_row x n_row (sender dynamics)
-// For row k of A: y_k = F_k * a_k where
-//   y_k = row k of Theta_t (length n_col)
-//   F_k = (Theta_{t-1} * B_t')' = B_t * Theta_{t-1}' (n_col x n_row)
-//   a_k = A(k, :)' (n_row x 1)
+// for row k: y = row k of Theta_t, F = B_t * Theta_{t-1}', a = A(k,:)'
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -50,32 +47,31 @@ List update_A_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
                     const arma::cube& Aarray, const arma::cube& Barray,
                     double sigma2, double tauA2, bool ar1 = false, double rhoA = 0.0,
                     int p = 1) {
-  // Theta is n_row x n_col x Tt
   int n_row = Theta_all_1.n_rows;
   int n_col = Theta_all_1.n_cols;
   int Tt = Theta_all_1.n_slices;
 
-  // output A array (n_row x n_row x Tt)
+  // output A array
   arma::cube A_new = arma::zeros(n_row, n_row, Tt);
 
-  // V_dim: number of observations per time step (n_col per relation)
+  // observations per time step (n_col per relation)
   int V_dim = (p == 1) ? n_col : n_col * p;
   arma::mat V = arma::eye(V_dim, V_dim) * sigma2;
   arma::mat W = arma::eye(n_row, n_row) * tauA2;
   arma::vec m0 = arma::zeros(n_row);
   arma::mat C0 = arma::eye(n_row, n_row) * tauA2;
 
-  // preallocate y and F storage for maximum size
+  // preallocate y and F storage
   arma::vec y_full(V_dim * Tt);
   arma::mat F_full(V_dim * Tt, n_row);
 
-  // preallocate fwd filter storage ONCE outside the row loop
+  // preallocate forward filter storage
   arma::cube m_fwd_store(n_row, Tt, 1);
   arma::cube C_fwd_store(n_row, n_row, Tt);
 
   // update each row of A
   for(int k = 0; k < n_row; k++) {
-    // Fill y and F for this row
+    // fill y and F for this row
     y_full.zeros();
     F_full.zeros();
 
@@ -108,7 +104,7 @@ List update_A_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
       }
     }
 
-    // fwd filter — reuse preallocated storage
+    // forward filter
     arma::vec m_fwd = m0;
     arma::mat C_fwd = C0;
     m_fwd_store.zeros();
@@ -139,8 +135,8 @@ List update_A_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
       C_fwd_store.slice(t) = C_fwd;
     }
 
-    // backward samp
-    // force exact symmetry before mvnrnd
+    // backward sample
+    // enforce symmetry before mvnrnd
     C_fwd = 0.5 * (C_fwd + C_fwd.t());
     arma::vec a_sample = safe_mvnrnd_ab(m_fwd, C_fwd);
     A_new.slice(Tt-1).row(k) = a_sample.t();
@@ -155,7 +151,7 @@ List update_A_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
 
       arma::vec h_t = m_t + B_t * (a_sample - (ar1 ? rhoA : 1.0) * m_t);
       arma::mat H_t = C_t - B_t * C_pred * B_t.t();
-      // force exact symmetry before mvnrnd
+      // enforce symmetry before mvnrnd
       H_t = 0.5 * (H_t + H_t.t());
 
       a_sample = safe_mvnrnd_ab(h_t, H_t);
@@ -166,12 +162,9 @@ List update_A_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
   return List::create(Named("A") = A_new);
 }
 
-// Update B using FFBS (forward-filter backward-sample)
+// update B via FFBS (forward-filter backward-sample)
 // B is n_col x n_col (receiver dynamics)
-// For column k of B: y_k = F_k * b_k where
-//   y_k = column k of Theta_t (length n_row)
-//   F_k = A_t * Theta_{t-1} (n_row x n_col)
-//   b_k = B(:, k) (n_col x 1)
+// for column k: y = col k of Theta_t, F = A_t * Theta_{t-1}, b = B(:,k)
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -180,15 +173,14 @@ List update_B_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
                     const arma::cube& Aarray, const arma::cube& Barray,
                     double sigma2, double tauB2, bool ar1 = false, double rhoB = 0.0,
                     int p = 1) {
-  // Theta is n_row x n_col x Tt
   int n_row = Theta_all_1.n_rows;
   int n_col = Theta_all_1.n_cols;
   int Tt = Theta_all_1.n_slices;
 
-  // output B array (n_col x n_col x Tt)
+  // output B array
   arma::cube B_new = arma::zeros(n_col, n_col, Tt);
 
-  // V_dim: number of observations per time step (n_row per relation)
+  // observations per time step (n_row per relation)
   int V_dim = (p == 1) ? n_row : n_row * p;
   arma::mat V = arma::eye(V_dim, V_dim) * sigma2;
   arma::mat W = arma::eye(n_col, n_col) * tauB2;
@@ -198,7 +190,7 @@ List update_B_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
   arma::vec y_full(V_dim * Tt);
   arma::mat F_full(V_dim * Tt, n_col);
 
-  // preallocate fwd filter storage ONCE outside the column loop
+  // preallocate forward filter storage
   arma::cube m_fwd_store_B(n_col, Tt, 1);
   arma::cube C_fwd_store_B(n_col, n_col, Tt);
 
@@ -214,7 +206,7 @@ List update_B_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
         // y: column k of Theta_t (length n_row)
         y_full.subvec(start_idx, start_idx + n_row - 1) = Theta_all_1.slice(t).col(k);
         // F: A_t * Theta_{t-1} (n_row x n_col)
-        // Note: (A * Theta)' gives the transposed design, but we want A * Theta directly
+        // design: A_t * Theta_{t-1} (n_row x n_col)
         F_full.submat(start_idx, 0, start_idx + n_row - 1, n_col - 1) =
           (Aarray.slice(t) * Theta_all_1.slice(t-1));
       } else {
@@ -234,7 +226,7 @@ List update_B_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
       }
     }
 
-    // forward filter and backward sample — reuse preallocated storage
+    // forward filter
     arma::vec m_fwd = m0;
     arma::mat C_fwd = C0;
     m_fwd_store_B.zeros();
@@ -263,7 +255,7 @@ List update_B_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
       C_fwd_store_B.slice(t) = C_fwd;
     }
 
-    // force exact symmetry before mvnrnd
+    // enforce symmetry before mvnrnd
     C_fwd = 0.5 * (C_fwd + C_fwd.t());
     arma::vec b_sample = safe_mvnrnd_ab(m_fwd, C_fwd);
     B_new.slice(Tt-1).col(k) = b_sample;
@@ -277,7 +269,7 @@ List update_B_batch(const arma::cube& Theta_all_1, const arma::cube& Theta_all_2
 
       arma::vec h_t = m_t + B_t * (b_sample - (ar1 ? rhoB : 1.0) * m_t);
       arma::mat H_t = C_t - B_t * C_pred * B_t.t();
-      // force exact symmetry before mvnrnd
+      // enforce symmetry before mvnrnd
       H_t = 0.5 * (H_t + H_t.t());
 
       b_sample = safe_mvnrnd_ab(h_t, H_t);

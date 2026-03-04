@@ -1,5 +1,5 @@
 ####
-# shared preprocessing
+# preprocessing and model registration
 ####
 
 #' Generic MCMC Engine for DBN Models
@@ -17,7 +17,7 @@ NULL
 #' @return List with preprocessed components
 #' @keywords internal
 shared_preprocess <- function(Y, family = "ordinal") {
-	# accept sparse input
+	# handle sparse input
 	if (inherits(Y, "dgCMatrix")) {
 		Y <- as(Y, "TsparseMatrix")
 	}
@@ -35,7 +35,7 @@ shared_preprocess <- function(Y, family = "ordinal") {
 		is_bipartite = is_bipartite
 	)
 
-	# family-specific data validation
+	# validate data for the chosen family
 	if (family == "binary") {
 		Y_vals <- Y[!is.na(Y)]
 		if (length(Y_vals) > 0 && !all(Y_vals %in% c(0, 1))) {
@@ -55,10 +55,10 @@ shared_preprocess <- function(Y, family = "ordinal") {
 		}
 	}
 
-	# precompute ranks
+	# rank structure for ordinal sampling
 	IR <- precompute_ranks(Y)
 
-	# initialize z based on family
+	# initial latent Z based on family
 	Z <- Y
 	if (family == "ordinal") {
 		means <- numeric(dims$p)
@@ -79,10 +79,10 @@ shared_preprocess <- function(Y, family = "ordinal") {
 		}
 	}
 
-	# initialize mean
+	# initial mean M
 	M <- array(apply(Z, c(1, 2, 3), mean, na.rm = TRUE), dim = c(n_row, n_col, dims$p))
 
-	# initialize theta
+	# initial Theta (centered residual + noise)
 	Theta <- sweep(Z, c(1, 2, 3), M, "-") + rsan(dim(Z))
 
 	list(

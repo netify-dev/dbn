@@ -40,7 +40,7 @@ dbn_hmm <- function(Y,
 					symmetric = FALSE,
 					...) {
 
-	# family setup and validation
+	# family setup
 
 	family <- match.arg(family)
 	if (isTRUE(verbose)) verbose <- 100L
@@ -51,12 +51,12 @@ dbn_hmm <- function(Y,
 		binary = family_binary()
 	)
 
-	# require at least 2 time points
+	# need at least 2 time points
 	if (dim(Y)[4] < 2) {
 		cli::cli_abort("HMM model requires at least 2 time points. Use {.code model = \"static\"} for cross-sectional data.")
 	}
 
-	# check variance and infinite values across relations
+	# check for zero variance and infinite values
 	check_edge_cases_hmm <- function(Y) {
 		has_zero_var <- TRUE
 		has_inf <- FALSE
@@ -99,7 +99,7 @@ dbn_hmm <- function(Y,
 		))
 	}
 
-	# shared preprocessing
+	# preprocessing
 
 	set.seed(seed)
 
@@ -112,7 +112,7 @@ dbn_hmm <- function(Y,
 	p <- dims$p
 	Tt <- dims$Tt
 
-	# bipartite networks are not yet supported for HMM model
+	# bipartite networks not yet supported for HMM
 	if (is_bipartite) {
 		cli::cli_abort(c(
 			"HMM model does not yet support bipartite (rectangular) networks.",
@@ -121,19 +121,19 @@ dbn_hmm <- function(Y,
 		))
 	}
 
-	# optimization parameters based on problem size
+	# tuning based on problem size
 	m_max <- max(n_row, n_col)
 	large_scale <- (m_max > 50 || Tt > 100)
 	use_beam_search <- (Tt > 200 && R > 5)
 	beam_width <- if(use_beam_search) min(R, max(3, R/2)) else 0
 
-	# element count for Theta-shaped arrays
+	# total cells per time slice
 	nc <- n_row * n_col
 
 	# initialization
 
 	if (!is.null(previous)) {
-		# restore from previous run
+		# continue from a previous run
 		if (!inherits(previous, "dbn") || previous$model != "hmm") {
 			cli::cli_abort("previous must be results from dbn_hmm()")
 		}
@@ -145,7 +145,7 @@ dbn_hmm <- function(Y,
 		g2 <- previous$g2[last_idx]
 		S <- previous$S[[last_idx]]
 
-		# expand states if time_thin was used
+		# expand states to full time grid if thinned
 		if (length(S) < Tt) {
 			S_full <- integer(Tt)
 			prev_times <- seq(1, Tt, by = previous$settings$time_thin)
@@ -168,7 +168,7 @@ dbn_hmm <- function(Y,
 
 		if (verbose) cli::cli_inform("Continuing from previous run with sigma2_proc={round(sigma2_proc,3)}, tau_A2={round(tau_A2,3)}, tau_B2={round(tau_B2,3)}")
 	} else if (!is.null(init)) {
-		# use provided initial values
+		# user-supplied initial values
 		S <- init$S %||% sample(R, Tt, replace = TRUE)
 		Pi <- init$Pi %||% matrix(1/R, R, R)
 		diag(Pi) <- diag(Pi) + 0.5
@@ -184,16 +184,16 @@ dbn_hmm <- function(Y,
 
 		if (verbose) cli::cli_inform("Using initial values: sigma2_proc={round(sigma2_proc,3)}, tau_A2={round(tau_A2,3)}, tau_B2={round(tau_B2,3)}")
 	} else {
-		# default initialization scaled to problem size
+		# default initialization, scaled to the data
 		pi0 <- rep(1 / R, R)
 
-		# k-means initialization when enough time points exist
+		# k-means initialization when there are enough time points
 		if (Tt >= R * 2) {
 			n_init <- min(20, Tt)
 			Y_early <- apply(Y[, , , 1:n_init, drop = FALSE], 4, function(x) c(x))
 			Y_early_clean <- Y_early
 
-			# replace NA with row means
+			# impute NAs with row means
 			for (i in 1:nrow(Y_early_clean)) {
 				na_idx <- is.na(Y_early_clean[i, ])
 				if (any(na_idx)) {
@@ -212,7 +212,7 @@ dbn_hmm <- function(Y,
 				S <- integer(Tt)
 				S[1:n_init] <- km$cluster
 
-				# propagate with persistence
+				# fill remaining time points with persistence
 				if (Tt > n_init) {
 					for (t in (n_init + 1):Tt) {
 						if (runif(1) < 0.85) {
@@ -229,12 +229,12 @@ dbn_hmm <- function(Y,
 			S <- sample(R, Tt, replace = TRUE)
 		}
 
-		# transition matrix with persistence bias
+		# transition matrix biased toward self-transitions
 		Pi <- matrix(delta[1] / sum(delta), R, R)
 		diag(Pi) <- diag(Pi) + 2
 		Pi <- Pi / rowSums(Pi)
 
-		# a and b matrices near identity
+		# A and B matrices near identity
 		A_list <- vector("list", R)
 		B_list <- vector("list", R)
 
@@ -250,20 +250,20 @@ dbn_hmm <- function(Y,
 			B_list[[r]] <- stabilize_spectral_radius(B_list[[r]], 0.95)
 		}
 
-		# variance parameters
+		# initial variance parameters
 		tau_A2 <- tau_B2 <- 1
 		sigma2_proc <- max(0.01, Y_scale^2 / 100)
 		sigma2_obs <- FAM$init_pars$sigma2_obs %||% 1
 		g2 <- 1
 	}
 
-	# mcmc setup and storage
+	# MCMC storage
 
 	n_iter <- burn + nscan
 	keep_idx <- ((burn + 1):n_iter)[((burn + 1):n_iter) %% odens == 0]
 	n_keep <- length(keep_idx)
 
-	# storage arrays
+	# allocate output arrays
 	Ssave <- vector("list", n_keep)
 	Asave <- vector("list", n_keep)
 	Bsave <- vector("list", n_keep)
@@ -280,10 +280,10 @@ dbn_hmm <- function(Y,
 		Zsave <- if(time_thin > 1 || m_max > 100) NULL else vector("list", n_keep)
 	}
 
-	# time points to retain
+	# which time points to keep
 	time_keep <- seq(1, Tt, by = time_thin)
 
-	# progress reporting
+	# progress bar
 	if (verbose) {
 		cli::cli_progress_step("Running HMM DBN MCMC")
 		cli::cli_progress_bar("MCMC iterations", total = n_iter)
@@ -291,7 +291,7 @@ dbn_hmm <- function(Y,
 
 	s <- 0
 
-	# precomputed constants and work arrays
+	# preallocated constants and work arrays
 	I_nrow <- diag(n_row)
 	I_ncol <- diag(n_col)
 	Theta_avg <- array(0, dim = c(n_row, n_col, Tt))
@@ -302,26 +302,26 @@ dbn_hmm <- function(Y,
 
 	for (g in seq_len(n_iter)) {
 
-		# step 1: update latent variables Z and M
+		# step 1: update Z and M
 
 		regime_arrays <- build_regime_arrays(S, A_list, B_list, n_row, Tt)
 		Aarray <- regime_arrays$Aarray
 		Barray <- regime_arrays$Barray
 
-		# update M
+		# M update
 		mu_var <- 1 / (pre$dims$Tt + 1 / g2)
 		resid <- pre$Z - pre$Theta
 		mu_hat <- mu_var * rowSums(resid, dims = 3L)
 		pre$M <- mu_hat + sqrt(mu_var) * rsan(dim(pre$M))
 
-		# update Z
+		# Z update
 		if (FAM$name == "ordinal") {
 			pre$Z <- update_Z_optimized(pre$R, pre$Z, pre$Theta, pre$M, pre$IR, family = "ordinal")
 		} else if (FAM$name == "binary") {
 			pre$Z <- update_Z_optimized(pre$R, pre$Z, pre$Theta, pre$M, pre$IR, family = "binary")
 		}
 
-		# step 2: update Theta via FFBS
+		# step 2: Theta via FFBS
 
 		for (rel in 1:p) {
 			pre$Theta[, , rel, ] <- FAM$ffbs_wrapper(
@@ -332,14 +332,14 @@ dbn_hmm <- function(Y,
 			)
 		}
 
-		# average Theta over relations for state updates
+		# average Theta across relations for state updates
 		if (p == 1L) {
 			Theta_avg[] <- pre$Theta[, , 1, ]
 		} else {
 			Theta_avg[] <- rowMeans(aperm(pre$Theta, c(1L, 2L, 4L, 3L)), dims = 3L)
 		}
 
-		# step 3: forward-backward sample S_{1:T}
+		# step 3: forward-backward sample of regime sequence
 
 		if (use_beam_search) {
 			log_alpha <- forward_hmm_fast(Theta_avg, A_list, B_list, Pi, sigma2_proc, pi0, beam_width)
@@ -349,24 +349,24 @@ dbn_hmm <- function(Y,
 			S <- backward_sample(log_alpha, Pi)
 		}
 
-		# track regime occupancy
+		# record regime occupancy
 		regime_counts[g, ] <- tabulate(S, nbins = R)
 
-		# update initial state probabilities after burn-in
+		# update initial-state probabilities after burn-in
 		if (g > burn) {
 			pi0 <- (pi0 * (g - burn - 1) + as.numeric(S[1] == 1:R)) / (g - burn)
 		}
 
-		# step 4: update transition matrix Pi
+		# step 4: transition matrix Pi
 
 		n_ij <- count_transitions(S, R)
-		# add diagonal pseudo-counts to prevent empty rows
+		# diagonal pseudo-counts to prevent empty rows
 		n_ij <- n_ij + diag(R)
 		for (i in 1:R) {
 			Pi[i, ] <- rdirichlet(delta + n_ij[i, ])
 		}
 
-		# step 5: update regime-specific A, B
+		# step 5: regime-specific A, B
 
 		for (r in 1:R) {
 			regime_data <- collect_regime_thetas(Theta_avg, S, r, n_row)
@@ -378,14 +378,14 @@ dbn_hmm <- function(Y,
 				A_list[[r]] <- upd$A
 				B_list[[r]] <- upd$B
 			} else {
-				# no observations for this regime; draw from prior
+				# empty regime: draw from prior
 				A_list[[r]] <- diag(n_row) + matrix(rnorm(n_row * n_row, 0, sqrt(tau_A2 / 10)), n_row, n_row)
 				B_list[[r]] <- diag(n_col) + matrix(rnorm(n_col * n_col, 0, sqrt(tau_B2 / 10)), n_col, n_col)
 			}
 		}
 		if (symmetric) for (r in 1:R) B_list[[r]] <- A_list[[r]]
 
-		# step 6: update hyperparameters (pooled across regimes)
+		# step 6: hyperparameters (pooled across regimes)
 
 		# tau_A2
 		A_resid <- compute_regime_residuals(A_list, I_nrow, R, n_row)
@@ -400,7 +400,7 @@ dbn_hmm <- function(Y,
 		tau_B2 <- safe_rinv_gamma(shape0_B + n_col * n_col * n_active / 2, rate0 + B_resid / 2)
 		if (symmetric) tau_B2 <- tau_A2
 
-		# step 7: update sigma2_proc
+		# step 7: sigma2_proc
 
 		shape0_proc <- 10 + nc
 		if (large_scale) {
@@ -411,17 +411,17 @@ dbn_hmm <- function(Y,
 		}
 		sigma2_proc <- safe_rinv_gamma(shape0_proc + nc * p * (Tt - 1) / 2, rate0 + resid / 2)
 
-		# update sigma2_obs for gaussian family
+		# sigma2_obs for gaussian family
 		if (FAM$name == "gaussian") {
 			resid_obs <- compute_gaussian_obs_residuals(pre$Z, pre$Theta, pre$M)
 			sigma2_obs <- safe_rinv_gamma(10 + nc + length(pre$Z) / 2, rate0 + resid_obs / 2)
 		}
 
-		# step 8: update g2
+		# step 8: g2
 
 		g2 <- safe_rinv_gamma(10 + nc + prod(dim(pre$M)) / 2, (rate0 + sum(pre$M^2)) / 2)
 
-		# step 9: store draws
+		# step 9: store this iteration
 
 		if (g %in% keep_idx) {
 			s <- s + 1
@@ -466,11 +466,11 @@ dbn_hmm <- function(Y,
 		}
 	}
 
-	# output construction
+	# assemble output
 
 	if (verbose) cli::cli_progress_done()
 
-	# regime occupancy diagnostics
+	# regime occupancy summary
 	if (verbose) {
 		cli::cli_h3("Regime occupancy summary")
 		regime_props <- colMeans(regime_counts[(burn + 1):n_iter, ]) / Tt
@@ -483,7 +483,7 @@ dbn_hmm <- function(Y,
 		}
 	}
 
-	# convert A and B lists to arrays
+	# reshape A and B lists into arrays
 	Asave_array <- vector("list", n_keep)
 	Bsave_array <- vector("list", n_keep)
 
@@ -498,7 +498,7 @@ dbn_hmm <- function(Y,
 		Bsave_array[[s]] <- B_s
 	}
 
-	# scalar parameters data frame
+	# scalar parameters as data frame
 	pars_df <- data.frame(
 		sigma2_proc = sigmasave,
 		tau_A2 = tau_A_save,
@@ -510,7 +510,7 @@ dbn_hmm <- function(Y,
 		pars_df$sigma2_obs <- sigma2_obs_save
 	}
 
-	# draws list
+	# collected draws
 	draws <- list(
 		theta = Thetasave,
 		z = if (FAM$name %in% c("ordinal", "binary")) Zsave else NULL,
@@ -524,7 +524,7 @@ dbn_hmm <- function(Y,
 		)
 	)
 
-	# metadata
+	# model metadata
 	meta <- list(
 		dims = dims,
 		draws = n_keep,
@@ -535,7 +535,7 @@ dbn_hmm <- function(Y,
 		pi0 = pi0
 	)
 
-	# assemble output
+	# final output list
 	out <- list(
 		draws = draws,
 		meta = meta,
@@ -571,7 +571,7 @@ dbn_hmm <- function(Y,
 		out$sigma2_obs <- sigma2_obs_save
 	}
 
-	# append iteration counts when continuing from previous
+	# accumulate iteration counts for continued runs
 	if (!is.null(previous)) {
 		prev_iter <- if (!is.null(previous$total_iter)) {
 			previous$total_iter
@@ -601,13 +601,13 @@ dbn_hmm <- function(Y,
 #' @keywords internal
 ####
 step_ll <- function(A, B, Theta_prev, Theta_curr, sigma2_proc) {
-	# guard against sigma2_proc near zero
+	# clamp sigma2_proc away from zero
 	sigma2_proc <- max(sigma2_proc, 1e-6)
 
-	# bilinear form: A Theta_{t-1} B'
+	# residual from bilinear prediction A * Theta_{t-1} * B'
 	resid <- Theta_curr - bilinear_step(A, Theta_prev, B)
 
-	# log-likelihood with stabilized variance
+	# Gaussian log-likelihood
 	-0.5 * sum(resid^2) / sigma2_proc - 0.5 * length(resid) * log(2 * pi * sigma2_proc)
 }
 
