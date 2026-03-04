@@ -8,6 +8,8 @@ shared_preprocess(Y, family = "ordinal")
 }
 \arguments{
 \item{Y}{Data array}
+
+\item{family}{Distribution family}
 }
 \value{
 List with preprocessed components

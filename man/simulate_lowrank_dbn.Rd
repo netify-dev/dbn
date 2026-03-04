@@ -2,10 +2,11 @@
 % Please edit documentation in R/simulate.R
 \name{simulate_lowrank_dbn}
 \alias{simulate_lowrank_dbn}
-\title{Simulate from Low-rank DBN Model}
+\title{Simulate from Low-Rank DBN Model}
 \usage{
 simulate_lowrank_dbn(
   n = 30,
+  n_col = n,
   p = 2,
   time = 50,
   r = 3,
@@ -19,58 +20,43 @@ simulate_lowrank_dbn(
 )
 }
 \arguments{
-\item{n}{Number of actors (default: 30)}
+\item{n}{Number of sender actors}
 
-\item{p}{Number of relation types (default: 2)}
+\item{n_col}{Number of receiver actors (default: n)}
 
-\item{time}{Number of time points (default: 50)}
+\item{p}{Number of relation types}
 
-\item{r}{Rank (default: 3)}
+\item{time}{Number of time points}
 
-\item{sigma2}{Innovation variance (default: 0.5)}
+\item{r}{Rank}
 
-\item{tau_alpha2}{Variance for alpha innovations (default: 0.1)}
+\item{sigma2}{Innovation variance}
 
-\item{tauB2}{Variance for B innovations (default: 0.05)}
+\item{tau_alpha2}{Variance for alpha innovations}
 
-\item{ar1_alpha}{Use AR(1) for alpha dynamics (default: TRUE)}
+\item{tauB2}{Variance for B innovations}
 
-\item{rho_alpha}{AR coefficient for alpha (default: 0.9)}
+\item{ar1_alpha}{Use AR(1) for alpha dynamics}
+
+\item{rho_alpha}{AR coefficient for alpha}
 
 \item{seed}{Random seed}
 
-\item{return_truth}{Whether to return true latent factors and parameters (default: TRUE)}
+\item{return_truth}{Return true latent factors and parameters}
 }
 \value{
 List containing simulated data and true parameters
 }
 \description{
-Generates data from a low-rank DBN model
+Generates data from a low-rank DBN with factored A = U diag(alpha) U'
 }
 \examples{
 \dontrun{
-# Generate low-rank model data
-data <- simulate_lowrank_dbn(n = 30, p = 2, time = 50, r = 3, seed = 123)
-
-# Example from patch: stable low-rank simulation that converges quickly
-sim <- simulate_lowrank_dbn(
-    n = 25,
-    p = 1, # single relation - most stable
-    time = 12,
-    r = 1, # matches the advice above
-    sigma2 = 0.2, # high SNR
-    tau_alpha2 = 0.02, # slow latent drift
-    seed = 42
-)
-
-fit <- dbn_lowrank(sim$Y,
-    r          = 1,
-    n_iter     = 600,
-    burn       = 200,
-    thin       = 2,
-    ar1_alpha  = FALSE, # fewer parameters
-    verbose    = 100
-)
-# returns ESS > 200 for sigma2 and tau2 in ~20 s on a laptop
+sim <- simulate_lowrank_dbn(n = 25, p = 1, time = 12, r = 1,
+    sigma2 = 0.2, tau_alpha2 = 0.02, seed = 42)
+fit <- dbn_lowrank(sim$Y, r = 1, n_iter = 600, burn = 200, thin = 2)
 }
+}
+\seealso{
+\code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_safe.R
 \name{drop_diag}
 \alias{drop_diag}
-\title{Remove diagonal from sparse matrix}
+\title{Remove Diagonal from Matrix}
 \usage{
 drop_diag(mat)
 }
@@ -10,9 +10,9 @@ drop_diag(mat)
 \item{mat}{Sparse or regular matrix}
 }
 \value{
-Matrix with diagonal elements removed (set to 0)
+Matrix with zero diagonal
 }
 \description{
-Efficiently remove diagonal elements from a sparse matrix
+Sets diagonal elements to zero, handling sparse matrices
 }
 \keyword{internal}

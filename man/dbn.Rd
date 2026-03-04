@@ -12,6 +12,7 @@ dbn(
   burn = 1000,
   odens = 1,
   verbose = TRUE,
+  symmetric = FALSE,
   ...
 )
 }
@@ -43,7 +44,20 @@ or 4-dimensional (actors x actors x relations x time) for multiple relations}
 
 \item{verbose}{Logical or numeric. If TRUE, show progress. If numeric, print detailed info every n iterations (default: TRUE)}
 
-\item{...}{Additional model-specific parameters passed to model-specific functions}
+\item{symmetric}{Logical. If TRUE, enforce B = A (symmetric/undirected network). Requires square network (n_row == n_col). Not supported for lowrank models. Default: FALSE.}
+
+\item{...}{Additional model-specific parameters:
+\describe{
+\item{\code{r}}{Rank for lowrank model (default: 2)}
+\item{\code{R}}{Number of regimes for HMM model (default: 3)}
+\item{\code{ar1}}{Use AR(1) dynamics for dynamic model (default: FALSE)}
+\item{\code{update_rho}}{Update AR coefficient in dynamic model (default: FALSE)}
+\item{\code{seed}}{Random seed for reproducibility (default: 6886)}
+\item{\code{previous}}{Previous fit object to continue MCMC from}
+\item{\code{init}}{List of initial values for parameters}
+\item{\code{time_thin}}{Time thinning factor for dynamic/lowrank/HMM (default: auto for dynamic, 1 for others)}
+\item{\code{store_z}}{Store Z draws for dynamic model (default: auto based on memory)}
+}}
 }
 \value{
 A list of class "dbn" containing:

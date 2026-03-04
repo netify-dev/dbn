@@ -2,7 +2,7 @@
 % Please edit documentation in R/lowrank_methods.R
 \name{summary_lowrank}
 \alias{summary_lowrank}
-\title{Summary for low-rank fits}
+\title{Summary for Low-Rank Fits}
 \usage{
 summary_lowrank(object, digits = 3, ...)
 }
@@ -11,12 +11,12 @@ summary_lowrank(object, digits = 3, ...)
 
 \item{digits}{Number of digits to display}
 
-\item{...}{Additional arguments (ignored)}
+\item{...}{Ignored}
 }
 \value{
 Invisibly returns the input object
 }
 \description{
-Prints posterior summaries for low-rank DBN models
+Posterior summaries for low-rank DBN models
 }
 \keyword{internal}

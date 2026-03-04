@@ -2,19 +2,19 @@
 % Please edit documentation in R/utils_safe.R
 \name{regularize_matrix}
 \alias{regularize_matrix}
-\title{Regularize matrix for safe Cholesky decomposition}
+\title{Regularize Matrix for Cholesky}
 \usage{
 regularize_matrix(mat, eps = NULL)
 }
 \arguments{
 \item{mat}{Matrix to regularize}
 
-\item{eps}{Regularization strength (default: 5e-8 * mean diagonal)}
+\item{eps}{Regularization strength}
 }
 \value{
 Regularized matrix
 }
 \description{
-Add small ridge to diagonal for numerical stability
+Adds small ridge to diagonal for numerical stability
 }
 \keyword{internal}

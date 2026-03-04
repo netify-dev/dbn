@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_safe.R
 \name{safe_rinv_gamma}
 \alias{safe_rinv_gamma}
-\title{Draw from an inverse-Gamma in log-scale (avoids under-/overflow)}
+\title{Safe Inverse-Gamma Sampling}
 \usage{
 safe_rinv_gamma(shape, rate, floor = 1e-08, ceiling = 1e+08)
 }
@@ -11,14 +11,14 @@ safe_rinv_gamma(shape, rate, floor = 1e-08, ceiling = 1e+08)
 
 \item{rate}{Rate parameter}
 
-\item{floor}{Minimum value (default 1e-8)}
+\item{floor}{Minimum return value}
 
-\item{ceiling}{Maximum value (default 1e8)}
+\item{ceiling}{Maximum return value}
 }
 \value{
 Sample from inverse-gamma distribution
 }
 \description{
-Safe inverse-gamma sampling for variance parameters
+Draws from inverse-Gamma on log-scale to avoid under/overflow
 }
 \keyword{internal}

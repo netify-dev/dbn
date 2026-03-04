@@ -2,19 +2,19 @@
 % Please edit documentation in R/utils_safe.R
 \name{sparse_mult}
 \alias{sparse_mult}
-\title{Sparse-aware matrix multiply}
+\title{Sparse-Aware Matrix Multiply}
 \usage{
 sparse_mult(A, B)
 }
 \arguments{
-\item{A}{First matrix (regular or sparse)}
+\item{A}{First matrix}
 
-\item{B}{Second matrix (regular or sparse)}
+\item{B}{Second matrix}
 }
 \value{
 Product A \%*\% B
 }
 \description{
-Efficiently multiply matrices that may be sparse
+Multiplies matrices that may be sparse
 }
 \keyword{internal}

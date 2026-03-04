@@ -2,27 +2,27 @@
 % Please edit documentation in R/utils_z_update.R
 \name{compute_gaussian_obs_residuals_flat}
 \alias{compute_gaussian_obs_residuals_flat}
-\title{Vectorized gaussian residual computation}
+\title{Vectorized Gaussian Residual Computation}
 \usage{
 compute_gaussian_obs_residuals_flat(Z_flat, Theta_flat, M_flat, m, p, Tt)
 }
 \arguments{
-\item{Z_flat}{flattened observation array}
+\item{Z_flat}{Flattened observation array}
 
-\item{Theta_flat}{flattened theta array}
+\item{Theta_flat}{Flattened theta array}
 
-\item{M_flat}{flattened M array}
+\item{M_flat}{Flattened M array}
 
-\item{m}{number of nodes}
+\item{m}{Number of nodes}
 
-\item{p}{number of relations}
+\item{p}{Number of relations}
 
-\item{Tt}{number of time points}
+\item{Tt}{Number of time points}
 }
 \value{
-sum of squared residuals
+Sum of squared residuals
 }
 \description{
-vectorized version for flattened arrays
+Vectorized version for flattened arrays
 }
 \keyword{internal}

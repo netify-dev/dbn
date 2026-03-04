@@ -2,7 +2,7 @@
 % Please edit documentation in R/irf.R
 \name{stat_reciprocity}
 \alias{stat_reciprocity}
-\title{Network statistic: reciprocity}
+\title{Network Statistic: Reciprocity}
 \usage{
 stat_reciprocity(X)
 }
@@ -13,5 +13,13 @@ stat_reciprocity(X)
 Scalar reciprocity value
 }
 \description{
-Compute network reciprocity (correlation between X[i,j] and X[j,i])
+Correlation between X[i,j] and X[j,i]
+}
+\examples{
+X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)
+stat_reciprocity(X)
+}
+\seealso{
+\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{stat_density}}, \code{\link{stat_transitivity}}
 }

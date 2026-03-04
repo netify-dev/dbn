@@ -2,7 +2,7 @@
 % Please edit documentation in R/irf.R
 \name{stat_transitivity}
 \alias{stat_transitivity}
-\title{Network statistic: transitivity}
+\title{Network Statistic: Transitivity}
 \usage{
 stat_transitivity(X)
 }
@@ -13,5 +13,13 @@ stat_transitivity(X)
 Scalar transitivity value
 }
 \description{
-Compute transitivity (clustering coefficient)
+Clustering coefficient
+}
+\examples{
+X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)
+stat_transitivity(X)
+}
+\seealso{
+\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{stat_density}}, \code{\link{stat_reciprocity}}
 }

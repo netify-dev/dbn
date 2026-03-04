@@ -44,14 +44,14 @@ arma::mat stabilize_spectral_radius(const arma::mat& M, double threshold) {
 bool safe_cholesky(arma::mat& L, const arma::mat& A, double reg) {
     for (int attempt = 0; attempt < MAX_CHOLESKY_ATTEMPTS; attempt++) {
         // start fresh each attempt to avoid accumulating regularization bias
-        arma::mat A_reg = A;
-        
+        arma::mat A_reg = 0.5 * (A + A.t());  // enforce symmetry
+
         if (attempt > 0) {
             // add regularization to diagonal elements
             double reg_amount = reg * std::pow(10, attempt - 1);
             A_reg.diag() += reg_amount;
         }
-        
+
         bool success = arma::chol(L, A_reg, "lower");
         if (success) {
             return true;
@@ -60,7 +60,13 @@ bool safe_cholesky(arma::mat& L, const arma::mat& A, double reg) {
     
     // last attempt: force the matrix to be positive definite
     arma::mat A_final = ensure_positive_definite(A, reg);
-    return arma::chol(L, A_final, "lower");
+    A_final = 0.5 * (A_final + A_final.t());  // enforce symmetry
+    bool ok = arma::chol(L, A_final, "lower");
+    if (!ok) {
+        // absolute last resort: use identity
+        L = arma::eye(arma::size(A));
+    }
+    return ok;
 }
 
 //' Ensure a matrix is positive definite

@@ -2,22 +2,35 @@
 % Please edit documentation in R/irf.R
 \name{plot.dbn_irf}
 \alias{plot.dbn_irf}
-\title{Plot impulse response functions}
+\title{Plot IRF}
 \usage{
 \method{plot}{dbn_irf}(x, ci_level = 0.95, title = NULL, ...)
 }
 \arguments{
 \item{x}{A dbn_irf object from compute_irf}
 
-\item{ci_level}{Credible interval level (default: 0.95)}
+\item{ci_level}{Credible interval level (0.90 or 0.95)}
 
-\item{title}{Plot title (default: auto-generated)}
+\item{title}{Plot title}
 
-\item{...}{Additional arguments (ignored)}
+\item{...}{Ignored}
 }
 \value{
 A ggplot2 object
 }
 \description{
-Creates a plot of IRF with credible intervals
+IRF plot with credible intervals
+}
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+S <- build_shock(m = 6, type = "unit_edge", i = 1, j = 2)
+irf <- compute_irf(fit, S = S, H = 5)
+plot(irf)
+}
+}
+\seealso{
+\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{print.dbn_irf}}
 }

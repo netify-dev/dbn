@@ -6,6 +6,7 @@
 \usage{
 simulate_hmm_dbn(
   n = 30,
+  n_col = n,
   p = 2,
   time = 50,
   R = 3,
@@ -15,63 +16,50 @@ simulate_hmm_dbn(
   transition_prob = 0.8,
   stickiness = NULL,
   seed = NULL,
-  return_truth = TRUE
+  return_truth = TRUE,
+  symmetric = FALSE
 )
 }
 \arguments{
-\item{n}{Number of actors (default: 30)}
+\item{n}{Number of sender actors}
 
-\item{p}{Number of relation types (default: 2)}
+\item{n_col}{Number of receiver actors (default: n)}
 
-\item{time}{Number of time points (default: 50)}
+\item{p}{Number of relation types}
 
-\item{R}{Number of regimes (default: 3)}
+\item{time}{Number of time points}
 
-\item{sigma2}{Innovation variance (default: 0.5)}
+\item{R}{Number of regimes}
 
-\item{tau_A2}{Prior variance for regime A matrices (default: 0.2)}
+\item{sigma2}{Innovation variance}
 
-\item{tau_B2}{Prior variance for regime B matrices (default: 0.2)}
+\item{tau_A2}{Prior variance for regime A matrices}
 
-\item{transition_prob}{Diagonal transition probability (default: 0.8)}
+\item{tau_B2}{Prior variance for regime B matrices}
+
+\item{transition_prob}{Diagonal transition probability}
 
 \item{stickiness}{Deprecated alias for transition_prob}
 
 \item{seed}{Random seed}
 
-\item{return_truth}{Whether to return true latent states and parameters (default: TRUE)}
+\item{return_truth}{Return true latent states and parameters}
+
+\item{symmetric}{Logical. If TRUE, set B = A for each regime. Default: FALSE.}
 }
 \value{
 List containing simulated data and true parameters
 }
 \description{
-Generates data from a regime-switching HMM DBN model
+Generates data from a regime-switching HMM DBN
 }
 \examples{
 \dontrun{
-# Generate HMM model data
-data <- simulate_hmm_dbn(n = 20, p = 1, time = 30, R = 2, seed = 123)
-
-# Example from patch: stable HMM simulation that converges quickly
-sim_hmm <- simulate_hmm_dbn(
-    n = 20,
-    p = 1,
-    time = 30,
-    R = 2, # two regimes
-    transition_prob = 0.9, # sticky
-    sigma2 = 0.1, # very clean data
-    seed = 123
-)
-
-fit_hmm <- dbn_hmm(sim_hmm$Y,
-    R        = 2,
-    n_iter   = 800,
-    burn     = 200,
-    thin     = 2,
-    family   = "ordinal",
-    delta    = c(10, 1), # sticky prior
-    verbose  = 100
-)
-# Converges (R-hat < 1.05) for sigma2, tau_A2, tau_B2 in < 2 min
+sim <- simulate_hmm_dbn(n = 20, p = 1, time = 30, R = 2,
+    transition_prob = 0.9, sigma2 = 0.1, seed = 123)
+fit <- dbn_hmm(sim$Y, R = 2, n_iter = 800, burn = 200, thin = 2)
 }
+}
+\seealso{
+\code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
 }

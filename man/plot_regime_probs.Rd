@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_plots.R
 \name{plot_regime_probs}
 \alias{plot_regime_probs}
-\title{Plot regime probabilities (HMM only)}
+\title{Plot Regime Probabilities}
 \usage{
 plot_regime_probs(fit)
 }
@@ -13,5 +13,15 @@ plot_regime_probs(fit)
 A ggplot object or NULL
 }
 \description{
-Plot posterior regime probabilities over time
+Stacked area plot of posterior regime probabilities over time (HMM only)
+}
+\examples{
+\donttest{
+sim <- simulate_hmm_dbn(n = 6, time = 10, R = 2, seed = 1)
+fit <- dbn(sim$Y, model = "hmm", R = 2, nscan = 200, burn = 100, verbose = FALSE)
+if (requireNamespace("ggplot2", quietly = TRUE)) plot_regime_probs(fit)
+}
+}
+\seealso{
+\code{\link{regime_probs}}, \code{\link{plot_trace}}, \code{\link{dbn_hmm}}
 }

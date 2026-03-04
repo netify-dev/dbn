@@ -17,11 +17,11 @@ update_AB_optimized(
 )
 }
 \arguments{
-\item{Theta_all}{Full Theta array (m x m x p x Tt)}
+\item{Theta_all}{Full Theta array (n_row x n_col x p x Tt)}
 
-\item{Aarray}{Current A array (m x m x Tt)}
+\item{Aarray}{Current A array (n_row x n_row x Tt)}
 
-\item{Barray}{Current B array (m x m x Tt)}
+\item{Barray}{Current B array (n_col x n_col x Tt)}
 
 \item{sigma2}{Observation variance}
 

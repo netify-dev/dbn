@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_safe.R
 \name{simulate_lowrank_factors}
 \alias{simulate_lowrank_factors}
-\title{Simulate low-rank factors}
+\title{Simulate Low-Rank Factors}
 \usage{
 simulate_lowrank_factors(m, r, sparse = FALSE)
 }
@@ -17,6 +17,6 @@ simulate_lowrank_factors(m, r, sparse = FALSE)
 List with U and V matrices
 }
 \description{
-Generate orthogonal factors for low-rank decomposition
+Generates orthogonal U and V factors for low-rank decomposition
 }
 \keyword{internal}

@@ -19,6 +19,6 @@ rz_fc(R, Z, EZ, IR)
 Updated Z matrix
 }
 \description{
-Samples latent Z values given ordinal constraints via truncated normal
+Samples latent Z values via truncated normal under ordinal constraints
 }
 \keyword{internal}

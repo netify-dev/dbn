@@ -11,7 +11,7 @@ tprod(A, B, modes = 1:length(B))
 
 \item{B}{List of matrices}
 
-\item{modes}{Modes for multiplication (default: along each dimension)}
+\item{modes}{Modes for multiplication}
 }
 \value{
 Transformed tensor

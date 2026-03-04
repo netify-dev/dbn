@@ -5,7 +5,25 @@
 \alias{dbn-package}
 \title{dbn: Dynamic Bilinear Network Models for Ordinal Relational Data}
 \description{
-Implements Dynamic Bilinear Network (DBN) models for analyzing temporal ordinal relational data. Provides both static and dynamic variants of bilinear autoregressive models with Gaussian rank likelihood for ordinal outcomes. Includes functions for model estimation via MCMC, visualization, and diagnostics.
+Implements Dynamic Bilinear Network (DBN) models for analyzing temporal relational data. Supports ordinal (rank likelihood), continuous (Gaussian), and binary (probit) outcome types across static, dynamic, low-rank, and HMM model variants for both unipartite and bipartite directed networks. Includes functions for model estimation via MCMC, visualization, impulse response analysis, and diagnostics.
+}
+\section{Armadillo warnings}{
+
+During MCMC sampling you may see \code{warning: chol(): given matrix is not
+symmetric} printed to the console. This is a harmless diagnostic from the
+Armadillo C++ library; the package detects the near-symmetry and applies a
+small regularization before retrying the decomposition. No user action is
+required.
+}
+
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://netify-dev.github.io/dbn/}
+  \item \url{https://github.com/netify-dev/dbn}
+  \item Report bugs at \url{https://github.com/netify-dev/dbn/issues}
+}
+
 }
 \author{
 \strong{Maintainer}: Shahryar Minhas \email{minhassh@msu.edu}

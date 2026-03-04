@@ -1,278 +1,232 @@
+####
 #' Family Objects for DBN Models
 #'
-#' @description Internal functions to create likelihood family objects for different outcome types
+#' @description Internal constructors for likelihood family objects
 #' @name family
 #' @keywords internal
 NULL
+####
 
-#' Internal constructor for likelihood "family" objects
+####
+#' Family Constructor
+#'
+#' @description Builds a dbn_family structure holding all family-specific callbacks
+#' @param name Family name string
+#' @param draw_latent Latent Z sampler
+#' @param ffbs_wrapper FFBS dispatch wrapper
+#' @param loglik Log-likelihood function
+#' @param linkinv Inverse link function
+#' @param rgen_obs Observation generator
+#' @param init_pars Initial parameter list
+#' @return A dbn_family object
 #' @keywords internal
-dbn_make_family <- function(name,
-                            draw_latent, # function(pre, ...) -> updated z
-                            ffbs_wrapper, # function(z, mu, ...) -> theta
-                            loglik, # function(a,b,theta_{t-1},theta_t, fam_pars) -> l
-                            linkinv, # function(theta, misc, ...) -> expected value
-                            rgen_obs, # function(theta, misc, ...) -> simulated observations
-                            init_pars = list()) {
-    structure(
-        list(
-            name = name,
-            draw_latent = draw_latent,
-            ffbs_wrapper = ffbs_wrapper,
-            loglik = loglik,
-            linkinv = linkinv,
-            rgen_obs = rgen_obs,
-            init_pars = init_pars
-        ),
-        class = "dbn_family"
-    )
+dbn_make_family <- function(name, draw_latent, ffbs_wrapper, loglik,
+							linkinv, rgen_obs, init_pars = list()) {
+	structure(
+		list(
+			name = name,
+			draw_latent = draw_latent,
+			ffbs_wrapper = ffbs_wrapper,
+			loglik = loglik,
+			linkinv = linkinv,
+			rgen_obs = rgen_obs,
+			init_pars = init_pars
+		),
+		class = "dbn_family"
+	)
 }
+####
 
+####
 #' Ordinal Family
 #'
-#' @description Family object for ordinal outcomes using rank likelihood
+#' @description Rank likelihood family for ordinal outcomes.
+#'   Observation variance fixed at 1 for identifiability.
 #' @return A dbn_family object
 #' @keywords internal
 family_ordinal <- function() {
-    dbn_make_family(
-        name = "ordinal",
-        draw_latent = function(pre, ...) {
-            # 
-            for (j in seq_len(pre$dims$p)) {
-                # create ez = theta + m, broadcasting m across time
-                EZ <- pre$Theta[, , j, ]
-                for (t in 1:pre$dims$Tt) {
-                    EZ[, , t] <- EZ[, , t] + pre$M[, , j]
-                }
-                pre$Z[, , j, ] <- rz_fc(pre$R[, , j, ], pre$Z[, , j, ], EZ, pre$IR[[j]])
-            }
-            pre
-        },
-        ffbs_wrapper = function(Z, mu, Aarray, Barray, sigma2_proc, sigma2_obs, ...) {
-            # for ordinal outcomes, observation variance is fixed at 1 for identifiability
-            # the rank likelihood model assumes z ~ n(theta + m, i), not n(theta + m, sigma2_obs * i)
-            # ... just a constraint of probit-style rank models
-            if (!missing(sigma2_obs) && sigma2_obs != 1) {
-                warning("observation variance sigma2_obs is fixed at 1 for ordinal family (identifiability constraint)")
-            }
-            ffbs_theta(Z, mu, Aarray, Barray, sigma2_proc) # obs var fixed = 1
-        },
-        loglik = step_ll, # unchanged
-        linkinv = function(theta, misc) {
-            # for ordinal: return expected rank given latent value and cutpoints
-            if (is.null(misc$cuts)) {
-                # if no cutpoints, just return theta (latent scale)
-                return(theta)
-            }
+	dbn_make_family(
+		name = "ordinal",
 
-            # compute probabilities for each category
-            K <- length(misc$cuts) + 1 # number of cats
-            cts <- seq_len(K)
+		draw_latent = function(pre, ...) {
+			for (j in seq_len(pre$dims$p)) {
+				EZ <- pre$Theta[, , j, ]
+				for (t in 1:pre$dims$Tt) {
+					EZ[, , t] <- EZ[, , t] + pre$M[, , j]
+				}
+				pre$Z[, , j, ] <- rz_fc(pre$R[, , j, ], pre$Z[, , j, ], EZ, pre$IR[[j]])
+			}
+			pre
+		},
 
-            # for each element of theta, compute expected category
-            expected <- array(NA, dim = dim(theta))
+		ffbs_wrapper = function(Z, mu, Aarray, Barray, sigma2_proc, sigma2_obs, ...) {
+			if (!missing(sigma2_obs) && sigma2_obs != 1) {
+				warning("observation variance sigma2_obs is fixed at 1 for ordinal family (identifiability constraint)")
+			}
+			ffbs_theta(Z, mu, Aarray, Barray, sigma2_proc)
+		},
 
-            for (i in seq_len(length(theta))) {
-                # cumulative probabilities
-                cum_probs <- c(0, pnorm(misc$cuts - theta[i]), 1)
-                # category probabilities
-                probs <- diff(cum_probs)
-                # expected value
-                expected[i] <- sum(cts * probs)
-            }
+		loglik = step_ll,
 
-            expected
-        },
-        rgen_obs = function(theta, misc) {
-            # generate ordinal observations given latent values
-            # add baseline mean if provided
-            if (!is.null(misc$M)) {
-                # Check dimensions
-                dim_theta <- dim(theta)
-                dim_M <- dim(misc$M)
-                
-                # m may have fewer dimensions than theta
-                if (length(dim_M) == 3 && length(dim_theta) == 4) {
-                    # broadcast m across time
-                    theta_mean <- sweep(theta, 1:3, misc$M, "+")
-                } else if (length(dim_M) == length(dim_theta) && all(dim_M == dim_theta)) {
-                    # Same dimensions, can add directly
-                    theta_mean <- theta + misc$M
-                } else {
-                    stop(sprintf("Incompatible dimensions: theta is %s, M is %s",
-                                paste(dim_theta, collapse="x"),
-                                paste(dim_M, collapse="x")))
-                }
-            } else {
-                theta_mean <- theta
-            }
+		linkinv = function(theta, misc) {
+			if (is.null(misc$cuts)) {
+				return(theta)
+			}
+			K <- length(misc$cuts) + 1
+			cts <- seq_len(K)
+			expected <- array(NA, dim = dim(theta))
+			for (i in seq_len(length(theta))) {
+				cum_probs <- c(0, pnorm(misc$cuts - theta[i]), 1)
+				probs <- diff(cum_probs)
+				expected[i] <- sum(cts * probs)
+			}
+			expected
+		},
 
-            if (is.null(misc$cuts)) {
-                # default to 5 categories with standard normal cutpoints
-                misc$cuts <- qnorm(seq(0.2, 0.8, by = 0.2))
-            }
+		rgen_obs = function(theta, misc) {
+			theta_mean <- add_baseline_mean(theta, misc$M)
+			if (is.null(misc$cuts)) {
+				misc$cuts <- qnorm(seq(0.2, 0.8, by = 0.2))
+			}
 
-            # for each latent value, determine which category it falls into
-            u <- array(runif(length(theta_mean)), dim = dim(theta_mean))
+			u <- array(runif(length(theta_mean)), dim = dim(theta_mean))
+			ranks <- array(NA, dim = dim(theta_mean))
+			for (i in seq_len(length(theta_mean))) {
+				cum_probs <- pnorm(misc$cuts - theta_mean[i])
+				ranks[i] <- findInterval(u[i], c(0, cum_probs, 1))
+			}
 
-            # compute cumulative probabilities and find intervals
-            ranks <- array(NA, dim = dim(theta_mean))
-
-            for (i in seq_len(length(theta_mean))) {
-                cum_probs <- pnorm(misc$cuts - theta_mean[i])
-                ranks[i] <- findInterval(u[i], c(0, cum_probs, 1)) + 1L
-            }
-
-            # ensure ranks are in valid range (1 to number of categories)
-            n_cats <- length(misc$cuts) + 1
-            ranks <- pmin(pmax(ranks, 1L), n_cats)
-
-            ranks
-        }
-    )
+			n_cats <- length(misc$cuts) + 1
+			pmin(pmax(ranks, 1L), n_cats)
+		}
+	)
 }
+####
 
+####
 #' Gaussian Family
 #'
-#' @description Family object for Gaussian outcomes
+#' @description Identity-link family for continuous outcomes
 #' @return A dbn_family object
 #' @keywords internal
 family_gaussian <- function() {
-    dbn_make_family(
-        name = "gaussian",
-        draw_latent = function(pre, ...) pre, # z ≡ y (no latent augmentation)
-        ffbs_wrapper = function(Z, mu, Aarray, Barray, sigma2_proc, sigma2_obs, ...) {
-            ffbs_theta_struct_cpp(Z, mu, Aarray, Barray, sigma2_proc, sigma2_obs)
-        },
-        loglik = function(A, B, Theta_prev, Theta_curr, fam_pars) {
-            sigma2_obs <- fam_pars$sigma2_obs
-            resid <- Theta_curr - A %*% Theta_prev %*% t(B)
-            -0.5 * sum(resid^2) / sigma2_obs -
-                0.5 * length(resid) * log(2 * pi * sigma2_obs)
-        },
-        linkinv = function(theta, misc, ...) {
-            # for gaussian: identity link, expected value is theta itself
-            theta
-        },
-        rgen_obs = function(theta, misc, sigma2_obs = 1) {
-            # generate gaussian observations with observation variance
-            # add baseline mean if provided
-            if (!is.null(misc$M)) {
-                # Check dimensions
-                dim_theta <- dim(theta)
-                dim_M <- dim(misc$M)
-                
-                # m may have fewer dimensions than theta
-                if (length(dim_M) == 3 && length(dim_theta) == 4) {
-                    # broadcast m across time
-                    theta_mean <- sweep(theta, 1:3, misc$M, "+")
-                } else if (length(dim_M) == length(dim_theta) && all(dim_M == dim_theta)) {
-                    # Same dimensions, can add directly
-                    theta_mean <- theta + misc$M
-                } else {
-                    stop(sprintf("Incompatible dimensions: theta is %s, M is %s",
-                                paste(dim_theta, collapse="x"),
-                                paste(dim_M, collapse="x")))
-                }
-            } else {
-                theta_mean <- theta
-            }
+	dbn_make_family(
+		name = "gaussian",
 
-            if (!is.null(misc$sigma2_obs)) {
-                sigma2_obs <- misc$sigma2_obs
-            }
-            # add gaussian noise
-            theta_mean + array(rnorm(length(theta_mean), sd = sqrt(sigma2_obs)), dim(theta_mean))
-        },
-        init_pars = list(sigma2_obs = 1) # will be overwritten by sampler
-    )
+		draw_latent = function(pre, ...) pre,
+
+		ffbs_wrapper = function(Z, mu, Aarray, Barray, sigma2_proc, sigma2_obs, ...) {
+			ffbs_theta_struct_cpp(Z, mu, Aarray, Barray, sigma2_proc, sigma2_obs)
+		},
+
+		loglik = function(A, B, Theta_prev, Theta_curr, fam_pars) {
+			sigma2_obs <- fam_pars$sigma2_obs
+			resid <- Theta_curr - A %*% Theta_prev %*% t(B)
+			-0.5 * sum(resid^2) / sigma2_obs -
+				0.5 * length(resid) * log(2 * pi * sigma2_obs)
+		},
+
+		linkinv = function(theta, misc, ...) {
+			theta
+		},
+
+		rgen_obs = function(theta, misc, sigma2_obs = 1) {
+			theta_mean <- add_baseline_mean(theta, misc$M)
+			if (!is.null(misc$sigma2_obs)) {
+				sigma2_obs <- misc$sigma2_obs
+			}
+			theta_mean + array(rnorm(length(theta_mean), sd = sqrt(sigma2_obs)), dim(theta_mean))
+		},
+
+		init_pars = list(sigma2_obs = 1)
+	)
 }
+####
 
+####
 #' Binary Family
 #'
-#' @description Family object for binary outcomes using probit link
+#' @description Probit-link family for binary outcomes.
+#'   Observation variance fixed at 1 for identifiability.
 #' @return A dbn_family object
 #' @keywords internal
 family_binary <- function() {
-    dbn_make_family(
-        name = "binary",
-        draw_latent = function(pre, Aarray, Barray, ...) {
-            # check if truncnorm is available
-            if (!requireNamespace("truncnorm", quietly = TRUE)) {
-                stop("Package 'truncnorm' is required for binary outcomes. Please install it.")
-            }
+	dbn_make_family(
+		name = "binary",
 
-            # sample z_{ijt} | y, theta
-            for (t in 1:pre$dims$Tt) {
-                for (rel in 1:pre$dims$p) {
-                    # use current latent mean: theta_t + m
-                    eta_t <- pre$Theta[, , rel, t] + pre$M[, , rel]
+		draw_latent = function(pre, Aarray, Barray, ...) {
+			if (!requireNamespace("truncnorm", quietly = TRUE)) {
+				cli::cli_abort(c(
+					"Package {.pkg truncnorm} is required for binary outcomes.",
+					"i" = "Install with {.code install.packages(\"truncnorm\")}"
+				))
+			}
+			for (t in 1:pre$dims$Tt) {
+				for (rel in 1:pre$dims$p) {
+					eta_t <- pre$Theta[, , rel, t] + pre$M[, , rel]
+					Y_t <- pre$R[, , rel, t]
+					Z_t <- pre$Z[, , rel, t]
 
-                    Y_t <- pre$R[, , rel, t]
-                    Z_t <- pre$Z[, , rel, t]
+					pos <- which(Y_t == 1)
+					neg <- which(Y_t == 0)
+					if (length(pos) > 0) {
+						Z_t[pos] <- truncnorm::rtruncnorm(length(pos),
+							a = 0, b = Inf, mean = eta_t[pos], sd = 1)
+					}
+					if (length(neg) > 0) {
+						Z_t[neg] <- truncnorm::rtruncnorm(length(neg),
+							a = -Inf, b = 0, mean = eta_t[neg], sd = 1)
+					}
+					pre$Z[, , rel, t] <- Z_t
+				}
+			}
+			pre
+		},
 
-                    # probit link: sample from truncated normal
-                    pos <- which(Y_t == 1)
-                    neg <- which(Y_t == 0)
+		ffbs_wrapper = function(Z, mu, Aarray, Barray, sigma2_proc, sigma2_obs = 1, ...) {
+			if (!missing(sigma2_obs) && sigma2_obs != 1) {
+				warning("observation variance sigma2_obs is fixed at 1 for binary family (probit identifiability)")
+			}
+			ffbs_theta(Z, mu, Aarray, Barray, sigma2_proc)
+		},
 
-                    if (length(pos) > 0) {
-                        Z_t[pos] <- truncnorm::rtruncnorm(length(pos),
-                            a = 0, b = Inf,
-                            mean = eta_t[pos], sd = 1
-                        )
-                    }
-                    if (length(neg) > 0) {
-                        Z_t[neg] <- truncnorm::rtruncnorm(length(neg),
-                            a = -Inf, b = 0,
-                            mean = eta_t[neg], sd = 1
-                        )
-                    }
+		loglik = step_ll,
 
-                    pre$Z[, , rel, t] <- Z_t
-                }
-            }
-            pre
-        },
-        ffbs_wrapper = function(Z, mu, Aarray, Barray, sigma2_proc, sigma2_obs = 1, ...) {
-            # for binary outcomes, observation variance is fixed at 1 for identifiability
-            # the probit model assumes z ~ n(theta + m, i) with truncation
-            # ... standard constraint in probit mods to get at the scale
-            if (!missing(sigma2_obs) && sigma2_obs != 1) {
-                warning("observation variance sigma2_obs is fixed at 1 for binary family (probit identifiability)")
-            }
-            ffbs_theta(Z, mu, Aarray, Barray, sigma2_proc) # obs var fixed to 1
-        },
-        loglik = step_ll, # same latent-Gaussian form
-        linkinv = function(theta, misc) {
-            # for binary probit: return probability
-            pnorm(theta)
-        },
-        rgen_obs = function(theta, misc) {
-            # generate binary observations from probit probabilities
-            # add baseline mean if provided
-            if (!is.null(misc$M)) {
-                # Check dimensions
-                dim_theta <- dim(theta)
-                dim_M <- dim(misc$M)
-                
-                # m may have fewer dimensions than theta
-                if (length(dim_M) == 3 && length(dim_theta) == 4) {
-                    # broadcast m across time
-                    theta_mean <- sweep(theta, 1:3, misc$M, "+")
-                } else if (length(dim_M) == length(dim_theta) && all(dim_M == dim_theta)) {
-                    # same dimensions, can add directly
-                    theta_mean <- theta + misc$M
-                } else {
-                    stop(sprintf("Incompatible dimensions: theta is %s, M is %s",
-                                paste(dim_theta, collapse="x"),
-                                paste(dim_M, collapse="x")))
-                }
-            } else {
-                theta_mean <- theta
-            }
-            probs <- pnorm(theta_mean)
-            array(rbinom(length(theta_mean), 1, probs), dim = dim(theta_mean))
-        },
-        init_pars = list() 
-    )
+		linkinv = function(theta, misc) {
+			pnorm(theta)
+		},
+
+		rgen_obs = function(theta, misc) {
+			theta_mean <- add_baseline_mean(theta, misc$M)
+			probs <- pnorm(theta_mean)
+			array(rbinom(length(theta_mean), 1, probs), dim = dim(theta_mean))
+		},
+
+		init_pars = list()
+	)
 }
+####
+
+####
+#' Add Baseline Mean to Theta
+#'
+#' @description Broadcasts M across time dimension of theta
+#' @param theta Latent array
+#' @param M Baseline mean (may be NULL)
+#' @return theta + M with appropriate broadcasting
+#' @keywords internal
+add_baseline_mean <- function(theta, M) {
+	if (is.null(M)) return(theta)
+
+	dim_theta <- dim(theta)
+	dim_M <- dim(M)
+
+	if (length(dim_M) == 3 && length(dim_theta) == 4) {
+		sweep(theta, 1:3, M, "+")
+	} else if (length(dim_M) == length(dim_theta) && all(dim_M == dim_theta)) {
+		theta + M
+	} else {
+		cli::cli_abort("Incompatible dimensions: theta is {paste(dim_theta, collapse = 'x')}, M is {paste(dim_M, collapse = 'x')}.")
+	}
+}
+####

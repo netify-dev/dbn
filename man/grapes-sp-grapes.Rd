@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_safe.R
 \name{\%sp\%}
 \alias{\%sp\%}
-\title{Sparse matrix multiplication operator}
+\title{Sparse Matrix Multiply Operator}
 \usage{
 A \%sp\% B
 }
@@ -15,6 +15,6 @@ A \%sp\% B
 Matrix product
 }
 \description{
-\%*\% that keeps sparse objects sparse
+Infix operator that keeps sparse objects sparse
 }
 \keyword{internal}

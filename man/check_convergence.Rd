@@ -15,3 +15,14 @@ Invisible NULL (diagnostics are printed and plotted)
 \description{
 Provides convergence diagnostics for MCMC chains
 }
+\examples{
+\donttest{
+sim <- simulate_static_dbn(n = 6, time = 10, seed = 1)
+fit <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
+check_convergence(fit)
+}
+}
+\seealso{
+\code{\link{dbn}}, \code{\link{compare_dbn}},
+\code{\link{param_summary}}
+}

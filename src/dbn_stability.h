@@ -10,6 +10,11 @@ constexpr double SPECTRAL_RADIUS_THRESHOLD = 0.995;
 constexpr double CHOLESKY_REGULARIZATION = 1e-6;
 constexpr int MAX_CHOLESKY_ATTEMPTS = 5;
 
+// force matrix symmetry to avoid chol() warnings from floating-point drift
+inline arma::mat force_sym(const arma::mat& M) {
+    return 0.5 * (M + M.t());
+}
+
 // function declarations for stability utility functions
 arma::mat stabilize_spectral_radius(const arma::mat& M, double threshold = SPECTRAL_RADIUS_THRESHOLD);
 bool safe_cholesky(arma::mat& L, const arma::mat& A, double reg = CHOLESKY_REGULARIZATION);

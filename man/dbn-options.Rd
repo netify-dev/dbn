@@ -10,40 +10,20 @@ particularly for toggling between R and C++ implementations.
 \section{Performance Options}{
 
 \describe{
-\item{dbn.use_cpp_update_ab}{Logical (default: TRUE). Use C++ implementation
-for updating A and B matrices in HMM models.}
-\item{dbn.use_cpp_build_f}{Logical (default: TRUE). Use C++ implementation
-for building design matrix F in low-rank models.}
-\item{dbn.use_batch_ffbs}{Logical (default: TRUE). Use batch FFBS updates
-when available for better performance.}
-\item{dbn.use_cpp_stability}{Logical (default: TRUE). Use C++ implementations
-for matrix stability functions (spectral radius, positive definite checks).}
-\item{dbn.use_ffbs_dlm_cpp}{Logical (default: TRUE). Use C++ implementation
-of Forward-Filter Backward-Sample for dynamic linear models.}
-\item{dbn.use_ffbs_cpp}{Logical (default: TRUE). Use C++ implementation
-of time-varying FFBS algorithm.}
-\item{dbn.use_cpp_ranklik}{Logical (default: TRUE). Use C++ implementation
-for rank likelihood sampling (significant speedup on large networks).}
+\item{dbn.use_cpp_update_ab}{Logical (default: TRUE). Use C++ for A/B updates in HMM.}
+\item{dbn.use_cpp_build_f}{Logical (default: TRUE). Use C++ for design matrix F in lowrank.}
+\item{dbn.use_batch_ffbs}{Logical (default: TRUE). Use batch FFBS updates.}
+\item{dbn.use_cpp_stability}{Logical (default: TRUE). Use C++ for stability functions.}
+\item{dbn.use_ffbs_dlm_cpp}{Logical (default: TRUE). Use C++ FFBS for DLMs.}
+\item{dbn.use_ffbs_cpp}{Logical (default: TRUE). Use C++ time-varying FFBS.}
+\item{dbn.use_cpp_ranklik}{Logical (default: TRUE). Use C++ rank likelihood sampling.}
 }
 }
 
 \section{Setting Options}{
 
-Options can be set using \code{options()}:
 \preformatted{
-# Disable C++ rank likelihood (e.g., for debugging)
 options(dbn.use_cpp_ranklik = FALSE)
-
-# Disable all C++ implementations
-options(
-  dbn.use_cpp_update_ab = FALSE,
-  dbn.use_cpp_build_f = FALSE,
-  dbn.use_batch_ffbs = FALSE,
-  dbn.use_cpp_stability = FALSE,
-  dbn.use_ffbs_dlm_cpp = FALSE,
-  dbn.use_ffbs_cpp = FALSE,
-  dbn.use_cpp_ranklik = FALSE
-)
 }
 }
 

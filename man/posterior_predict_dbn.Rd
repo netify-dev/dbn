@@ -21,3 +21,13 @@ List of predicted observations with class "dbn_ppd"
 \description{
 Generate new observations from the posterior predictive distribution
 }
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+ppd <- posterior_predict_dbn(fit, ndraws = 5)
+}
+}
+\seealso{
+\code{\link{plot_ppc_ecdf}}, \code{\link{plot_ppc_density}}, \code{\link{param_summary}}
+}

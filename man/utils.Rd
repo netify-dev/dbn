@@ -4,6 +4,6 @@
 \alias{utils}
 \title{Utility Functions for DBN Package}
 \description{
-Legacy utility functions - most have been moved to utils_*.R files
+Core utilities shared across all models
 }
 \keyword{internal}

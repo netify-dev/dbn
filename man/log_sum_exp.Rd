@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_tensor.R
 \name{log_sum_exp}
 \alias{log_sum_exp}
-\title{Log-sum-exp trick}
+\title{Log-Sum-Exp}
 \usage{
 log_sum_exp(x)
 }

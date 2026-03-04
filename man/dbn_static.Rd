@@ -7,13 +7,14 @@
 dbn_static(
   Y,
   family = c("ordinal", "gaussian", "binary"),
-  nscan = 5000,
+  nscan = 10000,
   burn = 1000,
   odens = 1,
   seed = 6886,
-  verbose = 100,
+  verbose = TRUE,
   previous = NULL,
-  init = NULL
+  init = NULL,
+  symmetric = FALSE
 )
 }
 \arguments{
@@ -34,15 +35,26 @@ dbn_static(
 
 \item{seed}{Random seed for reproducibility}
 
-\item{verbose}{Logical indicating whether to show progress}
+\item{verbose}{Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.}
 
 \item{previous}{Previous dbn_static results to continue from (optional)}
 
 \item{init}{List of initial values for parameters: B, s2, t2, g2, M, Z (optional)}
+
+\item{symmetric}{Logical. If TRUE, store symmetric flag in output dims. Default: FALSE.}
 }
 \value{
 List containing MCMC results
 }
 \description{
 Fits DBN model with fixed sender/receiver effects
+}
+\examples{
+\donttest{
+sim <- simulate_static_dbn(n = 8, time = 5, seed = 1)
+fit <- dbn_static(sim$Y, nscan = 200, burn = 100, verbose = FALSE)
+}
+}
+\seealso{
+\code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
 }

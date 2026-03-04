@@ -46,8 +46,19 @@ arma::mat rinvwishart_stable(int nu, const arma::mat& S) {
     // w = a * a'
     arma::mat W = A * A.t();
     
-    // transform to inverse wishart
-    arma::mat W_inv = arma::inv_sympd(W);
+    // transform to inverse wishart (use safe inversion)
+    arma::mat W_pd = ensure_positive_definite(W);
+    arma::mat W_inv;
+    bool inv_ok = arma::inv_sympd(W_inv, W_pd);
+    if (!inv_ok) {
+        // fallback: regularize and retry
+        W_pd = ensure_positive_definite(W_pd, 1e-4);
+        inv_ok = arma::inv_sympd(W_inv, W_pd);
+        if (!inv_ok) {
+            // last resort: use general inverse
+            W_inv = arma::inv(W_pd);
+        }
+    }
     arma::mat result = L_S * W_inv * L_S.t();
     
     // make sure result is symmetric and positive definite

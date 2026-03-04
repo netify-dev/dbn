@@ -1,4 +1,16 @@
+####
+# package metadata and imports
+####
+
 #' @keywords internal
+#'
+#' @section Armadillo warnings:
+#' During MCMC sampling you may see \code{warning: chol(): given matrix is not
+#' symmetric} printed to the console. This is a harmless diagnostic from the
+#' Armadillo C++ library; the package detects the near-symmetry and applies a
+#' small regularization before retrying the decomposition. No user action is
+#' required.
+#'
 #' @importFrom grDevices adjustcolor heat.colors rainbow
 #' @importFrom graphics abline barplot image legend lines matplot par polygon
 #' @importFrom methods as
@@ -7,6 +19,10 @@
 #' @importFrom Rcpp evalCpp
 "_PACKAGE"
 
+####
+# package options
+####
+
 #' DBN Package Options
 #'
 #' @description The dbn package uses several options to control behavior,
@@ -14,58 +30,41 @@
 #'
 #' @section Performance Options:
 #' \describe{
-#'   \item{dbn.use_cpp_update_ab}{Logical (default: TRUE). Use C++ implementation
-#'     for updating A and B matrices in HMM models.}
-#'   \item{dbn.use_cpp_build_f}{Logical (default: TRUE). Use C++ implementation
-#'     for building design matrix F in low-rank models.}
-#'   \item{dbn.use_batch_ffbs}{Logical (default: TRUE). Use batch FFBS updates
-#'     when available for better performance.}
-#'   \item{dbn.use_cpp_stability}{Logical (default: TRUE). Use C++ implementations
-#'     for matrix stability functions (spectral radius, positive definite checks).}
-#'   \item{dbn.use_ffbs_dlm_cpp}{Logical (default: TRUE). Use C++ implementation
-#'     of Forward-Filter Backward-Sample for dynamic linear models.}
-#'   \item{dbn.use_ffbs_cpp}{Logical (default: TRUE). Use C++ implementation
-#'     of time-varying FFBS algorithm.}
-#'   \item{dbn.use_cpp_ranklik}{Logical (default: TRUE). Use C++ implementation
-#'     for rank likelihood sampling (significant speedup on large networks).}
+#'   \item{dbn.use_cpp_update_ab}{Logical (default: TRUE). Use C++ for A/B updates in HMM.}
+#'   \item{dbn.use_cpp_build_f}{Logical (default: TRUE). Use C++ for design matrix F in lowrank.}
+#'   \item{dbn.use_batch_ffbs}{Logical (default: TRUE). Use batch FFBS updates.}
+#'   \item{dbn.use_cpp_stability}{Logical (default: TRUE). Use C++ for stability functions.}
+#'   \item{dbn.use_ffbs_dlm_cpp}{Logical (default: TRUE). Use C++ FFBS for DLMs.}
+#'   \item{dbn.use_ffbs_cpp}{Logical (default: TRUE). Use C++ time-varying FFBS.}
+#'   \item{dbn.use_cpp_ranklik}{Logical (default: TRUE). Use C++ rank likelihood sampling.}
 #' }
 #'
 #' @section Setting Options:
-#' Options can be set using \code{options()}:
 #' \preformatted{
-#' # Disable C++ rank likelihood (e.g., for debugging)
 #' options(dbn.use_cpp_ranklik = FALSE)
-#'
-#' # Disable all C++ implementations
-#' options(
-#'   dbn.use_cpp_update_ab = FALSE,
-#'   dbn.use_cpp_build_f = FALSE,
-#'   dbn.use_batch_ffbs = FALSE,
-#'   dbn.use_cpp_stability = FALSE,
-#'   dbn.use_ffbs_dlm_cpp = FALSE,
-#'   dbn.use_ffbs_cpp = FALSE,
-#'   dbn.use_cpp_ranklik = FALSE
-#' )
 #' }
 #'
 #' @name dbn-options
 NULL
 
-# Global variables from ggplot2 and other packages
-if(getRversion() >= "2.15.1") {
-  utils::globalVariables(c(
-    ".", "aarray", "actor", "backward_sample_fast", "barray",
-    "collect_dynamic", "collect_hmm", "collect_lowrank", "collect_static",
-    "compute_bilinear_residuals_fast", "ecdf", "forward_hmm_fast", "freq", "from", 
-    "group", "hi", "i", "init_dynamic", "init_hmm", "init_static", "iter", 
-    "iteration", "j", "loading", "lo", "lower", "med", "posterior_mean", 
-    "prob", "quant", "receiver", "regime", "rhoA", "rhoB", "running_mean", 
-    "sel", "sender", "set", "time", "to", "type", "update_AB_dynamic", 
-    "update_AB_static", "update_Theta_dynamic", "update_Theta_hmm", 
-    "update_Theta_lowrank", "update_Theta_static", "update_Z_hmm", 
-    "update_Z_lowrank", "update_Z_static", "update_factor_lowrank", 
-    "update_hyper_dynamic", "update_hyper_hmm", "update_hyper_lowrank", 
-    "update_hyper_static", "update_regime_hmm", "update_state_hmm", 
-    "upper", "val", "value", "z"
-  ))
+####
+# global variable declarations
+####
+
+if (getRversion() >= "2.15.1") {
+	utils::globalVariables(c(
+		".", "aarray", "actor", "backward_sample_fast", "barray",
+		"collect_dynamic", "collect_hmm", "collect_lowrank", "collect_static",
+		"compute_bilinear_residuals_fast", "ecdf", "forward_hmm_fast", "freq", "from",
+		"group", "hi", "i", "init_dynamic", "init_hmm", "init_static", "iter",
+		"iteration", "j", "loading", "lo", "lower", "med", "posterior_mean",
+		"prob", "quant", "receiver", "regime", "rhoA", "rhoB", "running_mean",
+		"sel", "sender", "set", "time", "to", "type", "update_AB_dynamic",
+		"update_AB_static", "update_Theta_dynamic", "update_Theta_hmm",
+		"update_Theta_lowrank", "update_Theta_static", "update_Z_hmm",
+		"update_Z_lowrank", "update_Z_static", "update_factor_lowrank",
+		"update_hyper_dynamic", "update_hyper_hmm", "update_hyper_lowrank",
+		"update_hyper_static", "update_regime_hmm", "update_state_hmm",
+		"upper", "val", "value", "z", "k", "linewidth"
+	))
 }

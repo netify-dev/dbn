@@ -19,3 +19,14 @@ Base R plot (invisible NULL)
 \description{
 Tracks first left/right singular vector of A_t or B_t
 }
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+role_trajectory(fit, mat = "A", comp = 1)
+}
+}
+\seealso{
+\code{\link{dbn}}, \code{\link{dyad_path}},
+\code{\link{net_snapshot}}
+}

@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_tensor.R
 \name{kron_mult}
 \alias{kron_mult}
-\title{Kronecker Product with Sparse Option}
+\title{Kronecker Product}
 \usage{
 kron_mult(A, B, use_sparse = FALSE)
 }
@@ -14,7 +14,7 @@ kron_mult(A, B, use_sparse = FALSE)
 \item{use_sparse}{Use sparse matrices for large dimensions}
 }
 \value{
-Kronecker product A ⊗ B
+Kronecker product A otimes B
 }
 \description{
 Computes Kronecker product with optional sparse matrices

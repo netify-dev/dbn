@@ -2,21 +2,21 @@
 % Please edit documentation in R/utils_z_update.R
 \name{compute_gaussian_obs_residuals}
 \alias{compute_gaussian_obs_residuals}
-\title{Compute observation residuals for gaussian family}
+\title{Compute Gaussian Observation Residuals}
 \usage{
 compute_gaussian_obs_residuals(Z, Theta, M)
 }
 \arguments{
-\item{Z}{observation array (for gaussian, Z = Y)}
+\item{Z}{Observation array (for Gaussian, Z = Y)}
 
-\item{Theta}{latent mean array}
+\item{Theta}{Latent mean array}
 
-\item{M}{baseline mean array}
+\item{M}{Baseline mean array}
 }
 \value{
-sum of squared residuals
+Sum of squared residuals
 }
 \description{
-efficiently computes sum of squared residuals for sigma2_obs update
+Sum of squared residuals for sigma2_obs update
 }
 \keyword{internal}

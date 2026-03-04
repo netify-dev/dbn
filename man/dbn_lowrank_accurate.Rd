@@ -2,13 +2,13 @@
 % Please edit documentation in R/models_lowrank.R
 \name{dbn_lowrank_accurate}
 \alias{dbn_lowrank_accurate}
-\title{DBN Low-rank Model (More accurate version ... but slow as heck)}
+\title{DBN Low-rank Model (Accurate)}
 \usage{
 dbn_lowrank_accurate(
   Y,
   family = c("ordinal", "gaussian", "binary"),
   r = 2,
-  nscan = 5000,
+  nscan = 10000,
   burn = 1000,
   odens = 1,
   ar1_alpha = TRUE,
@@ -16,10 +16,11 @@ dbn_lowrank_accurate(
   ar1_B = FALSE,
   update_rho_B = FALSE,
   seed = 6886,
-  verbose = 100,
+  verbose = TRUE,
   time_thin = 1,
   previous = NULL,
   init = NULL,
+  symmetric = FALSE,
   ...
 )
 }
@@ -46,7 +47,7 @@ dbn_lowrank_accurate(
 
 \item{seed}{Random seed}
 
-\item{verbose}{Print progress}
+\item{verbose}{Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.}
 
 \item{time_thin}{Save every nth time point}
 
@@ -54,11 +55,22 @@ dbn_lowrank_accurate(
 
 \item{init}{Initial values}
 
+\item{symmetric}{Logical. Not supported for low-rank models (will error). Default: FALSE.}
+
 \item{...}{Additional arguments (currently unused)}
 }
 \value{
 List containing MCMC results
 }
 \description{
-Fits DBN with low-rank sender effects
+Fits DBN with low-rank sender effects using batch FFBS
+}
+\examples{
+\donttest{
+sim <- simulate_lowrank_dbn(n = 8, time = 5, r = 2, seed = 1)
+fit <- dbn_lowrank(sim$Y, r = 2, nscan = 200, burn = 100, verbose = FALSE)
+}
+}
+\seealso{
+\code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
 }

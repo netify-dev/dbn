@@ -35,3 +35,14 @@ A ggplot object
 \description{
 Plot empirical CDFs of observed vs replicated data
 }
+\examples{
+\donttest{
+sim <- simulate_static_dbn(n = 6, time = 5, seed = 1)
+fit <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
+ppd <- posterior_predict_dbn(fit, ndraws = 5)
+if (requireNamespace("ggplot2", quietly = TRUE)) plot_ppc_ecdf(fit, ppd, Y_obs = sim$Y)
+}
+}
+\seealso{
+\code{\link{posterior_predict_dbn}}, \code{\link{plot_ppc_density}}, \code{\link{param_summary}}
+}

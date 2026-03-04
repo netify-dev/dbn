@@ -2,23 +2,23 @@
 % Please edit documentation in R/hmm_methods.R
 \name{predict_hmm}
 \alias{predict_hmm}
-\title{Forecast / replicate from an HMM fit}
+\title{Predict from HMM-DBN Fit}
 \usage{
 predict_hmm(object, H = 1, draws = 100, summary = c("mean", "none"))
 }
 \arguments{
 \item{object}{A dbn object with model="hmm"}
 
-\item{H}{Number of time steps ahead to forecast}
+\item{H}{Number of forecast steps}
 
-\item{draws}{Number of posterior draws to use}
+\item{draws}{Number of posterior draws}
 
-\item{summary}{Character string: "mean" for posterior mean, "none" for all draws}
+\item{summary}{"mean" for posterior mean, "none" for all draws}
 }
 \value{
-Array of predictions with dimensions appropriate to summary choice
+Prediction array
 }
 \description{
-Generate predictions from an HMM-DBN model
+Generates H-step-ahead forecasts from an HMM-DBN model
 }
 \keyword{internal}

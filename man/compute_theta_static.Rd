@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{compute_theta_static}
 \alias{compute_theta_static}
-\title{Compute theta for static model}
+\title{Compute Theta for Static Model}
 \usage{
 compute_theta_static(B, Z, M)
 }
@@ -17,6 +17,6 @@ compute_theta_static(B, Z, M)
 Theta array with same dimensions as Z
 }
 \description{
-Compute theta values on-demand for static DBN model
+On-demand theta computation for static DBN model
 }
 \keyword{internal}

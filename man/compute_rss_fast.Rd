@@ -7,9 +7,9 @@
 compute_rss_fast(Z, M)
 }
 \arguments{
-\item{Z}{Latent values array (m x m x p x Tt)}
+\item{Z}{Latent values array (n_row x n_col x p x Tt)}
 
-\item{M}{Mean array (m x m x p)}
+\item{M}{Mean array (n_row x n_col x p)}
 }
 \value{
 Residual sum of squares

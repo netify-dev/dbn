@@ -17,12 +17,7 @@ The previous value of n_threads (invisibly)
 Set the number of threads used by dbn
 }
 \examples{
-# Set to use 4 threads
 set_dbn_threads(4)
-
-# Set to use half of available cores
 set_dbn_threads(parallel::detectCores() / 2)
-
-# Reset to default (1 thread)
 set_dbn_threads(NULL)
 }

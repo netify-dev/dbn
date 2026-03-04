@@ -25,4 +25,13 @@ List of Theta slices
 \description{
 Extract specific slices of Theta arrays from posterior draws
 }
-\keyword{internal}
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+ts <- theta_slice(fit, time = 1)
+}
+}
+\seealso{
+\code{\link{theta_summary}}, \code{\link{theta_credible}}, \code{\link{param_summary}}
+}

@@ -15,3 +15,13 @@ Matrix of regime probabilities (T x R) or NULL
 \description{
 Compute posterior probabilities of regime assignments
 }
+\examples{
+\donttest{
+sim <- simulate_hmm_dbn(n = 6, time = 10, R = 2, seed = 1)
+fit <- dbn(sim$Y, model = "hmm", R = 2, nscan = 200, burn = 100, verbose = FALSE)
+rp <- regime_probs(fit)
+}
+}
+\seealso{
+\code{\link{plot_regime_probs}}, \code{\link{param_summary}}, \code{\link{dbn_hmm}}
+}

@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_safe.R
 \name{sparse_quad}
 \alias{sparse_quad}
-\title{Sparse-aware quadratic form}
+\title{Sparse-Aware Quadratic Form}
 \usage{
 sparse_quad(A, B)
 }
@@ -15,6 +15,6 @@ sparse_quad(A, B)
 Quadratic form result
 }
 \description{
-Compute t(A) \%\emph{\% B \%}\% A efficiently
+Computes t(A) \%\emph{\% B \%}\% A efficiently for diagonal B
 }
 \keyword{internal}

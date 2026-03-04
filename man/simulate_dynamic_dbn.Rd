@@ -6,6 +6,7 @@
 \usage{
 simulate_dynamic_dbn(
   n = 30,
+  n_col = n,
   p = 2,
   time = 50,
   sigma2 = 0.5,
@@ -16,37 +17,49 @@ simulate_dynamic_dbn(
   rhoB = 0.9,
   K = 5,
   return_truth = TRUE,
-  seed = NULL
+  seed = NULL,
+  symmetric = FALSE
 )
 }
 \arguments{
-\item{n}{Number of actors (default: 30)}
+\item{n}{Number of row actors / senders}
 
-\item{p}{Number of relation types (default: 2)}
+\item{n_col}{Number of column actors / receivers (default: n)}
 
-\item{time}{Number of time points (default: 50)}
+\item{p}{Number of relation types}
 
-\item{sigma2}{Innovation variance (default: 0.5)}
+\item{time}{Number of time points}
 
-\item{tauA2}{Variance for A innovations (default: 0.05)}
+\item{sigma2}{Innovation variance}
 
-\item{tauB2}{Variance for B innovations (default: 0.05)}
+\item{tauA2}{Variance for A innovations}
 
-\item{ar1}{Use AR(1) dynamics instead of random walk (default: FALSE)}
+\item{tauB2}{Variance for B innovations}
 
-\item{rhoA}{AR coefficient for A (default: 0.9)}
+\item{ar1}{Use AR(1) dynamics instead of random walk}
 
-\item{rhoB}{AR coefficient for B (default: 0.9)}
+\item{rhoA}{AR coefficient for A}
 
-\item{K}{Number of ordinal categories (default: 5)}
+\item{rhoB}{AR coefficient for B}
 
-\item{return_truth}{Whether to return true parameters in a 'truth' sub-list (default: TRUE)}
+\item{K}{Number of ordinal categories}
+
+\item{return_truth}{Return true parameters in a truth sub-list}
 
 \item{seed}{Random seed}
+
+\item{symmetric}{Logical. If TRUE, set B = A at each time point. Default: FALSE.}
 }
 \value{
 List containing simulated data and true parameters
 }
 \description{
-Generates data from a dynamic DBN model with time-varying A and B matrices
+Generates data from a dynamic DBN with time-varying A and B
+}
+\examples{
+sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 42)
+str(sim$Y)
+}
+\seealso{
+\code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
 }

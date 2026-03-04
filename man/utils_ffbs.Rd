@@ -4,6 +4,6 @@
 \alias{utils_ffbs}
 \title{FFBS Utilities}
 \description{
-Forward-Filter Backward-Sample algorithms shared across models
+Forward-filter backward-sample algorithms shared across models
 }
 \keyword{internal}

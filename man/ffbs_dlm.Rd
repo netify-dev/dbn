@@ -13,13 +13,13 @@ ffbs_dlm(y, Flist, V, W, m0, C0, ar1 = FALSE, rho = 0)
 
 \item{V}{Observation variance matrix}
 
-\item{W}{State innovation variance matrix (for AR(1), this is innovation variance)}
+\item{W}{State innovation variance matrix}
 
 \item{m0}{Prior mean vector}
 
 \item{C0}{Prior covariance matrix}
 
-\item{ar1}{Logical: use AR(1) dynamics instead of random walk}
+\item{ar1}{Logical: use AR(1) dynamics}
 
 \item{rho}{AR(1) coefficient (used if ar1=TRUE)}
 }
@@ -27,6 +27,6 @@ ffbs_dlm(y, Flist, V, W, m0, C0, ar1 = FALSE, rho = 0)
 Matrix of sampled state vectors (columns are time points)
 }
 \description{
-FFBS algorithm for dynamic linear model with optional AR(1) dynamics
+FFBS for dynamic linear model with optional AR(1) dynamics
 }
 \keyword{internal}

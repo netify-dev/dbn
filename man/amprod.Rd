@@ -17,6 +17,6 @@ amprod(A, M, k)
 Transformed array
 }
 \description{
-Multiply an array by a matrix along a given mode
+Multiplies an array by a matrix along a given mode
 }
 \keyword{internal}

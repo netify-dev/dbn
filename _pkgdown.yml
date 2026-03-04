@@ -1,0 +1,128 @@
+url: https://netify-dev.github.io/dbn/
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left:  [methodology, paper, articles, reference]
+    right: [search, github]
+  components:
+    methodology:
+      text: Methodology
+      href: articles/methodology.html
+    paper:
+      text: Paper
+      href: salau_minhas_when_shocks_cascade.pdf
+
+articles:
+  - title: "Methodology"
+    navbar: ~
+    contents:
+    - methodology
+  - title: "Getting Started"
+    navbar: ~
+    contents:
+    - static_dbn
+    - dynamic_dbn
+    - impulse_response
+  - title: internal
+    contents:
+    - lowrank_dbn
+    - hmm_dbn
+
+reference:
+  - title: "Model Fitting"
+    desc: "Fit DBN models to temporal network data"
+    contents:
+    - dbn
+    - dbn_static
+    - dbn_dynamic
+    - dbn_lowrank
+    - dbn_lowrank_accurate
+    - dbn_hmm
+    - dbn-options
+    - dbn-methods
+
+  - title: "Simulation"
+    desc: "Generate synthetic network data"
+    contents:
+    - simulate
+    - simulate_test_data
+    - simulate_static_dbn
+    - simulate_dynamic_dbn
+    - simulate_lowrank_dbn
+    - simulate_hmm_dbn
+
+  - title: "Posterior Inference"
+    desc: "Posterior prediction, draws, and forecasting"
+    contents:
+    - posterior_predict_dbn
+    - derive_draws
+    - regime_probs
+
+  - title: "Impulse Response Analysis"
+    desc: "Compute and analyze network shocks"
+    contents:
+    - compute_irf
+    - impulse_response_const
+    - impulse_response_dynamic
+    - build_shock
+    - debug_irf
+
+  - title: "Network Analysis"
+    desc: "Summarize and analyze network structure"
+    contents:
+    - network_summary
+    - edge_prob
+    - theta_summary
+    - theta_credible
+    - param_summary
+    - latent_summary
+    - tidy_dbn_lowrank
+    - theta_slice
+    - net_snapshot
+    - dyad_path
+    - role_trajectory
+    - get_group_influence
+    - compare_group_influence
+
+  - title: "Network Statistics"
+    desc: "Compute descriptive network statistics"
+    contents:
+    - stat_density
+    - stat_in_degree
+    - stat_out_degree
+    - stat_reciprocity
+    - stat_transitivity
+
+  - title: "Visualization"
+    desc: "Plot models, diagnostics, and results"
+    contents:
+    - plot_theta
+    - plot_trace
+    - plot_regime_probs
+    - plot_ppc_density
+    - plot_ppc_ecdf
+
+  - title: "Model Methods"
+    desc: "S3 methods for dbn objects"
+    contents:
+    - starts_with("print.")
+    - starts_with("summary.")
+    - starts_with("predict.")
+    - starts_with("plot.")
+    - compare_dbn
+    - check_convergence
+
+  - title: "Utilities"
+    desc: "Configuration and computational utilities"
+    contents:
+    - estimate_memory
+    - get_dbn_threads
+    - set_dbn_threads
+    - ffbs_theta_struct_5arg_cpp
+
+  - title: "Data"
+    desc: "Example datasets"
+    contents:
+    - example_data

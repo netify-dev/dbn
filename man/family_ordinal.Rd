@@ -10,6 +10,7 @@ family_ordinal()
 A dbn_family object
 }
 \description{
-Family object for ordinal outcomes using rank likelihood
+Rank likelihood family for ordinal outcomes.
+Observation variance fixed at 1 for identifiability.
 }
 \keyword{internal}

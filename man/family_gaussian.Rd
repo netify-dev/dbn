@@ -10,6 +10,6 @@ family_gaussian()
 A dbn_family object
 }
 \description{
-Family object for Gaussian outcomes
+Identity-link family for continuous outcomes
 }
 \keyword{internal}

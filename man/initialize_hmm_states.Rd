@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_safe.R
 \name{initialize_hmm_states}
 \alias{initialize_hmm_states}
-\title{Initialize HMM states}
+\title{Initialize HMM States}
 \usage{
 initialize_hmm_states(Tt, K, init_probs = NULL, trans_probs = NULL)
 }
@@ -16,9 +16,9 @@ initialize_hmm_states(Tt, K, init_probs = NULL, trans_probs = NULL)
 \item{trans_probs}{Transition probability matrix}
 }
 \value{
-Vector of state assignments
+Integer vector of state assignments
 }
 \description{
-Initialize hidden states for HMM model
+Generates initial hidden state sequence for HMM model
 }
 \keyword{internal}

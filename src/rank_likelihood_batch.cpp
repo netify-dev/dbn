@@ -110,11 +110,10 @@ arma::mat rz_fc_matrix(const arma::mat& R, const arma::mat& Z_current,
                 
                 // ensure bounds are feasible
                 if(lower_bound >= upper_bound) {
-                    // bounds crossed - use small interval around mean
-                    lower_bound = mean - 0.1;
-                    upper_bound = mean + 0.1;
+                    // bounds infeasible - skip update to preserve rank ordering
+                    continue;
                 }
-                
+
                 Z_vec(pos) = rtruncnorm(mean, 1.0, lower_bound, upper_bound);
             }
         }
@@ -131,111 +130,91 @@ arma::mat rz_fc_matrix(const arma::mat& R, const arma::mat& Z_current,
 // [[Rcpp::export]]
 arma::cube rz_fc_batch(const arma::cube& R, const arma::cube& Z_current,
                       const arma::cube& EZ, const List& IR_list,
-                      int m, int p, int Tt) {
-    set_dbn_threads(); // set threads from R options
+                      int n_row, int n_col, int p, int Tt) {
+    set_dbn_threads();
+    int nc = n_row * n_col;
     arma::cube Z_new = Z_current;
-    
-    // process each relation specified by user
+
     for(int j = 0; j < p; j++) {
         List IR_j = IR_list[j];
-        
-        // collect all slices for this relation
-        arma::cube R_j(m, m, Tt);
-        arma::cube Z_j(m, m, Tt);
-        arma::cube EZ_j(m, m, Tt);
-        
-        for(int t = 0; t < Tt; t++) {
-            int slice_idx = j * Tt + t;
-            R_j.slice(t) = R.slice(slice_idx);
-            Z_j.slice(t) = Z_current.slice(slice_idx);
-            EZ_j.slice(t) = EZ.slice(slice_idx);
-        }
-        
-        // flatten for processing
-        arma::vec R_j_vec = vectorise(R_j);
-        arma::vec Z_j_vec = vectorise(Z_j);
-        arma::vec EZ_j_vec = vectorise(EZ_j);
-        
-        // process all ranks for this relation
+
+        // zero-copy views into the contiguous slice blocks
+        int base_slice = j * Tt;
+        arma::vec R_j_vec(const_cast<double*>(R.slice_memptr(base_slice)),
+                          nc * Tt, false, true);
+        arma::vec Z_j_vec(nc * Tt);
+        std::memcpy(Z_j_vec.memptr(), Z_current.slice_memptr(base_slice),
+                    nc * Tt * sizeof(double));
+        arma::vec EZ_j_vec(const_cast<double*>(EZ.slice_memptr(base_slice)),
+                           nc * Tt, false, true);
+
         CharacterVector rank_names = IR_j.names();
         int n_ranks = IR_j.size();
-        
+
         for(int r = 0; r < n_ranks; r++) {
             String rank_name = rank_names[r];
-            
+
             if(rank_name == "NA") {
-                // handle missing values
                 IntegerVector idx = IR_j[r];
                 for(int i = 0; i < idx.size(); i++) {
                     int pos = idx[i] - 1;
-                    if(pos >= 0 && pos < Z_j_vec.n_elem) {
+                    if(pos >= 0 && pos < (int)Z_j_vec.n_elem) {
                         Z_j_vec(pos) = R::rnorm(EZ_j_vec(pos), 1.0);
                     }
                 }
             } else {
-                // get indices for this rank
                 IntegerVector idx = IR_j[r];
-                
-                // find bounds
+
                 double lower_bound = -datum::inf;
                 double upper_bound = datum::inf;
-                
-                // check for rank below
+
                 if(r > 0) {
                     String prev_rank = rank_names[r-1];
                     if(prev_rank != "NA") {
                         IntegerVector prev_idx = IR_j[r-1];
                         for(int i = 0; i < prev_idx.size(); i++) {
                             int pos = prev_idx[i] - 1;
-                            if(pos >= 0 && pos < Z_j_vec.n_elem) {
+                            if(pos >= 0 && pos < (int)Z_j_vec.n_elem) {
                                 lower_bound = std::max(lower_bound, Z_j_vec(pos));
                             }
                         }
                     }
                 }
-                
-                // check for rank above
+
                 if(r < n_ranks - 1) {
                     String next_rank = rank_names[r+1];
                     if(next_rank != "NA") {
                         IntegerVector next_idx = IR_j[r+1];
                         for(int i = 0; i < next_idx.size(); i++) {
                             int pos = next_idx[i] - 1;
-                            if(pos >= 0 && pos < Z_j_vec.n_elem) {
+                            if(pos >= 0 && pos < (int)Z_j_vec.n_elem) {
                                 upper_bound = std::min(upper_bound, Z_j_vec(pos));
                             }
                         }
                     }
                 }
-                
-                // sample for all indices at this rank
+
                 for(int i = 0; i < idx.size(); i++) {
                     int pos = idx[i] - 1;
-                    if(pos >= 0 && pos < Z_j_vec.n_elem) {
+                    if(pos >= 0 && pos < (int)Z_j_vec.n_elem) {
                         double mean = EZ_j_vec(pos);
-                        
-                        // ensure bounds are feasible
+
                         if(lower_bound >= upper_bound) {
-                            lower_bound = mean - 0.1;
-                            upper_bound = mean + 0.1;
+                            // bounds infeasible - skip update to preserve rank ordering
+                            continue;
                         }
-                        
+
                         Z_j_vec(pos) = rtruncnorm(mean, 1.0, lower_bound, upper_bound);
                     }
                 }
             }
         }
-        
-        // reshape back and copy to output
-        for(int t = 0; t < Tt; t++) {
-            int slice_idx = j * Tt + t;
-            // extract the portion of Z_j_vec for this time slice
-            arma::vec Z_t_vec = Z_j_vec.subvec(t * m * m, (t + 1) * m * m - 1);
-            arma::mat Z_t_mat = reshape(Z_t_vec, m, m);
-            Z_new.slice(slice_idx) = Z_t_mat;
-        }
+
+        // copy modified Z back to output (contiguous block)
+        std::memcpy(Z_new.slice_memptr(base_slice), Z_j_vec.memptr(),
+                    nc * Tt * sizeof(double));
     }
-    
+
     return Z_new;
 }
 
@@ -243,62 +222,56 @@ arma::cube rz_fc_batch(const arma::cube& R, const arma::cube& Z_current,
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
-List precompute_rank_structure(const arma::cube& R, int m, int p, int Tt) {
+List precompute_rank_structure(const arma::cube& R, int n_row, int n_col, int p, int Tt) {
+    int nc = n_row * n_col;
     List IR_all(p);
-    
+
     for(int j = 0; j < p; j++) {
-        // collect all data for this relation across all time points
         arma::vec R_j_vec;
-        R_j_vec.set_size(m * m * Tt);
-        
-        // extract data for relation j across all time points
+        R_j_vec.set_size(nc * Tt);
+
         for(int t = 0; t < Tt; t++) {
             int slice_idx = j * Tt + t;
             arma::vec slice_vec = vectorise(R.slice(slice_idx));
-            R_j_vec.subvec(t * m * m, (t + 1) * m * m - 1) = slice_vec;
+            R_j_vec.subvec(t * nc, (t + 1) * nc - 1) = slice_vec;
         }
-        
-        // first find finite values to avoid NaN issues with unique()
+
         arma::uvec finite_idx = find_finite(R_j_vec);
         arma::vec unique_ranks;
-        
+
         if(finite_idx.n_elem > 0) {
-            // get unique ranks only from finite values
             unique_ranks = unique(R_j_vec.elem(finite_idx));
             unique_ranks = sort(unique_ranks);
         }
-        
-        // build index structure
+
         List IR_j;
         CharacterVector rank_names;
-        
-        // add NA category if there are missing values
+
         arma::uvec na_idx = find_nonfinite(R_j_vec);
         if(na_idx.n_elem > 0) {
             IntegerVector na_vec(na_idx.n_elem);
             for(size_t i = 0; i < na_idx.n_elem; i++) {
-                na_vec[i] = na_idx[i] + 1; // Convert to 1-based
+                na_vec[i] = na_idx[i] + 1;
             }
             IR_j.push_back(na_vec);
             rank_names.push_back("NA");
         }
-        
-        // add each rank level ... might need to be rewritten for efficiency later
+
         if(finite_idx.n_elem > 0) {
             for(size_t r = 0; r < unique_ranks.n_elem; r++) {
                 arma::uvec rank_idx = find(R_j_vec == unique_ranks[r]);
                 IntegerVector rank_vec(rank_idx.n_elem);
                 for(size_t i = 0; i < rank_idx.n_elem; i++) {
-                    rank_vec[i] = rank_idx[i] + 1; // Convert to 1-based
+                    rank_vec[i] = rank_idx[i] + 1;
                 }
                 IR_j.push_back(rank_vec);
                 rank_names.push_back(std::to_string(static_cast<int>(unique_ranks[r])));
             }
         }
-        
+
         IR_j.names() = rank_names;
         IR_all[j] = IR_j;
     }
-    
+
     return IR_all;
 }

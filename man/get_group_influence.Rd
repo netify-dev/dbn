@@ -44,3 +44,7 @@ inf_data <- get_group_influence(fit,
 )
 }
 }
+\seealso{
+\code{\link{plot_group_influence}},
+\code{\link{compare_group_influence}}, \code{\link{dbn}}
+}

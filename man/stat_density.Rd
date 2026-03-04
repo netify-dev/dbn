@@ -2,7 +2,7 @@
 % Please edit documentation in R/irf.R
 \name{stat_density}
 \alias{stat_density}
-\title{Network statistic: density}
+\title{Network Statistic: Density}
 \usage{
 stat_density(X)
 }
@@ -13,5 +13,18 @@ stat_density(X)
 Scalar density value
 }
 \description{
-Compute network density (mean of off-diagonal elements)
+Mean of off-diagonal elements.
+
+\strong{Note:} \code{ggplot2} also exports a function called \code{stat_density}.
+If both packages are loaded, use \code{dbn::stat_density} to refer to this
+function unambiguously (e.g., when passing to \code{\link{compute_irf}}).
+}
+\examples{
+X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)
+dbn::stat_density(X)
+}
+\seealso{
+\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{stat_in_degree}}, \code{\link{stat_out_degree}},
+\code{\link{stat_reciprocity}}, \code{\link{stat_transitivity}}
 }

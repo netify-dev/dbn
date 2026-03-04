@@ -2,7 +2,7 @@
 % Please edit documentation in R/hmm_methods.R
 \name{summary_hmm}
 \alias{summary_hmm}
-\title{Summary for HMM-DBN fits}
+\title{Summary for HMM-DBN Fits}
 \usage{
 summary_hmm(object, digits = 3, ...)
 }
@@ -11,12 +11,12 @@ summary_hmm(object, digits = 3, ...)
 
 \item{digits}{Number of digits to display}
 
-\item{...}{Additional arguments (ignored)}
+\item{...}{Ignored}
 }
 \value{
 Invisibly returns the input object
 }
 \description{
-Prints posterior summaries for HMM-DBN models
+Posterior summaries for HMM-DBN models
 }
 \keyword{internal}

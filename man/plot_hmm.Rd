@@ -2,7 +2,7 @@
 % Please edit documentation in R/hmm_methods.R
 \name{plot_hmm}
 \alias{plot_hmm}
-\title{Plot HMM-DBN results}
+\title{Plot HMM-DBN Results}
 \usage{
 plot_hmm(x)
 }
@@ -10,9 +10,9 @@ plot_hmm(x)
 \item{x}{A dbn object with model="hmm"}
 }
 \value{
-Either a list of ggplot objects or a combined plot (if gridExtra available)
+List of ggplot objects or combined plot
 }
 \description{
-Creates diagnostic plots for HMM-DBN model fits
+Diagnostic plots for HMM-DBN model fits
 }
 \keyword{internal}

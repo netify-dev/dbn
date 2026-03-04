@@ -58,114 +58,71 @@ arma::cube compute_XB_tensor(const arma::cube& X,
     return XB;
 }
 
-// Static model B update - returns single matrix
+// Static model B[[1]] (sender effects) update - returns n_row x n_row matrix
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
 arma::mat update_B_static(const arma::cube& Z, const arma::cube& M,
-                              double s2, double t2, int m, int p, int n) {
-    // for static model, B is a single m x m matrix
-    // prior: B ~ N(I, t2*I)
-    // likelihood: Z[,,j,t] ~ N(B * M[,,j], s2*I)
-    
-    // preallocate all workspace to avoid allocation in hot path
-    arma::mat XtX(m, m, arma::fill::zeros);
-    arma::mat XtY(m, m, arma::fill::zeros);
-    
-    if (m >= 50) {
-        arma::mat M_reshaped(m * p, m);
-        for (int j = 0; j < p; j++) {
-            M_reshaped.rows(j * m, (j + 1) * m - 1) = M.slice(j);
+                              double s2, double t2, int n_row, int n_col, int p, int n) {
+    // B[[1]] is sender effects: n_row x n_row
+    // Model: Z[,,j,t] = B * M[,,j] + E
+    // Column-wise regression: z_c = B * m_c
+    // XtX = sum M_j * M_j' (n_row x n_row), XtY = sum Z_jt * M_j' (n_row x n_row)
+
+    arma::mat XtX(n_row, n_row, arma::fill::zeros);
+    arma::mat XtY(n_row, n_row, arma::fill::zeros);
+
+    // loop over relations
+    for (int j = 0; j < p; j++) {
+        arma::mat M_j = M.slice(j);
+        // M_j * M_j': (n_row x n_col) * (n_col x n_row) = n_row x n_row
+        XtX += n * (M_j * M_j.t());
+
+        arma::mat sum_Z(n_row, n_col, arma::fill::zeros);
+        for (int t = 0; t < n; t++) {
+            sum_Z += Z.slice(j * n + t);
         }
-        
-        // compute XtX = sum_j (n * M_j' * M_j) 
-        arma::mat temp = M_reshaped.t() * M_reshaped;
-        XtX = n * temp;
-        
-        // compute XtY using batched operations
-        #ifdef _OPENMP
-        #pragma omp parallel
-        {
-            arma::mat local_XtY(m, m, arma::fill::zeros);
-            
-            #pragma omp for schedule(static)
-            for (int j = 0; j < p; j++) {
-                arma::mat M_j = M.slice(j);
-                arma::mat sum_Z(m, m, arma::fill::zeros);
-                
-                // sum Z matrices for this relation
-                for (int t = 0; t < n; t++) {
-                    sum_Z += Z.slice(j * n + t);
-                }
-                
-                local_XtY += sum_Z * M_j.t();
-            }
-            
-            #pragma omp critical
-            XtY += local_XtY;
-        }
-        #else
-        for (int j = 0; j < p; j++) {
-            arma::mat M_j = M.slice(j);
-            arma::mat sum_Z(m, m, arma::fill::zeros);
-            
-            for (int t = 0; t < n; t++) {
-                sum_Z += Z.slice(j * n + t);
-            }
-            
-            XtY += sum_Z * M_j.t();
-        }
-        #endif
-        
-    } else {
-        // small matrix path
-        for (int j = 0; j < p; j++) {
-            arma::mat M_j = M.slice(j);
-            XtX += n * (M_j.t() * M_j);
-            
-            for (int t = 0; t < n; t++) {
-                XtY += Z.slice(j * n + t) * M_j.t();
-            }
-        }
+        // Z * M_j': (n_row x n_col) * (n_col x n_row) = n_row x n_row
+        XtY += sum_Z * M_j.t();
     }
-    
-    // posterior calculations with numerical stability
+
+    // posterior calculations
     double lambda = 1.0 / t2;
     double gamma = 1.0 / s2;
-    
-    // add prior precision to diagonal
-    XtX.diag() += (lambda / gamma) * arma::ones(m);
-    
-    // posterior covariance using Cholesky
+
+    XtX.diag() += (lambda / gamma) * arma::ones(n_row);
+
+    arma::mat gXtX = gamma * XtX;
+    gXtX = 0.5 * (gXtX + gXtX.t());
     arma::mat L_post;
-    bool chol_success = arma::chol(L_post, gamma * XtX, "lower");
-    
+    bool chol_success = arma::chol(L_post, gXtX, "lower");
+
     if (!chol_success) {
-        // fallback to SVD for ill-conditioned matrices
         arma::mat U, V;
         arma::vec s;
-        arma::svd_econ(U, s, V, XtX);
-        
-        // regularize small eigenvalues
+        bool svd_ok = arma::svd_econ(U, s, V, XtX);
+
+        if (!svd_ok || s.n_elem == 0) {
+            // degenerate case: return identity + noise
+            return arma::eye(n_row, n_row) + 0.01 * arma::randn(n_row, n_row);
+        }
+
         double eps = 1e-8 * s.max();
         s = arma::max(s, eps * arma::ones(s.n_elem));
-        
+
         arma::mat post_cov = V * arma::diagmat(1.0 / (gamma * s + lambda)) * V.t();
-        arma::mat post_mean = post_cov * (gamma * XtY + lambda * arma::eye(m, m));
-        
-        // gen samp
-        arma::mat noise = arma::randn(m, m);
+        arma::mat post_mean = post_cov * (gamma * XtY + lambda * arma::eye(n_row, n_row));
+
+        arma::mat noise = arma::randn(n_row, n_row);
         return post_mean + V * arma::diagmat(arma::sqrt(1.0 / (gamma * s + lambda))) * V.t() * noise;
     }
-    
-    // solve for posterior mean
-    arma::mat post_mean_part = arma::solve(arma::trimatl(L_post), gamma * XtY + lambda * arma::eye(m, m));
+
+    arma::mat post_mean_part = arma::solve(arma::trimatl(L_post), gamma * XtY + lambda * arma::eye(n_row, n_row));
     arma::mat post_mean = arma::solve(arma::trimatu(L_post.t()), post_mean_part);
-    
-    // sample from posterior
-    arma::mat Z_sample = arma::randn(m, m);
+
+    arma::mat Z_sample = arma::randn(n_row, n_row);
     arma::mat B_new = post_mean + arma::solve(arma::trimatu(L_post.t()), Z_sample) / sqrt(gamma);
-    
+
     return B_new;
 }
 
@@ -174,10 +131,10 @@ arma::mat update_B_static(const arma::cube& Z, const arma::cube& M,
 //' @noRd
 // [[Rcpp::export]]
 arma::cube broadcast_M_and_compute_EZ(const arma::cube& M, double s2,
-                                      int m, int p, int Tt) {
-    // M is m x m x p, broadcast to m x m x p x Tt and add noise
-    arma::cube EZ(m, m, p * Tt);
-    
+                                      int n_row, int n_col, int p, int Tt) {
+    // M is n_row x n_col x p, broadcast to n_row x n_col x p x Tt and add noise
+    arma::cube EZ(n_row, n_col, p * Tt);
+
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
@@ -185,10 +142,10 @@ arma::cube broadcast_M_and_compute_EZ(const arma::cube& M, double s2,
         arma::mat M_j = M.slice(j);
         for(int t = 0; t < Tt; t++) {
             int idx = j * Tt + t;
-            EZ.slice(idx) = M_j + randn(m, m) * sqrt(s2);
+            EZ.slice(idx) = M_j + randn(n_row, n_col) * sqrt(s2);
         }
     }
-    
+
     return EZ;
 }
 
@@ -272,12 +229,13 @@ arma::mat stabilize_matrix(const arma::mat& M, double min_eig = 1e-6) {
 // [[Rcpp::export]]
 arma::cube update_Z_dynamic(const arma::cube& R, const arma::cube& Z_current,
                                 const arma::cube& Theta, const arma::cube& M,
-                                const List& IR, int m, int p, int Tt) {
+                                const List& IR, int n_row, int n_col, int p, int Tt) {
+    int nc = n_row * n_col;
     arma::cube Z_new = Z_current;
-    
+
     // compute EZ = Theta + M
-    arma::cube EZ(m, m, p * Tt);
-    
+    arma::cube EZ(n_row, n_col, p * Tt);
+
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
@@ -286,16 +244,16 @@ arma::cube update_Z_dynamic(const arma::cube& R, const arma::cube& Z_current,
         for(int t = 0; t < Tt; t++) {
             int idx = j * Tt + t;
             // Extract Theta[,,j,t]
-            arma::mat Theta_jt(m, m);
-            for(int i = 0; i < m; i++) {
-                for(int k = 0; k < m; k++) {
-                    Theta_jt(i, k) = Theta(i + k*m + j*m*m + t*m*m*p);
+            arma::mat Theta_jt(n_row, n_col);
+            for(int i = 0; i < n_row; i++) {
+                for(int k = 0; k < n_col; k++) {
+                    Theta_jt(i, k) = Theta(i + k*n_row + j*nc + t*nc*p);
                 }
             }
             EZ.slice(idx) = Theta_jt + M_j;
         }
     }
-    
+
     return Z_new;
 }
 

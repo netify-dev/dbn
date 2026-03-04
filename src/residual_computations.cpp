@@ -12,30 +12,32 @@ using namespace arma;
 arma::vec rz_fc_cpp(const arma::vec& R, const arma::vec& Z, const arma::vec& EZ, const List& iranks);
 
 // fast bilinear product A * Theta * B^T avoiding intermediate matrices
+// A(n_row x n_row), Theta(n_row x n_col), B(n_col x n_col) -> result(n_row x n_col)
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
 arma::mat bilinear_product_fast(const arma::mat& A, const arma::mat& Theta, const arma::mat& B) {
-    int m = A.n_rows;
-    arma::mat result(m, m);
-    
-    // (A * Theta) * B^T
-    // but done element-wise to avoid large intermediate matrix
+    int n_row = A.n_rows;
+    int n_col = B.n_rows;
+    int inner = Theta.n_cols; // = n_col
+    arma::mat result(n_row, n_col);
+
+    // (A * Theta) * B^T element-wise to avoid large intermediate matrix
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
-    for(int i = 0; i < m; i++) {
-        for(int j = 0; j < m; j++) {
+    for(int i = 0; i < n_row; i++) {
+        for(int j = 0; j < n_col; j++) {
             double sum = 0.0;
-            for(int k = 0; k < m; k++) {
-                for(int l = 0; l < m; l++) {
+            for(int k = 0; k < n_row; k++) {
+                for(int l = 0; l < inner; l++) {
                     sum += A(i, k) * Theta(k, l) * B(j, l);
                 }
             }
             result(i, j) = sum;
         }
     }
-    
+
     return result;
 }
 
@@ -155,26 +157,30 @@ double compute_observation_residuals(const arma::cube& Z_flat,
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
-arma::cube compute_zscores_batch(const arma::cube& Y, const arma::vec& means, 
-                                 const arma::vec& sds, int m, int p, int Tt) {
-    arma::cube Z(m, m, p * Tt);
-    
+arma::cube compute_zscores_batch(const arma::cube& Y, const arma::vec& means,
+                                 const arma::vec& sds, int n_row, int n_col, int p, int Tt) {
+    bool is_bipartite = (n_row != n_col);
+    arma::cube Z(n_row, n_col, p * Tt);
+
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
     for(int idx = 0; idx < p * Tt; idx++) {
         int rel = idx / Tt;
         arma::mat Y_slice = Y.slice(idx);
-        
+
         // vectorized z-score computation
         Z.slice(idx) = (Y_slice - means(rel)) / sds(rel);
-        
-        // preserve diagonal as NA
-        for(int i = 0; i < m; i++) {
-            Z(i, i, idx) = datum::nan;
+
+        // preserve diagonal as NA (unipartite only)
+        if (!is_bipartite) {
+            int min_dim = std::min(n_row, n_col);
+            for(int i = 0; i < min_dim; i++) {
+                Z(i, i, idx) = datum::nan;
+            }
         }
     }
-    
+
     return Z;
 }
 
@@ -183,42 +189,42 @@ arma::cube compute_zscores_batch(const arma::cube& Y, const arma::vec& means,
 //' @noRd
 // [[Rcpp::export]]
 arma::cube update_Z_batch(const arma::cube& R_flat,
-                         const arma::cube& Theta_flat, 
+                         const arma::cube& Theta_flat,
                          const arma::cube& M,
                          const List& IR_list_flat,
-                         int m, int p, int Tt) {
+                         int n_row, int n_col, int p, int Tt) {
     int n_total = p * Tt;
-    arma::cube Z_new(m, m, n_total);
-    
+    arma::cube Z_new(n_row, n_col, n_total);
+
     // process all relation-time pairs in parallel
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
     for(int idx = 0; idx < n_total; idx++) {
         int rel = idx / Tt;
-        
+
         // get data for this slice
         arma::mat R_slice = R_flat.slice(idx);
         arma::mat Theta_slice = Theta_flat.slice(idx);
         arma::mat M_rel = M.slice(rel);
-        
+
         // compute EZ = Theta + M
         arma::mat EZ = Theta_slice + M_rel;
-        
+
         // vectorize and update using rank likelihood
         arma::vec R_vec = vectorise(R_slice);
         arma::vec EZ_vec = vectorise(EZ);
-        
+
         // get rank indices for this slice
         List IR_idx = IR_list_flat[idx];
-        
+
         // sample Z using rank likelihood
         arma::vec Z_vec = rz_fc_cpp(R_vec, EZ_vec, EZ_vec, IR_idx);
-        
+
         // reshape and store
-        Z_new.slice(idx) = reshape(Z_vec, m, m);
+        Z_new.slice(idx) = reshape(Z_vec, n_row, n_col);
     }
-    
+
     return Z_new;
 }
 
@@ -230,9 +236,9 @@ arma::cube update_Z_batch(const arma::cube& R_flat,
 List build_regime_arrays_vectorized(const IntegerVector& S,
                                    const List& A_list,
                                    const List& B_list,
-                                   int m, int Tt) {
-    arma::cube Aarray(m, m, Tt);
-    arma::cube Barray(m, m, Tt);
+                                   int n_row, int n_col, int Tt) {
+    arma::cube Aarray(n_row, n_row, Tt);
+    arma::cube Barray(n_col, n_col, Tt);
     
     // vectorized assignment using advanced indexing
     for(int t = 0; t < Tt; t++) {

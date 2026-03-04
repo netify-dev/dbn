@@ -103,7 +103,15 @@ arma::mat ffbs_dlm_cpp(const Rcpp::List& y,
     Qt = regularize_matrix(Qt);
     
     // kalman gain
-    arma::mat Kt = R[t] * F_t.t() * arma::inv_sympd(Qt);
+    arma::mat Qt_inv;
+    bool qt_ok = arma::inv_sympd(Qt_inv, Qt);
+    if (!qt_ok) {
+      double reg = 1e-6 * arma::norm(Qt, "fro") + 1e-8;
+      Qt.diag() += reg;
+      qt_ok = arma::inv_sympd(Qt_inv, Qt);
+      if (!qt_ok) { Qt_inv = arma::inv(Qt); }
+    }
+    arma::mat Kt = R[t] * F_t.t() * Qt_inv;
     
     // update mean and covariance
     arma::vec et = y_t - F_t * a[t];
@@ -119,25 +127,41 @@ arma::mat ffbs_dlm_cpp(const Rcpp::List& y,
   
   // sample from terminal distribution
   arma::mat Ctt_reg = regularize_matrix(C[Tt-1], 5e-8, 1e-12, true);
-  theta.col(Tt-1) = arma::mvnrnd(m[Tt-1], Ctt_reg);
-  
+  try {
+    theta.col(Tt-1) = arma::mvnrnd(m[Tt-1], Ctt_reg);
+  } catch (...) {
+    theta.col(Tt-1) = m[Tt-1] + arma::sqrt(arma::abs(Ctt_reg.diag())) % arma::randn(r);
+  }
+
   // backward recursion
   for (int t = Tt-2; t >= 0; t--) {
     // make sure r[t+1] is positive definite
     arma::mat Rt1_reg = regularize_matrix(R[t+1], 5e-8, 1e-12, true);
-    
+
     // backward kalman gain
-    arma::mat J = C[t] * G.t() * arma::inv_sympd(Rt1_reg);
-    
+    arma::mat Rt1_inv;
+    bool inv_ok = arma::inv_sympd(Rt1_inv, Rt1_reg);
+    if (!inv_ok) {
+      double reg = 1e-6 * arma::norm(Rt1_reg, "fro") + 1e-8;
+      Rt1_reg.diag() += reg;
+      inv_ok = arma::inv_sympd(Rt1_inv, Rt1_reg);
+      if (!inv_ok) { Rt1_inv = arma::inv(Rt1_reg); }
+    }
+    arma::mat J = C[t] * G.t() * Rt1_inv;
+
     // mean and covariance of conditional distribution
     arma::vec mt = m[t] + J * (theta.col(t+1) - a[t+1]);
     arma::mat Ct = C[t] - J * (R[t+1] - C[t+1]) * J.t();
-    
+
     // make sure it's positive definite
     Ct = regularize_matrix(Ct, 5e-8, 1e-12, true);
-    
+
     // sample
-    theta.col(t) = arma::mvnrnd(mt, Ct);
+    try {
+      theta.col(t) = arma::mvnrnd(mt, Ct);
+    } catch (...) {
+      theta.col(t) = mt + arma::sqrt(arma::abs(Ct.diag())) % arma::randn(r);
+    }
   }
   
   return theta;
@@ -181,10 +205,8 @@ arma::cube ffbs_dlm_batch_cpp(const arma::mat& Y_batch,
   // output storage
   arma::cube theta_batch(batch_size, r, Tt);
   
-  // parallelize over batch dimension
-  #ifdef _OPENMP
-  #pragma omp parallel for schedule(dynamic)
-  #endif
+  // sequential: ffbs_dlm_cpp uses arma::mvnrnd which is not thread-safe
+  // Also, Rcpp::List creation is not thread-safe
   for (int b = 0; b < batch_size; b++) {
     // extract this batch's data
     Rcpp::List y_list(Tt);

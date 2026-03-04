@@ -2,14 +2,14 @@
 % Please edit documentation in R/irf.R
 \name{compute_irf_single}
 \alias{compute_irf_single}
-\title{Compute IRF for a single posterior draw}
+\title{Compute IRF for a Single Posterior Draw}
 \usage{
 compute_irf_single(fit, draw_idx, shock, H, t0 = 1, stat_fun = stat_density)
 }
 \arguments{
 \item{fit}{dbn model fit object}
 
-\item{draw_idx}{Index of posterior draw to use}
+\item{draw_idx}{Index of posterior draw}
 
 \item{shock}{Shock matrix}
 
@@ -23,6 +23,6 @@ compute_irf_single(fit, draw_idx, shock, H, t0 = 1, stat_fun = stat_density)
 Vector of IRF values at each horizon
 }
 \description{
-Compute IRF for a single posterior draw
+Compute IRF for a Single Posterior Draw
 }
 \keyword{internal}

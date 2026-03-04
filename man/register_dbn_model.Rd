@@ -9,33 +9,21 @@ register_dbn_model(name, fun_list)
 \arguments{
 \item{name}{Model name}
 
-\item{fun_list}{List of model functions including: init, update_Z,
-update_Theta, and collect functions}
+\item{fun_list}{List of model functions}
 }
 \description{
 Register a new DBN model variant
 }
 \examples{
 \dontrun{
-# Register a custom DBN model variant
 custom_model <- list(
-    init = function(data) {
-        # Initialize model state
-        list(theta = rnorm(10))
-    },
-    update_Z = function(state, data) {
-        # Update latent positions
-        state
-    },
+    init = function(data) list(theta = rnorm(10)),
+    update_Z = function(state, data) state,
     update_Theta = function(state, data) {
-        # Update parameters
         state$theta <- state$theta + rnorm(10, 0, 0.1)
         state
     },
-    collect = function(state) {
-        # Collect samples for storage
-        list(theta = state$theta)
-    }
+    collect = function(state) list(theta = state$theta)
 )
 register_dbn_model("custom", custom_model)
 }

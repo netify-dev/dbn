@@ -44,3 +44,7 @@ plot_group_influence(fit,
 )
 }
 }
+\seealso{
+\code{\link{get_group_influence}},
+\code{\link{compare_group_influence}}, \code{\link{dbn}}
+}

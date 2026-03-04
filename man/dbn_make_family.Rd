@@ -2,7 +2,7 @@
 % Please edit documentation in R/family.R
 \name{dbn_make_family}
 \alias{dbn_make_family}
-\title{Internal constructor for likelihood "family" objects}
+\title{Family Constructor}
 \usage{
 dbn_make_family(
   name,
@@ -14,7 +14,25 @@ dbn_make_family(
   init_pars = list()
 )
 }
+\arguments{
+\item{name}{Family name string}
+
+\item{draw_latent}{Latent Z sampler}
+
+\item{ffbs_wrapper}{FFBS dispatch wrapper}
+
+\item{loglik}{Log-likelihood function}
+
+\item{linkinv}{Inverse link function}
+
+\item{rgen_obs}{Observation generator}
+
+\item{init_pars}{Initial parameter list}
+}
+\value{
+A dbn_family object
+}
 \description{
-Internal constructor for likelihood "family" objects
+Builds a dbn_family structure holding all family-specific callbacks
 }
 \keyword{internal}

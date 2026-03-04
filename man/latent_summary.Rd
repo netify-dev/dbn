@@ -23,4 +23,13 @@ Data frame with M summaries
 \description{
 Compute summaries for latent mean arrays M
 }
-\keyword{internal}
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+ls <- latent_summary(fit)
+}
+}
+\seealso{
+\code{\link{param_summary}}, \code{\link{theta_summary}}, \code{\link{derive_draws}}
+}

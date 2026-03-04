@@ -2,7 +2,7 @@
 % Please edit documentation in R/lowrank_methods.R
 \name{lowrank-methods}
 \alias{lowrank-methods}
-\title{Low-rank DBN Posterior Analysis Methods}
+\title{Low-Rank DBN Posterior Analysis Methods}
 \description{
 Posterior analysis utilities for low-rank DBN models
 }

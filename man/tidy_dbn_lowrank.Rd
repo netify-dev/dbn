@@ -2,7 +2,7 @@
 % Please edit documentation in R/lowrank_methods.R
 \name{tidy_dbn_lowrank}
 \alias{tidy_dbn_lowrank}
-\title{Tidy extractor for low-rank factor paths}
+\title{Tidy Extractor for Low-Rank Factor Paths}
 \usage{
 tidy_dbn_lowrank(fit, factors = NULL)
 }
@@ -15,6 +15,5 @@ tidy_dbn_lowrank(fit, factors = NULL)
 Data frame with columns: time, mean, lo, hi, factor
 }
 \description{
-Extract factor trajectories in tidy format
+Extracts factor trajectories in tidy data-frame format
 }
-\keyword{internal}

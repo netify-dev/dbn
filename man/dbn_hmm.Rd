@@ -8,15 +8,16 @@ dbn_hmm(
   Y,
   family = c("ordinal", "gaussian", "binary"),
   R = 3,
-  nscan = 5000,
+  nscan = 10000,
   burn = 1000,
   odens = 1,
   delta = rep(1, R),
   seed = 6886,
-  verbose = 100,
+  verbose = TRUE,
   time_thin = 1,
   previous = NULL,
   init = NULL,
+  symmetric = FALSE,
   ...
 )
 }
@@ -45,6 +46,8 @@ dbn_hmm(
 
 \item{init}{List of initial values: S, A_list, B_list, Pi, sigma2_proc, tau_A2, tau_B2, g2, pi0 (optional)}
 
+\item{symmetric}{Logical. If TRUE, enforce B = A for each regime. Default: FALSE.}
+
 \item{...}{Additional arguments}
 }
 \value{
@@ -52,4 +55,13 @@ List containing MCMC results
 }
 \description{
 Regime-switching DBN for large-scale networks (100+ actors, 50+ time steps)
+}
+\examples{
+\donttest{
+sim <- simulate_hmm_dbn(n = 8, time = 10, R = 2, seed = 1)
+fit <- dbn_hmm(sim$Y, R = 2, nscan = 200, burn = 100, verbose = FALSE)
+}
+}
+\seealso{
+\code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
 }

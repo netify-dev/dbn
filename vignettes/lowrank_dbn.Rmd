@@ -1,0 +1,162 @@
+---
+title:  "Low-rank bilinear network models"
+author: "Tosin Salau & Shahryar Minhas"
+date:   "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Low-rank bilinear network models}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.align = "center",
+  fig.width = 6, fig.height = 4,
+  message   = FALSE, warning = FALSE
+)
+library(dbn)
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  library(ggplot2)
+} else {
+  message("Install 'ggplot2' to see plots in this vignette.")
+}
+```
+
+----
+
+**NOTE: This vignette is under construction.** The low-rank model variant is
+implemented and functional, but the documentation and examples below are
+preliminary and subject to change.
+
+----
+
+## 1 Overview
+
+The low-rank model parameterizes the sender dynamics matrix as
+$A_t = U \, \text{diag}(\alpha_t) \, U'$, where $U$ is an orthogonal matrix
+on the Stiefel manifold and $\alpha_t$ is a vector of time-varying factor
+strengths. This reduces the number of free parameters from $m^2$ to
+$m \times r + r$, making it **scalable to larger networks** (50+ nodes).
+
+Use `model = "lowrank"` when you have many actors and want an interpretable
+factor decomposition of sender dynamics.
+
+## 2 Simulate a low-rank network
+
+```{r sim-lr, cache = TRUE}
+sim <- simulate_lowrank_dbn(
+  n = 20, p = 1, time = 25,
+  r = 3,
+  sigma2 = 0.3,
+  tau_alpha2 = 0.05,
+  tauB2 = 0.03,
+  seed = 42
+)
+
+dim(sim$Y)
+```
+
+## 3 Memory estimation
+
+Before fitting, estimate RAM requirements:
+
+```{r memory-est}
+estimate_memory(
+  n_row = 20, n_col = 20, p = 1, Tt = 25,
+  nscan = 1000, burn = 500, odens = 2,
+  family = "ordinal"
+)
+```
+
+## 4 Fit the low-rank model
+
+```{r fit-lr, cache = TRUE}
+fit_lr <- dbn(
+  sim$Y,
+  model   = "lowrank",
+  family  = "ordinal",
+  r       = 3,
+  nscan   = 1000,
+  burn    = 500,
+  odens   = 2,
+  verbose = FALSE
+)
+```
+
+## 5 Model summary
+
+```{r summary-lr}
+summary(fit_lr)
+```
+
+## 6 Diagnostics
+
+The low-rank plot shows MCMC traces, factor trajectories ($\alpha_k$),
+and the posterior mean of the node loading matrix $U$:
+
+```{r plot-lr, fig.height = 10}
+plot(fit_lr)
+```
+
+Scalar parameter traces:
+
+```{r trace-lr, fig.height = 5}
+plot_trace(fit_lr)
+```
+
+## 7 Factor trajectories
+
+Extract factor paths in tidy format for custom plotting:
+
+```{r tidy-lr}
+alpha_df <- tidy_dbn_lowrank(fit_lr)
+head(alpha_df)
+```
+
+```{r factor-plot, fig.height = 3}
+ggplot(alpha_df, aes(x = time, y = mean)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.2) +
+  geom_line() +
+  facet_wrap(~factor, scales = "free_y", labeller = label_bquote(alpha[.(factor)])) +
+  labs(x = "Time", y = expression(alpha)) +
+  theme_minimal()
+```
+
+## 8 Network summaries
+
+```{r network-summary}
+network_summary(fit_lr, stat = "mean")
+network_summary(fit_lr, stat = "density")
+edge_prob(fit_lr, threshold = 0)
+```
+
+## 9 Dyad trajectory
+
+```{r dyad-lr, cache = TRUE, fig.height = 3}
+dyad_path(fit_lr, i = 2, j = 7)
+```
+
+## 10 Forecasting
+
+```{r forecast-lr}
+pred <- predict(fit_lr, H = 3, draws = 50, summary = "mean")
+dim(pred)
+```
+
+## 11 When to use low-rank
+
+The low-rank model is appropriate when:
+
+- The network has **many actors** (50+) making the full dynamic model
+  computationally expensive
+- You want an **interpretable factor structure** where $U$ reveals actor
+  groupings and $\alpha_t$ captures time-varying factor strengths
+- The rank $r$ is much smaller than the number of actors
+
+For smaller networks, `model = "dynamic"` provides more flexible dynamics.
+For regime-switching behavior, consider `model = "hmm"`.

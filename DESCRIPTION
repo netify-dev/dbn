@@ -1,21 +1,25 @@
 Package: dbn
 Type: Package
 Title: Dynamic Bilinear Network Models for Ordinal Relational Data
-Version: 0.1.0
-Date: 2025-01-06
+Version: 0.2.0
+Date: 2026-03-03
 Authors@R: c(
-    person("Shahryar", "Minhas", email = "minhassh@msu.edu", 
-           role = c("aut", "cre")),
     person("Tosin", "Salau", email = "salaubol@msu.edu",
-           role = "aut")
+           role = "aut"),
+    person("Shahryar", "Minhas", email = "minhassh@msu.edu",
+           role = c("aut", "cre"))
     )
-Author: Shahryar Minhas [aut, cre], Tosin Salau [aut]
+Author: Tosin Salau [aut], Shahryar Minhas [aut, cre]
 Maintainer: Shahryar Minhas <minhassh@msu.edu>
-Description: Implements Dynamic Bilinear Network (DBN) models for analyzing 
-    temporal ordinal relational data. Provides both static and dynamic 
-    variants of bilinear autoregressive models with Gaussian rank likelihood 
-    for ordinal outcomes. Includes functions for model estimation via MCMC, 
-    visualization, and diagnostics.
+Description: Implements Dynamic Bilinear Network (DBN) models for analyzing
+    temporal relational data. Supports ordinal (rank likelihood), continuous
+    (Gaussian), and binary (probit) outcome types across static, dynamic,
+    low-rank, and HMM model variants for both unipartite and bipartite
+    directed networks. Includes functions for model estimation via MCMC,
+    visualization, impulse response analysis, and diagnostics.
+URL: https://netify-dev.github.io/dbn/,
+    https://github.com/netify-dev/dbn
+BugReports: https://github.com/netify-dev/dbn/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: false
@@ -30,15 +34,17 @@ Imports:
     grDevices,
     utils,
     methods,
-    ggplot2,
-    gridExtra,
     rlang,
+    truncnorm,
     Rcpp (>= 1.0.0)
-LinkingTo: 
+SystemRequirements: C++11, GNU make
+LinkingTo:
     Rcpp,
     RcppArmadillo
 Suggests:
     coda,
+    ggplot2,
+    gridExtra,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
@@ -46,11 +52,10 @@ Suggests:
     network,
     igraph,
     lattice,
-    truncnorm,
     RcppArmadillo
 Remotes:
     netify-dev/netify
 VignetteBuilder: knitr
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)

@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_plots.R
 \name{plot_trace}
 \alias{plot_trace}
-\title{Plot parameter trace plots}
+\title{Plot Parameter Trace Plots}
 \usage{
 plot_trace(fit, pars = NULL, ncol = 2)
 }
@@ -17,5 +17,15 @@ plot_trace(fit, pars = NULL, ncol = 2)
 A ggplot object or NULL
 }
 \description{
-Create trace plots for scalar parameters
+Trace plots with running mean and posterior mean overlay
+}
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+if (requireNamespace("ggplot2", quietly = TRUE)) plot_trace(fit)
+}
+}
+\seealso{
+\code{\link{param_summary}}, \code{\link{plot_theta}}, \code{\link{plot_regime_probs}}
 }

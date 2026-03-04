@@ -4,6 +4,6 @@
 \alias{family}
 \title{Family Objects for DBN Models}
 \description{
-Internal functions to create likelihood family objects for different outcome types
+Internal constructors for likelihood family objects
 }
 \keyword{internal}

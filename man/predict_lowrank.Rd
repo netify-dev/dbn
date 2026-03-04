@@ -2,23 +2,23 @@
 % Please edit documentation in R/lowrank_methods.R
 \name{predict_lowrank}
 \alias{predict_lowrank}
-\title{Forecast / replicate from a low-rank fit}
+\title{Predict from Low-Rank Fit}
 \usage{
 predict_lowrank(object, H = 1, draws = 100, summary = c("mean", "none"))
 }
 \arguments{
 \item{object}{A dbn object with model="lowrank"}
 
-\item{H}{Number of time steps ahead to forecast}
+\item{H}{Number of forecast steps}
 
-\item{draws}{Number of posterior draws to use}
+\item{draws}{Number of posterior draws}
 
-\item{summary}{Character string: "mean" for posterior mean, "none" for all draws}
+\item{summary}{"mean" for posterior mean, "none" for all draws}
 }
 \value{
-Array of predictions with dimensions appropriate to summary choice
+Prediction array
 }
 \description{
-Generate predictions from a low-rank DBN model
+H-step-ahead forecasts using random-walk extension of alpha
 }
 \keyword{internal}

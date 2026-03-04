@@ -2,7 +2,7 @@
 % Please edit documentation in R/irf.R
 \name{stat_in_degree}
 \alias{stat_in_degree}
-\title{Network statistic: in-degree}
+\title{Network Statistic: In-Degree}
 \usage{
 stat_in_degree(X)
 }
@@ -13,5 +13,13 @@ stat_in_degree(X)
 Vector of in-degrees
 }
 \description{
-Compute in-degree for all nodes (column sums)
+Column sums of network matrix
+}
+\examples{
+X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)
+stat_in_degree(X)
+}
+\seealso{
+\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{stat_density}}, \code{\link{stat_out_degree}}
 }

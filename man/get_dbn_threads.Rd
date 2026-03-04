@@ -13,6 +13,5 @@ Integer number of threads currently set for parallel computation
 Get the current number of threads used by dbn
 }
 \examples{
-# Get current thread count
 get_dbn_threads()
 }

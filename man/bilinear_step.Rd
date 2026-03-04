@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils_safe.R
 \name{bilinear_step}
 \alias{bilinear_step}
-\title{Bilinear multiplication step}
+\title{Bilinear Multiplication Step}
 \usage{
 bilinear_step(A, Theta_prev, B)
 }
@@ -14,9 +14,9 @@ bilinear_step(A, Theta_prev, B)
 \item{B}{Right matrix}
 }
 \value{
-A \%\emph{\% Theta_prev \%}\% t(B)
+Bilinear product
 }
 \description{
-Left and right bilinear multiply used everywhere
+Computes A \%\emph{\% Theta \%}\% t(B)
 }
 \keyword{internal}

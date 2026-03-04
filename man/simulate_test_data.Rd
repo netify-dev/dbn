@@ -4,10 +4,12 @@
 \alias{simulate_test_data}
 \title{Simulate Simple Test Data}
 \usage{
-simulate_test_data(n = 10, p = 2, time = 20, seed = NULL)
+simulate_test_data(n = 10, n_col = n, p = 2, time = 20, seed = NULL)
 }
 \arguments{
-\item{n}{Number of actors}
+\item{n}{Number of row actors / senders}
+
+\item{n_col}{Number of column actors / receivers (default: n)}
 
 \item{p}{Number of relations}
 
@@ -19,5 +21,12 @@ simulate_test_data(n = 10, p = 2, time = 20, seed = NULL)
 Array of ordinal network data
 }
 \description{
-Generates simple test data for quick testing
+Generates simple ordinal network data for quick testing
+}
+\examples{
+Y <- simulate_test_data(n = 10, time = 5, seed = 42)
+str(Y)
+}
+\seealso{
+\code{\link{dbn}} for model fitting, \code{\link{simulate_static_dbn}} for full simulation with true parameters
 }

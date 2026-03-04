@@ -343,8 +343,13 @@ List build_regime_arrays(const IntegerVector& S,
                         const List& A_list,
                         const List& B_list,
                         int m, int Tt) {
-    arma::cube Aarray(m, m, Tt);
-    arma::cube Barray(m, m, Tt);
+    // Infer dimensions from the actual matrices in the lists
+    arma::mat A0 = as<arma::mat>(A_list[0]);
+    arma::mat B0 = as<arma::mat>(B_list[0]);
+    int n_row = A0.n_rows;
+    int n_col = B0.n_rows;
+    arma::cube Aarray(n_row, n_row, Tt);
+    arma::cube Barray(n_col, n_col, Tt);
     
     // preextract matrices from lists to avoid repeated conversions
     int R = A_list.size();
@@ -367,8 +372,8 @@ List build_regime_arrays(const IntegerVector& S,
             int regime = S[t] - 1; // Convert to 0-based
             
             // direct memory copy for efficiency
-            std::memcpy(Aarray.slice_memptr(t), A_vec[regime].memptr(), m * m * sizeof(double));
-            std::memcpy(Barray.slice_memptr(t), B_vec[regime].memptr(), m * m * sizeof(double));
+            std::memcpy(Aarray.slice_memptr(t), A_vec[regime].memptr(), n_row * n_row * sizeof(double));
+            std::memcpy(Barray.slice_memptr(t), B_vec[regime].memptr(), n_col * n_col * sizeof(double));
         }
     }
     
@@ -385,6 +390,10 @@ List build_regime_arrays(const IntegerVector& S,
 List collect_regime_thetas(const arma::cube& Theta_avg,
                           const IntegerVector& S,
                           int regime, int m) {
+    // Infer dimensions from the cube (supports rectangular Theta)
+    int nr = Theta_avg.n_rows;
+    int nc = Theta_avg.n_cols;
+
     // find times where S_t = regime (for t >= 2)
     std::vector<int> idx;
     for(int t = 1; t < S.size(); t++) {
@@ -392,9 +401,9 @@ List collect_regime_thetas(const arma::cube& Theta_avg,
             idx.push_back(t);
         }
     }
-    
+
     int n_r = idx.size();
-    
+
     if(n_r == 0) {
         return List::create(
             Named("Th_prev") = arma::cube(),
@@ -402,9 +411,9 @@ List collect_regime_thetas(const arma::cube& Theta_avg,
             Named("n_obs") = 0
         );
     }
-    
-    arma::cube Th_prev(m, m, n_r);
-    arma::cube Th_curr(m, m, n_r);
+
+    arma::cube Th_prev(nr, nc, n_r);
+    arma::cube Th_curr(nr, nc, n_r);
     
     #ifdef _OPENMP
     #pragma omp parallel for

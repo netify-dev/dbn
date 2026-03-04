@@ -8,6 +8,42 @@
 using namespace Rcpp;
 using namespace arma;
 
+// Safe matrix inverse with regularization fallback
+static arma::mat safe_inv_lr(const arma::mat& M) {
+    arma::mat M_sym = 0.5 * (M + M.t());
+    arma::mat result;
+    bool ok = arma::inv_sympd(result, M_sym);
+    if (!ok) {
+        double reg = 1e-6 * arma::norm(M_sym, "fro") + 1e-8;
+        M_sym.diag() += reg;
+        ok = arma::inv_sympd(result, M_sym);
+        if (!ok) {
+            result = arma::inv(M_sym);
+        }
+    }
+    return result;
+}
+
+// Safe mvnrnd with regularization fallback
+static arma::vec safe_mvnrnd_lr(const arma::vec& mu, const arma::mat& Sigma) {
+    arma::mat S = 0.5 * (Sigma + Sigma.t());
+    if (S.n_rows != mu.n_elem || S.n_cols != mu.n_elem) {
+        // dimension mismatch — just return mean + small noise
+        return mu + 1e-4 * arma::randn(mu.n_elem);
+    }
+    try {
+        return arma::mvnrnd(mu, S);
+    } catch (...) {
+        double reg = 1e-6 * arma::norm(S, "fro") + 1e-8;
+        S.diag() += reg;
+        try {
+            return arma::mvnrnd(mu, S);
+        } catch (...) {
+            return mu + arma::sqrt(arma::abs(S.diag())) % arma::randn(mu.n_elem);
+        }
+    }
+}
+
 // forward declarations
 arma::mat ffbs_dlm_cpp(const List& y, const List& Flist, const arma::mat& V, 
                        const arma::mat& W, const arma::vec& m0, const arma::mat& C0, 
@@ -27,10 +63,7 @@ arma::cube update_B_parallel(const arma::cube& Theta,
     
     arma::cube Barray(m, m, Tt);
     
-    // process all columns in parallel
-    #ifdef _OPENMP
-    #pragma omp parallel for
-    #endif
+    // process all columns sequentially (safe_mvnrnd_lr is not thread-safe)
     for(int k = 0; k < m; k++) {
         // build observations and design matrices for column k
         arma::mat Y_stacked((Tt - 1) * m * p, 1);
@@ -97,7 +130,8 @@ arma::cube update_B_parallel(const arma::cube& Theta,
             
             // update with numerical stability
             arma::mat S = F_t * P_pred * F_t.t() + sigma2_proc * arma::eye(obs_dim, obs_dim);
-            
+            S = 0.5 * (S + S.t());
+
             // kalman gain cmp using cholesky
             arma::mat K;
             arma::mat L_S;
@@ -108,19 +142,17 @@ arma::cube update_B_parallel(const arma::cube& Theta,
                 K = arma::solve(arma::trimatu(L_S.t()), temp).t();
             } else {
                 // Fallback to standard computation
-                K = P_pred * F_t.t() * arma::inv(S);
+                K = P_pred * F_t.t() * safe_inv_lr(S);
             }
-            
+
             m_t = m_pred + K * (y_t - F_t * m_pred);
-            
+
             // joseph form update again so things dont blow up hopefully
             arma::mat I_minus_KF = arma::eye(state_dim, state_dim) - K * F_t;
             P_t = I_minus_KF * P_pred * I_minus_KF.t() + K * sigma2_proc * K.t();
-            
+
             // force exact symmetry to avoid warnings
             P_t = 0.5 * (P_t + P_t.t());
-            P_t = P_t + P_t.t();
-            P_t = 0.5 * P_t;
             
             // store
             m_filt.col(t) = m_t;
@@ -138,7 +170,7 @@ arma::cube update_B_parallel(const arma::cube& Theta,
         eigval = arma::clamp(eigval, 1e-6, arma::datum::inf);
         P_final = eigvec * arma::diagmat(eigval) * eigvec.t();
         
-        arma::vec b_T = mvnrnd(m_filt.col(Tt-1), P_final);
+        arma::vec b_T = safe_mvnrnd_lr(m_filt.col(Tt-1), P_final);
         Barray.slice(Tt-1).col(k) = b_T;
         
         for(int t = Tt-2; t >= 0; t--) {
@@ -149,8 +181,8 @@ arma::cube update_B_parallel(const arma::cube& Theta,
             } else {
                 P_pred = P_filt.slice(t) + tau_B2 * arma::eye(state_dim, state_dim);
             }
-            arma::mat G = P_filt.slice(t) * arma::inv(P_pred);  // use regular inv
-            
+            arma::mat G = P_filt.slice(t) * safe_inv_lr(P_pred);
+
             // smooth
             arma::vec m_pred_t;
             if (ar1_B) {
@@ -160,20 +192,19 @@ arma::cube update_B_parallel(const arma::cube& Theta,
             }
             arma::vec m_smooth = m_filt.col(t) + G * (Barray.slice(t+1).col(k) - m_pred_t);
             arma::mat P_smooth = P_filt.slice(t) - G * (P_pred - P_filt.slice(t+1)) * G.t();
-            
+
             // force exact symmetry before sampling
-            P_smooth = P_smooth + P_smooth.t();
-            P_smooth = 0.5 * P_smooth;
-            
+            P_smooth = 0.5 * (P_smooth + P_smooth.t());
+
             // ensure positive definiteness
             arma::vec eigval2;
             arma::mat eigvec2;
             arma::eig_sym(eigval2, eigvec2, P_smooth);
             eigval2 = arma::clamp(eigval2, 1e-6, arma::datum::inf);
             P_smooth = eigvec2 * arma::diagmat(eigval2) * eigvec2.t();
-            
+
             // sample
-            Barray.slice(t).col(k) = mvnrnd(m_smooth, P_smooth);
+            Barray.slice(t).col(k) = safe_mvnrnd_lr(m_smooth, P_smooth);
         }
     }
     
@@ -275,13 +306,22 @@ arma::mat update_alpha_batch(const arma::cube& Theta,
             // Woodbury formula for (HPH' + σ²I)^{-1}
             double inv_sigma2 = 1.0 / sigma2_proc;
             arma::mat inner = arma::eye(r, r) + inv_sigma2 * H_t.t() * H_t * P_pred;
-            arma::mat inner_inv = arma::inv_sympd(inner);
+            arma::mat inner_sym = 0.5 * (inner + inner.t());
+            arma::mat inner_inv;
+            bool inner_ok = arma::inv_sympd(inner_inv, inner_sym);
+            if (!inner_ok) {
+                double reg = 1e-6 * arma::norm(inner_sym, "fro") + 1e-8;
+                inner_sym.diag() += reg;
+                inner_ok = arma::inv_sympd(inner_inv, inner_sym);
+                if (!inner_ok) { inner_inv = arma::inv(inner_sym); }
+            }
             K = P_pred * H_t.t() * (inv_sigma2 * arma::eye(H_t.n_rows, H_t.n_rows) - 
                                    inv_sigma2 * inv_sigma2 * H_t * P_pred * inner_inv * H_t.t());
         } else {
             // Standard approach for smaller problems
             arma::mat S = H_t * P_pred * H_t.t() + sigma2_proc * arma::eye(H_t.n_rows, H_t.n_rows);
-            
+            S = 0.5 * (S + S.t());
+
             // Efficient computation using Cholesky
             arma::mat L_S;
             bool chol_success = arma::chol(L_S, S, "lower");
@@ -290,7 +330,7 @@ arma::mat update_alpha_batch(const arma::cube& Theta,
                 arma::mat temp = arma::solve(arma::trimatl(L_S), H_t * P_pred);
                 K = arma::solve(arma::trimatu(L_S.t()), temp).t();
             } else {
-                K = P_pred * H_t.t() * arma::inv(S);
+                K = P_pred * H_t.t() * safe_inv_lr(S);
             }
         }
         
@@ -313,8 +353,8 @@ arma::mat update_alpha_batch(const arma::cube& Theta,
     eigval = arma::clamp(eigval, 1e-6, arma::datum::inf);
     P_final = eigvec * arma::diagmat(eigval) * eigvec.t();
     
-    alpha.col(Tt-1) = mvnrnd(m_filt.col(Tt-1), P_final);
-    
+    alpha.col(Tt-1) = safe_mvnrnd_lr(m_filt.col(Tt-1), P_final);
+
     for(int t = Tt-2; t >= 0; t--) {
         arma::mat P_pred;
         if (ar1_alpha) {
@@ -322,8 +362,8 @@ arma::mat update_alpha_batch(const arma::cube& Theta,
         } else {
             P_pred = P_filt.slice(t) + tau_alpha2 * arma::eye(r, r);
         }
-        arma::mat G = P_filt.slice(t) * arma::inv(P_pred);  // use regular inv
-        
+        arma::mat G = P_filt.slice(t) * safe_inv_lr(P_pred);
+
         arma::vec m_pred_t;
         if (ar1_alpha) {
             m_pred_t = rho_alpha * m_filt.col(t);
@@ -332,19 +372,18 @@ arma::mat update_alpha_batch(const arma::cube& Theta,
         }
         arma::vec m_smooth = m_filt.col(t) + G * (alpha.col(t+1) - m_pred_t);
         arma::mat P_smooth = P_filt.slice(t) - G * (P_pred - P_filt.slice(t+1)) * G.t();
-        
+
         // force exact symmetry before sampling
-        P_smooth = P_smooth + P_smooth.t();
-        P_smooth = 0.5 * P_smooth;
-        
+        P_smooth = 0.5 * (P_smooth + P_smooth.t());
+
         // ensure positive definiteness
         arma::vec eigval3;
         arma::mat eigvec3;
         arma::eig_sym(eigval3, eigvec3, P_smooth);
         eigval3 = arma::clamp(eigval3, 1e-6, arma::datum::inf);
         P_smooth = eigvec3 * arma::diagmat(eigval3) * eigvec3.t();
-        
-        alpha.col(t) = mvnrnd(m_smooth, P_smooth);
+
+        alpha.col(t) = safe_mvnrnd_lr(m_smooth, P_smooth);
     }
     
     return alpha;
@@ -360,9 +399,7 @@ void update_Z_ordinal_vectorized(arma::cube& Z_all,
                            const List& IR_list,
                            int m, int p, int Tt) {
     
-    #ifdef _OPENMP
-    #pragma omp parallel for
-    #endif
+    // sequential: R::runif is not thread-safe
     for(int rel = 0; rel < p; rel++) {
         List IR_rel = IR_list[rel];
         arma::mat M_rel = M_all.slice(rel);

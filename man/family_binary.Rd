@@ -10,6 +10,7 @@ family_binary()
 A dbn_family object
 }
 \description{
-Family object for binary outcomes using probit link
+Probit-link family for binary outcomes.
+Observation variance fixed at 1 for identifiability.
 }
 \keyword{internal}

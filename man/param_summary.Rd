@@ -17,4 +17,13 @@ Data frame with parameter summaries
 \description{
 Compute quantiles for scalar parameter traces
 }
-\keyword{internal}
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+ps <- param_summary(fit)
+}
+}
+\seealso{
+\code{\link{theta_summary}}, \code{\link{plot_trace}}, \code{\link{derive_draws}}
+}

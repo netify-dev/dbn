@@ -3,7 +3,7 @@
 \name{grapes-or-or-grapes}
 \alias{grapes-or-or-grapes}
 \alias{\%||\%}
-\title{Null coalescing operator}
+\title{Null Coalescing Operator}
 \usage{
 a \%||\% b
 }
@@ -16,6 +16,6 @@ a \%||\% b
 a if not NULL, otherwise b
 }
 \description{
-Null coalescing operator
+Null Coalescing Operator
 }
 \keyword{internal}

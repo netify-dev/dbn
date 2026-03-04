@@ -1,3 +1,7 @@
+####
+# dataset documentation
+####
+
 #' Example Dynamic Bilinear Network Data
 #'
 #' A small dataset containing simulated ordinal relational data with two relation types

@@ -50,74 +50,75 @@ is_stationary <- function(A, B, p, q) {
 
 #' @keywords internal
 #' @noRd
-batch_update_Z_ordinal <- function(R_4d, Z_4d, Theta_4d, M, IR, m, p, Tt) {
-    .Call('_dbn_batch_update_Z_ordinal', PACKAGE = 'dbn', R_4d, Z_4d, Theta_4d, M, IR, m, p, Tt)
+batch_update_Z_ordinal <- function(R_4d, Z_4d, Theta_4d, M, IR, n_row, n_col, p, Tt) {
+    .Call('_dbn_batch_update_Z_ordinal', PACKAGE = 'dbn', R_4d, Z_4d, Theta_4d, M, IR, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-batch_update_Z_ordinal_fast <- function(R_4d, Z_4d, Theta_4d, M, IR, IR_time_indices, m, p, Tt) {
-    .Call('_dbn_batch_update_Z_ordinal_fast', PACKAGE = 'dbn', R_4d, Z_4d, Theta_4d, M, IR, IR_time_indices, m, p, Tt)
+batch_update_Z_ordinal_fast <- function(R_4d, Z_4d, Theta_4d, M, IR, IR_time_indices, n_row, n_col, p, Tt) {
+    .Call('_dbn_batch_update_Z_ordinal_fast', PACKAGE = 'dbn', R_4d, Z_4d, Theta_4d, M, IR, IR_time_indices, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-precompute_time_indices <- function(IR, m, p, Tt) {
-    .Call('_dbn_precompute_time_indices', PACKAGE = 'dbn', IR, m, p, Tt)
+precompute_time_indices <- function(IR, n_row, n_col, p, Tt) {
+    .Call('_dbn_precompute_time_indices', PACKAGE = 'dbn', IR, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-update_mu_dynamic <- function(Z_4d, Theta_4d, g2, a_g, b_g, m, p, Tt) {
-    .Call('_dbn_update_mu_dynamic', PACKAGE = 'dbn', Z_4d, Theta_4d, g2, a_g, b_g, m, p, Tt)
+update_mu_dynamic <- function(Z_4d, Theta_4d, g2, a_g, b_g, n_row, n_col, p, Tt) {
+    .Call('_dbn_update_mu_dynamic', PACKAGE = 'dbn', Z_4d, Theta_4d, g2, a_g, b_g, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-batch_ffbs_all_relations <- function(Z_4d, M, Aarray, Barray, sigma2, m, p, Tt) {
-    .Call('_dbn_batch_ffbs_all_relations', PACKAGE = 'dbn', Z_4d, M, Aarray, Barray, sigma2, m, p, Tt)
+batch_ffbs_all_relations <- function(Z_4d, M, Aarray, Barray, sigma2, n_row, n_col, p, Tt) {
+    .Call('_dbn_batch_ffbs_all_relations', PACKAGE = 'dbn', Z_4d, M, Aarray, Barray, sigma2, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-update_AB_batch_extended <- function(Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, m, p, Tt) {
-    .Call('_dbn_update_AB_batch_extended', PACKAGE = 'dbn', Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, m, p, Tt)
+update_AB_batch_extended <- function(Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, n_row, n_col, p, Tt) {
+    .Call('_dbn_update_AB_batch_extended', PACKAGE = 'dbn', Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-update_variances_dynamic <- function(Theta_4d, Z_4d, M, Aarray, Barray, a_sig, b_sig, m, p, Tt, is_gaussian = FALSE) {
-    .Call('_dbn_update_variances_dynamic', PACKAGE = 'dbn', Theta_4d, Z_4d, M, Aarray, Barray, a_sig, b_sig, m, p, Tt, is_gaussian)
+update_variances_dynamic <- function(Theta_4d, Z_4d, M, Aarray, Barray, a_sig, b_sig, n_row, n_col, p, Tt, is_gaussian = FALSE) {
+    .Call('_dbn_update_variances_dynamic', PACKAGE = 'dbn', Theta_4d, Z_4d, M, Aarray, Barray, a_sig, b_sig, n_row, n_col, p, Tt, is_gaussian)
 }
 
 #' @keywords internal
 #' @noRd
-batch_ffbs_all_relations_blocked <- function(Z_4d, M, Aarray, Barray, sigma2, m, p, Tt) {
-    .Call('_dbn_batch_ffbs_all_relations_blocked', PACKAGE = 'dbn', Z_4d, M, Aarray, Barray, sigma2, m, p, Tt)
+batch_ffbs_all_relations_blocked <- function(Z_4d, M, Aarray, Barray, sigma2, n_row, n_col, p, Tt) {
+    .Call('_dbn_batch_ffbs_all_relations_blocked', PACKAGE = 'dbn', Z_4d, M, Aarray, Barray, sigma2, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-update_AB_batch_large <- function(Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, m, p, Tt) {
-    .Call('_dbn_update_AB_batch_large', PACKAGE = 'dbn', Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, m, p, Tt)
+update_AB_batch_large <- function(Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, n_row, n_col, p, Tt) {
+    .Call('_dbn_update_AB_batch_large', PACKAGE = 'dbn', Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-compute_process_variance_blocked <- function(Theta_4d, Aarray, Barray, m, p, Tt) {
-    .Call('_dbn_compute_process_variance_blocked', PACKAGE = 'dbn', Theta_4d, Aarray, Barray, m, p, Tt)
+compute_process_variance_blocked <- function(Theta_4d, Aarray, Barray, n_row, n_col, p, Tt) {
+    .Call('_dbn_compute_process_variance_blocked', PACKAGE = 'dbn', Theta_4d, Aarray, Barray, n_row, n_col, p, Tt)
 }
 
 #' Fast FFBS for Bilinear Model
-#' 
-#' @description Efficient FFBS that avoids Kronecker products
-#' @param Z Observations (m × m × T)
-#' @param mu Baseline mean (m × m)
-#' @param A_array Time-varying A matrices (m × m × T)
-#' @param B_array Time-varying B matrices (m × m × T)
+#'
+#' @description Efficient FFBS that avoids Kronecker products.
+#'   Supports rectangular (bipartite) Theta via scalar variance approximation.
+#' @param Z Observations (n_row x n_col x T)
+#' @param mu Baseline mean (n_row x n_col)
+#' @param A_array Time-varying A matrices (n_row x n_row x T)
+#' @param B_array Time-varying B matrices (n_col x n_col x T)
 #' @param sigma2_proc Process variance
 #' @param sigma2_obs Observation variance (default 1.0)
-#' @return Sampled Theta array (m × m × T)
+#' @return Sampled Theta array (n_row x n_col x T)
 #' @keywords internal
 #' @noRd
 ffbs_bilinear <- function(Z, mu, A_array, B_array, sigma2_proc, sigma2_obs = 1.0) {
@@ -161,14 +162,15 @@ ffbs_dlm_batch_cpp <- function(Y_batch, F_batch, V_batch, W, m0, C0, ar1 = FALSE
 }
 
 #' Structured FFBS for Theta
-#' 
-#' @description Memory-efficient FFBS that avoids creating n² × n² matrices
-#' @param Z Observations (m × m × T array as cube)
-#' @param mu Baseline mean (m × m matrix)
-#' @param A_array Time-varying A matrices (m × m × T)
-#' @param B_array Time-varying B matrices (m × m × T)
+#'
+#' @description Memory-efficient FFBS that avoids creating n^2 x n^2 matrices.
+#'   Supports rectangular (bipartite) Theta via row-covariance approximation.
+#' @param Z Observations (n_row x n_col x T array as cube)
+#' @param mu Baseline mean (n_row x n_col matrix)
+#' @param A_array Time-varying A matrices (n_row x n_row x T)
+#' @param B_array Time-varying B matrices (n_col x n_col x T)
 #' @param sigma2 Innovation variance (scalar)
-#' @return Sampled Theta array (m × m × T)
+#' @return Sampled Theta array (n_row x n_col x T)
 ffbs_theta_struct_5arg_cpp <- function(Z, mu, A_array, B_array, sigma2) {
     .Call('_dbn_ffbs_theta_struct_5arg_cpp', PACKAGE = 'dbn', Z, mu, A_array, B_array, sigma2)
 }
@@ -501,14 +503,14 @@ rz_fc_matrix <- function(R, Z_current, EZ, iranks) {
 
 #' @keywords internal
 #' @noRd
-rz_fc_batch <- function(R, Z_current, EZ, IR_list, m, p, Tt) {
-    .Call('_dbn_rz_fc_batch', PACKAGE = 'dbn', R, Z_current, EZ, IR_list, m, p, Tt)
+rz_fc_batch <- function(R, Z_current, EZ, IR_list, n_row, n_col, p, Tt) {
+    .Call('_dbn_rz_fc_batch', PACKAGE = 'dbn', R, Z_current, EZ, IR_list, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-precompute_rank_structure <- function(R, m, p, Tt) {
-    .Call('_dbn_precompute_rank_structure', PACKAGE = 'dbn', R, m, p, Tt)
+precompute_rank_structure <- function(R, n_row, n_col, p, Tt) {
+    .Call('_dbn_precompute_rank_structure', PACKAGE = 'dbn', R, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
@@ -537,20 +539,20 @@ compute_observation_residuals <- function(Z_flat, Theta_flat, M, m, p, Tt) {
 
 #' @keywords internal
 #' @noRd
-compute_zscores_batch <- function(Y, means, sds, m, p, Tt) {
-    .Call('_dbn_compute_zscores_batch', PACKAGE = 'dbn', Y, means, sds, m, p, Tt)
+compute_zscores_batch <- function(Y, means, sds, n_row, n_col, p, Tt) {
+    .Call('_dbn_compute_zscores_batch', PACKAGE = 'dbn', Y, means, sds, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-update_Z_batch <- function(R_flat, Theta_flat, M, IR_list_flat, m, p, Tt) {
-    .Call('_dbn_update_Z_batch', PACKAGE = 'dbn', R_flat, Theta_flat, M, IR_list_flat, m, p, Tt)
+update_Z_batch <- function(R_flat, Theta_flat, M, IR_list_flat, n_row, n_col, p, Tt) {
+    .Call('_dbn_update_Z_batch', PACKAGE = 'dbn', R_flat, Theta_flat, M, IR_list_flat, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
 #' @noRd
-build_regime_arrays_vectorized <- function(S, A_list, B_list, m, Tt) {
-    .Call('_dbn_build_regime_arrays_vectorized', PACKAGE = 'dbn', S, A_list, B_list, m, Tt)
+build_regime_arrays_vectorized <- function(S, A_list, B_list, n_row, n_col, Tt) {
+    .Call('_dbn_build_regime_arrays_vectorized', PACKAGE = 'dbn', S, A_list, B_list, n_row, n_col, Tt)
 }
 
 #' @keywords internal
@@ -566,16 +568,17 @@ compute_A_lowrank_batch <- function(outer_prods, alpha, Tt) {
 }
 
 #' Reshape 4D array to 3D for C++ processing
-#' @description Efficiently reshape Z from m x m x p x Tt to m x m x (p*Tt)
+#' @description Efficiently reshape Z from n_row x n_col x p x Tt to n_row x n_col x (p*Tt)
 #' @param Z_4d Input 4D array as R array
-#' @param m Number of nodes
+#' @param n_row Number of row nodes (senders)
+#' @param n_col Number of column nodes (receivers)
 #' @param p Number of relations
 #' @param Tt Number of time points
 #' @return 3D cube for C++ processing
 #' @keywords internal
 #' @noRd
-reshape_Z_to_cube <- function(Z_4d, m, p, Tt) {
-    .Call('_dbn_reshape_Z_to_cube', PACKAGE = 'dbn', Z_4d, m, p, Tt)
+reshape_Z_to_cube <- function(Z_4d, n_row, n_col, p, Tt) {
+    .Call('_dbn_reshape_Z_to_cube', PACKAGE = 'dbn', Z_4d, n_row, n_col, p, Tt)
 }
 
 #' Compute SSE for diagonal elements efficiently
@@ -590,10 +593,10 @@ compute_diagonal_sse <- function(B_list, K) {
 }
 
 #' Compute sum of squared deviations from identity for A or B arrays
-#' @description Efficiently compute sum of squared deviations from the identity matrix 
+#' @description Efficiently compute sum of squared deviations from the identity matrix
 #'   for each matrix slice of A or B from time t = 2 to Tt
 #' @param ABarray 3D array of A or B matrices (m x m x Tt)
-#' @param m Number of nodes
+#' @param m Number of nodes (dimension of the square matrix)
 #' @param Tt Number of time points
 #' @return Sum of squared deviations
 #' @keywords internal
@@ -604,85 +607,93 @@ compute_deviation_sum <- function(ABarray, m, Tt) {
 
 #' Compute mean M for static model
 #' @description Efficiently compute mean of Z across time for each relation
-#' @param Z_flat Flattened Z array (m*m x p*Tt)
-#' @param m Number of nodes
+#' @param Z_flat Flattened Z array (n_row*n_col x p*Tt)
+#' @param n_row Number of row nodes
+#' @param n_col Number of column nodes
 #' @param p Number of relations
 #' @param Tt Number of time points
-#' @return M array (m x m x p)
+#' @return M array (n_row x n_col x p)
 #' @keywords internal
 #' @noRd
-compute_M_static <- function(Z_flat, m, p, Tt) {
-    .Call('_dbn_compute_M_static', PACKAGE = 'dbn', Z_flat, m, p, Tt)
+compute_M_static <- function(Z_flat, n_row, n_col, p, Tt) {
+    .Call('_dbn_compute_M_static', PACKAGE = 'dbn', Z_flat, n_row, n_col, p, Tt)
 }
 
 #' Compute residual sum of squares for static model
 #' @description Compute sum((Z - M)^2) across all times and relations
-#' @param Z_4d Original Z array (m x m x p x Tt) as flattened vector
-#' @param M Mean array (m x m x p)
-#' @param m Number of nodes
+#' @param Z_4d Original Z array (n_row x n_col x p x Tt) as flattened vector
+#' @param M Mean array (n_row x n_col x p)
+#' @param n_row Number of row nodes
+#' @param n_col Number of column nodes
 #' @param p Number of relations
 #' @param Tt Number of time points
 #' @return Sum of squared residuals
 #' @keywords internal
 #' @noRd
-compute_rss_static <- function(Z_4d, M, m, p, Tt) {
-    .Call('_dbn_compute_rss_static', PACKAGE = 'dbn', Z_4d, M, m, p, Tt)
+compute_rss_static <- function(Z_4d, M, n_row, n_col, p, Tt) {
+    .Call('_dbn_compute_rss_static', PACKAGE = 'dbn', Z_4d, M, n_row, n_col, p, Tt)
 }
 
 #' Reshape for large networks with parallelization
 #' @description Parallel version of reshape_Z_to_cube for large networks
 #' @param Z_4d Input 4D array as R array
-#' @param m Number of nodes
+#' @param n_row Number of row nodes
+#' @param n_col Number of column nodes
 #' @param p Number of relations
 #' @param Tt Number of time points
 #' @return 3D cube for C++ processing
 #' @keywords internal
 #' @noRd
-reshape_Z_to_cube_parallel <- function(Z_4d, m, p, Tt) {
-    .Call('_dbn_reshape_Z_to_cube_parallel', PACKAGE = 'dbn', Z_4d, m, p, Tt)
+reshape_Z_to_cube_parallel <- function(Z_4d, n_row, n_col, p, Tt) {
+    .Call('_dbn_reshape_Z_to_cube_parallel', PACKAGE = 'dbn', Z_4d, n_row, n_col, p, Tt)
 }
 
 #' M computation with blocked summation for numerical stability
 #' @description Compute mean with blocked summation for large networks
-#' @param Z_flat Flattened Z array (m*m x p*Tt)
-#' @param m Number of nodes
+#' @param Z_flat Flattened Z array (n_row*n_col x p*Tt)
+#' @param n_row Number of row nodes
+#' @param n_col Number of column nodes
 #' @param p Number of relations
 #' @param Tt Number of time points
-#' @return M array (m x m x p)
+#' @return M array (n_row x n_col x p)
 #' @keywords internal
 #' @noRd
-compute_M_static_blocked <- function(Z_flat, m, p, Tt) {
-    .Call('_dbn_compute_M_static_blocked', PACKAGE = 'dbn', Z_flat, m, p, Tt)
+compute_M_static_blocked <- function(Z_flat, n_row, n_col, p, Tt) {
+    .Call('_dbn_compute_M_static_blocked', PACKAGE = 'dbn', Z_flat, n_row, n_col, p, Tt)
 }
 
 #' RSS computation with parallel reduction
 #' @description Parallel computation of residual sum of squares
-#' @param Z_cube Z array as cube (m x m x p*Tt)
-#' @param M Mean array (m x m x p)
-#' @param m Number of nodes
+#' @param Z_cube Z array as cube (n_row x n_col x p*Tt)
+#' @param M Mean array (n_row x n_col x p)
+#' @param n_row Number of row nodes
+#' @param n_col Number of column nodes
 #' @param p Number of relations
 #' @param Tt Number of time points
 #' @return Sum of squared residuals
 #' @keywords internal
 #' @noRd
-compute_rss_static_parallel <- function(Z_cube, M, m, p, Tt) {
-    .Call('_dbn_compute_rss_static_parallel', PACKAGE = 'dbn', Z_cube, M, m, p, Tt)
+compute_rss_static_parallel <- function(Z_cube, M, n_row, n_col, p, Tt) {
+    .Call('_dbn_compute_rss_static_parallel', PACKAGE = 'dbn', Z_cube, M, n_row, n_col, p, Tt)
 }
 
-#' Cache-efficient B update for static model
-#' @description B update using tiled matrix operations
-#' @param Z_cube Z array as cube
-#' @param M Mean array
+#' Cache-efficient B update for static model (sender effects)
+#' @description B1 (sender effects, n_row x n_row) update using tiled matrix operations.
+#'   Model: Z_jt = B * M_j + E, so regression is column-wise:
+#'   z_c = B * m_c, giving XtX = sum M_j * M_j' and XtY = sum Z_jt * M_j'
+#' @param Z_cube Z array as cube (n_row x n_col x p*Tt)
+#' @param M Mean array (n_row x n_col x p)
 #' @param s2 Observation variance
 #' @param t2 Prior variance
-#' @param m Number of nodes
+#' @param n_row Number of row nodes (senders)
+#' @param n_col Number of column nodes (receivers)
 #' @param p Number of relations
 #' @param Tt Number of time points
-#' @return Updated B matrix
+#' @return Updated B matrix (n_row x n_row)
 #' @keywords internal
 #' @noRd
-update_B_static_tiled <- function(Z_cube, M, s2, t2, m, p, Tt) {
-    .Call('_dbn_update_B_static_tiled', PACKAGE = 'dbn', Z_cube, M, s2, t2, m, p, Tt)
+update_B_static_tiled <- function(Z_cube, M, s2, t2, n_row, n_col, p, Tt) {
+    .Call('_dbn_update_B_static_tiled', PACKAGE = 'dbn', Z_cube, M, s2, t2, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
@@ -735,14 +746,14 @@ compute_XB_tensor <- function(X, B, m, p, n) {
 
 #' @keywords internal
 #' @noRd
-update_B_static <- function(Z, M, s2, t2, m, p, n) {
-    .Call('_dbn_update_B_static', PACKAGE = 'dbn', Z, M, s2, t2, m, p, n)
+update_B_static <- function(Z, M, s2, t2, n_row, n_col, p, n) {
+    .Call('_dbn_update_B_static', PACKAGE = 'dbn', Z, M, s2, t2, n_row, n_col, p, n)
 }
 
 #' @keywords internal
 #' @noRd
-broadcast_M_and_compute_EZ <- function(M, s2, m, p, Tt) {
-    .Call('_dbn_broadcast_M_and_compute_EZ', PACKAGE = 'dbn', M, s2, m, p, Tt)
+broadcast_M_and_compute_EZ <- function(M, s2, n_row, n_col, p, Tt) {
+    .Call('_dbn_broadcast_M_and_compute_EZ', PACKAGE = 'dbn', M, s2, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal
@@ -765,8 +776,8 @@ stabilize_matrix <- function(M, min_eig = 1e-6) {
 
 #' @keywords internal
 #' @noRd
-update_Z_dynamic <- function(R, Z_current, Theta, M, IR, m, p, Tt) {
-    .Call('_dbn_update_Z_dynamic', PACKAGE = 'dbn', R, Z_current, Theta, M, IR, m, p, Tt)
+update_Z_dynamic <- function(R, Z_current, Theta, M, IR, n_row, n_col, p, Tt) {
+    .Call('_dbn_update_Z_dynamic', PACKAGE = 'dbn', R, Z_current, Theta, M, IR, n_row, n_col, p, Tt)
 }
 
 #' @keywords internal

@@ -2,21 +2,21 @@
 % Please edit documentation in R/lowrank_methods.R
 \name{plot_lowrank}
 \alias{plot_lowrank}
-\title{Plot Low-rank DBN results}
+\title{Plot Low-Rank DBN Results}
 \usage{
 plot_lowrank(x, factors_show = min(3, x$settings$r), time_points = NULL)
 }
 \arguments{
 \item{x}{A dbn object with model="lowrank"}
 
-\item{factors_show}{Number of factors to display (default: min(3, rank))}
+\item{factors_show}{Number of factors to display}
 
-\item{time_points}{Optional subset of time points to plot}
+\item{time_points}{Optional subset of time points}
 }
 \value{
-Either a list of ggplot objects or a combined plot (if gridExtra available)
+List of ggplot objects or combined plot
 }
 \description{
-Creates diagnostic plots for low-rank DBN model fits
+Diagnostic plots for low-rank DBN model fits
 }
 \keyword{internal}

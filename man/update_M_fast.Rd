@@ -7,7 +7,7 @@
 update_M_fast(Z, g2)
 }
 \arguments{
-\item{Z}{Latent values array (m x m x p x Tt)}
+\item{Z}{Latent values array (n_row x n_col x p x Tt)}
 
 \item{g2}{Prior variance for M}
 }
@@ -15,6 +15,6 @@ update_M_fast(Z, g2)
 Updated M array
 }
 \description{
-Compute posterior mean of M efficiently
+Computes posterior mean of M efficiently
 }
 \keyword{internal}

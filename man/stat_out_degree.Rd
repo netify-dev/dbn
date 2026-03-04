@@ -2,7 +2,7 @@
 % Please edit documentation in R/irf.R
 \name{stat_out_degree}
 \alias{stat_out_degree}
-\title{Network statistic: out-degree}
+\title{Network Statistic: Out-Degree}
 \usage{
 stat_out_degree(X)
 }
@@ -13,5 +13,13 @@ stat_out_degree(X)
 Vector of out-degrees
 }
 \description{
-Compute out-degree for all nodes (row sums)
+Row sums of network matrix
+}
+\examples{
+X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)
+stat_out_degree(X)
+}
+\seealso{
+\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{stat_density}}, \code{\link{stat_in_degree}}
 }

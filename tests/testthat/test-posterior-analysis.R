@@ -1,388 +1,280 @@
-# # Test suite for new posterior analysis layer
+####
+# posterior extraction and summary functions
+####
 
-# test_that("theta_slice extracts correct values", {
-#   # create mock dynamic results with new format
-#   n <- 5
-#   p <- 2
-#   Tt <- 10
-#   n_draws <- 20
-  
-#   # create theta arrays
-#   theta_arrays <- lapply(1:n_draws, function(s) {
-#     array(rnorm(n*n*p*Tt), dim = c(n, n, p, Tt))
-#   })
-  
-#   fit <- list(
-#     draws = list(
-#       theta = theta_arrays,
-#       pars = data.frame(
-#         sigma2_proc = runif(n_draws, 0.5, 1.5),
-#         tau_A2 = runif(n_draws, 0.1, 1),
-#         tau_B2 = runif(n_draws, 0.1, 1)
-#       )
-#     ),
-#     meta = list(
-#       dims = list(m = n, p = p, Tt = Tt),
-#       draws = n_draws,
-#       model = "dynamic"
-#     ),
-#     model = "dynamic"
-#   )
-#   class(fit) <- "dbn"
-  
-#   # test extraction of specific dyad
-#   slice1 <- theta_slice(fit, i = 1, j = 2, rel = 1, time = 5)
-#   expect_equal(length(slice1), n_draws)
-  
-#   # test extraction of multiple time points
-#   slice2 <- theta_slice(fit, i = 1, j = 2, rel = 1, time = c(1, 5, 10))
-#   expect_equal(dim(slice2), c(n_draws, 3))
-  
-#   # test extraction with draws subset
-#   slice3 <- theta_slice(fit, i = 1, j = 2, rel = 1, time = 5, draws = 1:5)
-#   expect_equal(length(slice3), 5)
-# })
+test_that("theta_slice extracts correct values from HMM model", {
+	set.seed(101)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 101)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
 
-# test_that("theta_summary computes summaries correctly", {
-#   # create mock fit object
-#   n <- 4
-#   p <- 1
-#   Tt <- 8
-#   n_draws <- 50
-  
-#   theta_arrays <- lapply(1:n_draws, function(s) {
-#     array(rnorm(n*n*p*Tt, mean = s/n_draws), dim = c(n, n, p, Tt))
-#   })
-  
-#   fit <- list(
-#     draws = list(
-#       theta = theta_arrays
-#     ),
-#     meta = list(
-#       dims = list(m = n, p = p, Tt = Tt),
-#       draws = n_draws,
-#       model = "dynamic"
-#     ),
-#     model = "dynamic"
-#   )
-#   class(fit) <- "dbn"
-  
-#   # test mean summary
-#   summary1 <- theta_summary(fit, fun = mean, i = 1, j = 2, rel = 1, time = 1)
-#   expect_equal(nrow(summary1), 1)
-#   expect_true("value" %in% names(summary1))
-  
-#   # test quantile summary
-#   summary2 <- theta_summary(fit, fun = function(x) quantile(x, c(0.025, 0.5, 0.975)))
-#   expect_true(nrow(summary2) > 0)
-  
-#   # test with subset
-#   summary3 <- theta_summary(fit, fun = mean, time = 1:3)
-#   expect_true(all(summary3$time %in% 1:3))
-# })
+	# check theta draws exist
+	expect_true(!is.null(fit$draws$theta))
+	n_draws <- length(fit$draws$theta)
 
-# test_that("param_summary extracts parameters correctly", {
-#   n_draws <- 100
-  
-#   # test with new format
-#   fit_new <- list(
-#     draws = list(
-#       pars = data.frame(
-#         sigma2_proc = runif(n_draws, 0.5, 1.5),
-#         tau_A2 = runif(n_draws, 0.1, 1),
-#         tau_B2 = runif(n_draws, 0.1, 1),
-#         g2 = runif(n_draws, 0.5, 2)
-#       )
-#     ),
-#     model = "dynamic"
-#   )
-#   class(fit_new) <- "dbn"
-  
-#   summary_new <- param_summary(fit_new)
-#   expect_equal(nrow(summary_new), 4)
-#   expect_true(all(c("parameter", "mean", "q5", "q50", "q95") %in% names(summary_new)))
-  
-#   # test with legacy format
-#   fit_legacy <- list(
-#     sigma2 = runif(n_draws, 0.5, 1.5),
-#     tau_A2 = runif(n_draws, 0.1, 1),
-#     tau_B2 = runif(n_draws, 0.1, 1),
-#     model = "dynamic"
-#   )
-#   class(fit_legacy) <- "dbn"
-  
-#   summary_legacy <- param_summary(fit_legacy)
-#   expect_true(nrow(summary_legacy) >= 3)
-# })
+	# extract single dyad at single time
+	slice1 <- theta_slice(fit, i = 1, j = 2, rel = 1, time = 1)
+	expect_equal(length(slice1), n_draws)
 
-# test_that("latent_summary extracts M arrays correctly", {
-#   n <- 5
-#   p <- 2
-#   n_draws <- 30
-  
-#   # create m arrays
-#   M_arrays <- lapply(1:n_draws, function(s) {
-#     array(rnorm(n*n*p), dim = c(n, n, p))
-#   })
-  
-#   fit <- list(
-#     draws = list(
-#       misc = list(M = M_arrays)
-#     ),
-#     meta = list(
-#       dims = list(m = n, p = p),
-#       draws = n_draws,
-#       model = "dynamic"
-#     ),
-#     model = "dynamic"
-#   )
-#   class(fit) <- "dbn"
-  
-#   # test extraction
-#   summary1 <- latent_summary(fit, fun = mean)
-#   expect_equal(nrow(summary1), n * n * p)
-  
-#   # test specific relation
-#   summary2 <- latent_summary(fit, fun = mean, rel = 1)
-#   expect_equal(nrow(summary2), n * n)
-#   expect_true(all(summary2$rel == 1))
-# })
+	# extract single dyad at multiple times
+	slice2 <- theta_slice(fit, i = 1, j = 2, rel = 1, time = c(1, 3, 5))
+	expect_equal(nrow(slice2), n_draws)
+	expect_equal(ncol(slice2), 3)
 
-# test_that("regime_probs works for HMM models", {
-#   Tt <- 20
-#   R <- 3
-#   n_draws = 50
-  
-#   # create mock hmm results
-#   S_arrays <- lapply(1:n_draws, function(s) {
-#     sample(1:R, Tt, replace = TRUE)
-#   })
-  
-#   fit <- list(
-#     draws = list(
-#       misc = list(S = S_arrays)
-#     ),
-#     meta = list(
-#       dims = list(Tt = Tt),
-#       R = R,
-#       model = "hmm"
-#     ),
-#     settings = list(R = R),
-#     model = "hmm"
-#   )
-#   class(fit) <- "dbn"
-  
-#   # test extraction
-#   probs <- regime_probs(fit)
-#   expect_equal(dim(probs), c(Tt, R))
-#   expect_true(all(abs(rowSums(probs) - 1) < 1e-10))
-  
-#   # test non-hmm model
-#   fit_dynamic <- list(model = "dynamic")
-#   class(fit_dynamic) <- "dbn"
-#   expect_null(regime_probs(fit_dynamic))
-# })
+	# subset draws
+	slice3 <- theta_slice(fit, i = 1, j = 2, rel = 1, time = 1, draws = 1:5)
+	expect_equal(length(slice3), 5)
+})
 
-# test_that("posterior_predict_dbn generates correct predictions", {
-#   n <- 6
-#   p <- 2
-#   Tt <- 10
-#   n_draws_fit <- 30
-  
-#   # create mock ordinal data
-#   Y <- array(sample(1:5, n*n*p*Tt, replace = TRUE), dim = c(n, n, p, Tt))
-#   for(t in 1:Tt) {
-#     for(r in 1:p) {
-#       diag(Y[,,r,t]) <- NA
-#     }
-#   }
-  
-#   # create theta and z arrays for ordinal family
-#   theta_arrays <- lapply(1:n_draws_fit, function(s) {
-#     array(rnorm(n*n*p*Tt), dim = c(n, n, p, Tt))
-#   })
-  
-#   z_arrays <- lapply(1:n_draws_fit, function(s) {
-#     array(rnorm(n*n*p*Tt), dim = c(n, n, p, Tt))
-#   })
-  
-#   # create m arrays
-#   M_arrays <- lapply(1:n_draws_fit, function(s) {
-#     array(rnorm(n*n*p, mean = 3), dim = c(n, n, p))
-#   })
-  
-#   # For dynamic model, create Theta as 5D array (m x m x p x time x iter)
-#   Theta_array <- array(NA, dim = c(n, n, p, Tt, n_draws_fit))
-#   for (s in 1:n_draws_fit) {
-#     Theta_array[,,,,s] <- theta_arrays[[s]]
-#   }
-  
-#   # Create A and B arrays for dynamic model
-#   A_arrays <- lapply(1:n_draws_fit, function(s) {
-#     A_arr <- array(0, dim = c(n, n, Tt))
-#     for (t in 1:Tt) {
-#       A_arr[,,t] <- diag(n)  # Identity matrices
-#     }
-#     A_arr
-#   })
-  
-#   B_arrays <- lapply(1:n_draws_fit, function(s) {
-#     B_arr <- array(0, dim = c(n, n, Tt))
-#     for (t in 1:Tt) {
-#       B_arr[,,t] <- diag(n)  # Identity matrices
-#     }
-#     B_arr
-#   })
-  
-#   # Create M as 4D array for dynamic model
-#   M_4d <- array(NA, dim = c(n, n, p, n_draws_fit))
-#   for (s in 1:n_draws_fit) {
-#     M_4d[,,,s] <- M_arrays[[s]]
-#   }
-  
-#   fit <- list(
-#     # Theta = Theta_array,  # No longer stored to save memory
-#     A = A_arrays,  # Dynamic model requires these
-#     B = B_arrays,
-#     M = M_4d,
-#     sigma2 = rep(1, n_draws_fit),  # Dynamic model uses this to count draws
-#     draws = list(
-#       theta = theta_arrays,
-#       z = z_arrays,
-#       misc = list(M = M_arrays)
-#     ),
-#     meta = list(
-#       dims = list(m = n, p = p, Tt = Tt),
-#       draws = n_draws_fit,
-#       model = "dynamic"
-#     ),
-#     dims = list(m = n, p = p, Tt = Tt),  # Add dims at top level too
-#     family = family_ordinal(),
-#     Y = Y,
-#     model = "dynamic"
-#   )
-#   class(fit) <- "dbn"
-  
-#   # test prediction
-#   n_pred_draws <- 20
-#   yrep <- posterior_predict_dbn(fit, ndraws = n_pred_draws)
-  
-#   expect_equal(length(yrep), n_pred_draws)
-#   # Check if first prediction exists and has correct dimensions
-#   expect_false(is.null(yrep[[1]]))
-#   expect_equal(dim(yrep[[1]]), dim(Y))
-  
-#   # check predictions are in valid range
-#   vals <- unique(unlist(yrep))
-#   vals <- vals[!is.na(vals)]
-#   expect_true(all(vals %in% 1:5))
-# })
+test_that("theta_summary computes summaries from HMM model", {
+	set.seed(102)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 102)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
 
-# test_that("plot functions create valid plots", {
-#   # create minimal fit object
-#   n <- 5
-#   p <- 1
-#   Tt <- 10
-#   n_draws <- 50
-  
-#   fit <- list(
-#     draws = list(
-#       theta = lapply(1:n_draws, function(s) array(rnorm(n*n*p*Tt), dim = c(n, n, p, Tt))),
-#       pars = data.frame(
-#         sigma2_proc = runif(n_draws, 0.5, 1.5),
-#         tau_A2 = runif(n_draws, 0.1, 1)
-#       ),
-#       misc = list(
-#         M = lapply(1:n_draws, function(s) array(rnorm(n*n*p), dim = c(n, n, p)))
-#       )
-#     ),
-#     meta = list(
-#       dims = list(m = n, p = p, Tt = Tt),
-#       draws = n_draws,
-#       model = "dynamic"
-#     ),
-#     model = "dynamic"
-#   )
-#   class(fit) <- "dbn"
-  
-#   # test trace plot
-#   expect_silent(plot_trace(fit, pars = c("sigma2_proc", "tau_A2")))
-  
-#   # test theta plot
-#   expect_silent(plot_theta(fit, time = 5, rel = 1))
-  
-#   # test dyad path (should create ggplot if available)
-#   if(requireNamespace("ggplot2", quietly = TRUE)) {
-#     p <- plot_dyad_path(fit, i = 1, j = 2, rel = 1)
-#     expect_s3_class(p, "ggplot")
-#   }
-# })
+	# mean summary for a specific cell
+	s1 <- theta_summary(fit, fun = mean, i = 1, j = 2, rel = 1, time = 1)
+	expect_true(!is.null(s1))
+	expect_true("value" %in% names(s1))
+	expect_equal(nrow(s1), 1)
 
-# test_that("derive_draws computes derived quantities", {
-#   n <- 4
-#   n_draws <- 20
-  
-#   # create fit with a and b arrays
-#   A_arrays <- lapply(1:n_draws, function(s) {
-#     A <- diag(n) + matrix(rnorm(n*n, 0, 0.1), n, n)
-#     A
-#   })
-  
-#   B_arrays <- lapply(1:n_draws, function(s) {
-#     B <- diag(n) + matrix(rnorm(n*n, 0, 0.1), n, n) 
-#     B
-#   })
-  
-#   fit <- list(
-#     draws = list(
-#       misc = list(
-#         A = lapply(1:n_draws, function(s) array(A_arrays[[s]], dim = c(n, n, 1))),
-#         B = lapply(1:n_draws, function(s) array(B_arrays[[s]], dim = c(n, n, 1)))
-#       )
-#     ),
-#     meta = list(
-#       dims = list(m = n),
-#       draws = n_draws,
-#       model = "dynamic"
-#     ),
-#     model = "dynamic"
-#   )
-#   class(fit) <- "dbn"
-  
-#   # define function to compute persistence (diagonal of a)
-#   persistence_fn <- function(draw) {
-#     A <- draw$A[,,1]
-#     diag(A)
-#   }
-  
-#   # compute derived quantity
-#   persistence <- derive_draws(fit, persistence_fn)
-  
-#   expect_equal(dim(persistence), c(n_draws, n))
-#   expect_true(all(is.finite(persistence)))
-# })
+	# mean summary for a time slice (all dyads at time 1)
+	s2 <- theta_summary(fit, fun = mean, time = 1)
+	expect_true(nrow(s2) > 0)
+})
 
-# # test_that("extraction functions handle missing data gracefully", {
-# #   # Create fit with some missing components
-# #   fit <- list(
-# #     draws = list(
-# #       pars = data.frame(sigma2 = runif(10))
-# #     ),
-# #     meta = list(
-# #       dims = list(m = 5),
-# #       model = "static"
-# #     ),
-# #     model = "static"
-# #   )
-# #   class(fit) <- "dbn"
-# #   
-# #   # Should return NULL for missing theta
-# #   expect_null(theta_slice(fit, i = 1, j = 2))
-# #   
-# #   # Should still work for parameters
-# #   param_sum <- param_summary(fit)
-# #   expect_equal(nrow(param_sum), 1)
-# #   
-# #   # Should return NULL for missing M
-# #   expect_null(latent_summary(fit))
-# # })
+test_that("theta_slice returns NULL for static model (no theta draws)", {
+	set.seed(103)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 103)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+
+	# static model does not store theta draws
+	expect_warning(theta_slice(fit, i = 1, j = 2, rel = 1, time = 1),
+								 "does not contain theta draws")
+})
+
+test_that("param_summary computes parameter quantiles for static model", {
+	set.seed(104)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 104)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+
+	ps <- param_summary(fit)
+	expect_true(!is.null(ps))
+	expect_true("parameter" %in% names(ps))
+	expect_true("mean" %in% names(ps))
+	expect_true("sd" %in% names(ps))
+	expect_true(nrow(ps) >= 3) # at least s2, t2, g2
+})
+
+test_that("param_summary works for dynamic model", {
+	set.seed(105)
+	sim <- simulate_dynamic_dbn(n = 6, p = 1, time = 8, seed = 105)
+	fit <- dbn(sim$Y, model = "dynamic", family = "ordinal",
+						 nscan = 30, burn = 10, odens = 1, verbose = FALSE)
+
+	ps <- param_summary(fit)
+	expect_true(!is.null(ps))
+	expect_true(nrow(ps) >= 2) # at least sigma2, tau_A2
+})
+
+test_that("latent_summary extracts M summaries", {
+	set.seed(106)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 106)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+
+	ls <- latent_summary(fit, fun = mean)
+	expect_true(!is.null(ls))
+	expect_true(nrow(ls) > 0)
+	expect_true("value" %in% names(ls))
+})
+
+test_that("latent_summary with relation filter", {
+	set.seed(107)
+	sim <- simulate_static_dbn(n = 6, p = 2, time = 5, seed = 107)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+
+	ls_all <- latent_summary(fit, fun = mean)
+	ls_r1 <- latent_summary(fit, fun = mean, rel = 1)
+
+	expect_true(nrow(ls_all) > nrow(ls_r1))
+	if ("rel" %in% names(ls_r1)) {
+		expect_true(all(ls_r1$rel == 1))
+	}
+})
+
+test_that("regime_probs works for HMM models", {
+	set.seed(108)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 108)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
+
+	probs <- regime_probs(fit)
+	expect_true(!is.null(probs))
+	expect_equal(ncol(probs), 2)
+	expect_equal(nrow(probs), 8)
+	expect_true(all(abs(rowSums(probs) - 1) < 1e-10))
+})
+
+test_that("regime_probs returns NULL for non-HMM", {
+	set.seed(109)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 109)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+
+	expect_null(regime_probs(fit))
+})
+
+test_that("derive_draws computes derived quantities", {
+	set.seed(110)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 110)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+
+	# derive mean of M from each draw
+	m_means <- derive_draws(fit, function(draw) {
+		mean(draw$M[,,1], na.rm = TRUE)
+	}, name = "M_mean")
+
+	expect_true(!is.null(m_means))
+	expect_true(is.numeric(m_means))
+})
+
+test_that("plot_theta produces ggplot object for HMM model", {
+	set.seed(111)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 111)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
+
+	p <- plot_theta(fit, time = 1, rel = 1)
+	expect_s3_class(p, "ggplot")
+})
+
+test_that("plot_trace produces ggplot object", {
+	set.seed(112)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 112)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+
+	p <- plot_trace(fit)
+	expect_s3_class(p, "ggplot")
+})
+
+test_that("theta_credible returns correct structure", {
+	set.seed(113)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 113)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
+
+	tc <- theta_credible(fit, i = 1:3, j = 1:3, time = 1:4)
+	expect_true(!is.null(tc))
+	expect_equal(nrow(tc), 3 * 3 * 4) # 3 senders x 3 receivers x 4 times
+	expect_true(all(c("mean", "lower", "median", "upper") %in% names(tc)))
+	expect_true(all(tc$lower <= tc$median))
+	expect_true(all(tc$median <= tc$upper))
+})
+
+test_that("theta_credible returns NULL for static model", {
+	set.seed(114)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 114)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+
+	expect_warning(theta_credible(fit), "does not contain theta draws")
+})
+
+test_that("network_summary computes all stat types", {
+	set.seed(115)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 115)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
+
+	for (stat in c("mean", "density", "strength")) {
+		ns <- network_summary(fit, stat = stat)
+		expect_true(!is.null(ns))
+		expect_equal(nrow(ns), 8) # 8 time points
+		expect_true(all(c("time", "mean", "lower", "upper") %in% names(ns)))
+		expect_true(all(ns$lower <= ns$upper))
+	}
+})
+
+test_that("edge_prob returns correct matrix", {
+	set.seed(116)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 116)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
+
+	ep <- edge_prob(fit, rel = 1, time = 8)
+	expect_equal(dim(ep), c(6, 6))
+	expect_true(all(ep >= 0 & ep <= 1, na.rm = TRUE))
+	expect_true(all(is.na(diag(ep)))) # diagonal should be NA for unipartite
+})
+
+test_that("estimate_memory returns numeric value", {
+	mem <- estimate_memory(n_row = 20, n_col = 20, p = 1, Tt = 30,
+												 nscan = 1000, burn = 500, odens = 1,
+												 quiet = TRUE)
+	expect_true(is.numeric(mem))
+	expect_true(mem > 0)
+})
+
+test_that("estimate_memory scales with network size", {
+	mem_small <- estimate_memory(n_row = 10, quiet = TRUE)
+	mem_large <- estimate_memory(n_row = 50, quiet = TRUE)
+	expect_true(mem_large > mem_small)
+})
+
+test_that("plot_ppc_ecdf works for static model", {
+	set.seed(117)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 117)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+	ppd <- posterior_predict_dbn(fit, ndraws = 5, seed = 42)
+
+	p <- plot_ppc_ecdf(fit, ppd, Y_obs = sim$Y)
+	expect_s3_class(p, "ggplot")
+})
+
+test_that("plot_ppc_density works for static model", {
+	set.seed(118)
+	sim <- simulate_static_dbn(n = 6, p = 1, time = 5, seed = 118)
+	fit <- dbn(sim$Y, model = "static", family = "ordinal",
+						 nscan = 30, burn = 10, verbose = FALSE)
+	ppd <- posterior_predict_dbn(fit, ndraws = 5, seed = 42)
+
+	p <- plot_ppc_density(fit, ppd, Y_obs = sim$Y)
+	expect_s3_class(p, "ggplot")
+})
+
+test_that("plot_regime_probs works for HMM model", {
+	set.seed(119)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 119)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
+
+	p <- plot_regime_probs(fit)
+	expect_s3_class(p, "ggplot")
+})
+
+test_that("predict works for HMM model", {
+	set.seed(120)
+	sim <- simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 120)
+	fit <- dbn(sim$Y, model = "hmm", family = "ordinal",
+						 R = 2, nscan = 30, burn = 10, verbose = FALSE)
+
+	pred <- predict(fit, H = 3, draws = 10, summary = "mean")
+	expect_equal(dim(pred)[4], 3) # 3 forecast steps
+})
+
+test_that("predict works for lowrank model", {
+	set.seed(121)
+	sim <- simulate_lowrank_dbn(n = 8, p = 1, time = 8, r = 3, seed = 121)
+	fit <- dbn(sim$Y, model = "lowrank", family = "ordinal",
+						 r = 3, nscan = 30, burn = 10, verbose = FALSE)
+
+	pred <- predict(fit, H = 3, draws = 10, summary = "mean")
+	expect_equal(dim(pred)[4], 3) # 3 forecast steps
+})

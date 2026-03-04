@@ -25,3 +25,14 @@ A ggplot2 object
 \description{
 Plots posterior mean and 95\% bands for a single dyad through time
 }
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+dyad_path(fit, i = 1, j = 2)
+}
+}
+\seealso{
+\code{\link{dbn}}, \code{\link{net_snapshot}},
+\code{\link{role_trajectory}}, \code{\link{theta_summary}}
+}

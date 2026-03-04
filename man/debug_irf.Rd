@@ -2,19 +2,30 @@
 % Please edit documentation in R/irf.R
 \name{debug_irf}
 \alias{debug_irf}
-\title{Debug method for irf function}
+\title{Debug IRF}
 \usage{
 debug_irf(fit, draw_idx = 1, shock_i = 8, shock_j = 12)
 }
 \arguments{
 \item{fit}{A dbn model fit object}
 
-\item{draw_idx}{Index of posterior draw to debug (default: 1)}
+\item{draw_idx}{Posterior draw index to debug}
 
-\item{shock_i}{Source node index for shock (default: 8)}
+\item{shock_i}{Source node}
 
-\item{shock_j}{Target node index for shock (default: 12)}
+\item{shock_j}{Target node}
 }
 \description{
-Debug method for irf function
+Diagnostic output for troubleshooting IRF computation
+}
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 15, time = 50, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+debug_irf(fit, draw_idx = 1, shock_i = 1, shock_j = 2)
+}
+}
+\seealso{
+\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{plot.dbn_irf}}
 }

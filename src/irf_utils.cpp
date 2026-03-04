@@ -14,20 +14,20 @@ arma::cube impulse_response_const(const arma::mat& A,
                                   const arma::mat& B,
                                   const arma::mat& S,
                                   int H) {
-    int m = A.n_rows;
-    
-    // Input validation
-    if (A.n_rows != A.n_cols || B.n_rows != B.n_cols || 
-        A.n_rows != B.n_rows || A.n_rows != S.n_rows || 
-        S.n_rows != S.n_cols) {
-        Rcpp::stop("Matrix dimensions must be consistent and square");
+    int n_row = A.n_rows;
+    int n_col = B.n_rows;
+
+    // Input validation (supports bipartite: A is n_row x n_row, B is n_col x n_col, S is n_row x n_col)
+    if (A.n_rows != A.n_cols || B.n_rows != B.n_cols ||
+        A.n_rows != S.n_rows || B.n_rows != S.n_cols) {
+        Rcpp::stop("dimensions must be consistent: A(n_row x n_row), B(n_col x n_col), S(n_row x n_col)");
     }
-    
+
     if (H < 0) {
         Rcpp::stop("H must be non-negative");
     }
-    
-    arma::cube Delta(m, m, H + 1);
+
+    arma::cube Delta(n_row, n_col, H + 1);
     Delta.slice(0) = S;
 
     arma::mat A_pow = A;           // A^1
@@ -60,14 +60,14 @@ arma::cube impulse_response_dynamic(const arma::cube& Aarray,
                                     const arma::mat& S,
                                     int t0,
                                     int H) {
-    int m = Aarray.n_rows;
+    int n_row = Aarray.n_rows;
+    int n_col = Barray.n_rows;
     int T = Aarray.n_slices;
-    
-    // Input validation
-    if (Aarray.n_rows != Aarray.n_cols || Barray.n_rows != Barray.n_cols || 
-        Aarray.n_rows != Barray.n_rows || Aarray.n_rows != S.n_rows || 
-        S.n_rows != S.n_cols) {
-        Rcpp::stop("Matrix dimensions must be consistent and square");
+
+    // Input validation (supports bipartite: A is n_row x n_row, B is n_col x n_col, S is n_row x n_col)
+    if (Aarray.n_rows != Aarray.n_cols || Barray.n_rows != Barray.n_cols ||
+        Aarray.n_rows != S.n_rows || Barray.n_rows != S.n_cols) {
+        Rcpp::stop("dimensions must be consistent: A(n_row x n_row), B(n_col x n_col), S(n_row x n_col)");
     }
     
     if (Aarray.n_slices != Barray.n_slices) {
@@ -86,7 +86,7 @@ arma::cube impulse_response_dynamic(const arma::cube& Aarray,
         Rcpp::stop("t0 + H must be less than T (number of time slices)");
     }
     
-    arma::cube Delta(m, m, H + 1, arma::fill::none);
+    arma::cube Delta(n_row, n_col, H + 1, arma::fill::none);
     Delta.slice(0) = S;
 
     for (int h = 1; h <= H; ++h) {
@@ -95,5 +95,5 @@ arma::cube impulse_response_dynamic(const arma::cube& Aarray,
                          Delta.slice(h-1) *
                          Barray.slice(tp).t();
     }
-    return Delta;       // m × m × (H+1)
+    return Delta;       // n_row × n_col × (H+1)
 }

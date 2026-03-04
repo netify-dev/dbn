@@ -2,8 +2,8 @@
 % Please edit documentation in R/utils_opt.R
 \name{utils_opt}
 \alias{utils_opt}
-\title{Utility Functions}
+\title{Performance Utilities}
 \description{
-Performance utilities for DBN models
+Optimized update routines using batch C++ implementations
 }
 \keyword{internal}

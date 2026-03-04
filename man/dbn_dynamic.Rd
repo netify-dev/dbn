@@ -7,16 +7,18 @@
 dbn_dynamic(
   Y,
   family = c("ordinal", "gaussian", "binary"),
-  nscan = 5000,
+  nscan = 10000,
   burn = 1000,
   odens = 1,
   ar1 = FALSE,
   update_rho = FALSE,
   seed = 6886,
-  verbose = 100,
-  time_thin = 1,
+  verbose = TRUE,
+  time_thin = NULL,
+  store_z = NULL,
   previous = NULL,
-  init = NULL
+  init = NULL,
+  symmetric = FALSE
 )
 }
 \arguments{
@@ -41,17 +43,30 @@ dbn_dynamic(
 
 \item{seed}{Random seed}
 
-\item{verbose}{Print progress every n iterations (default: 100)}
+\item{verbose}{Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.}
 
-\item{time_thin}{Save every nth time point to reduce memory (default: 1 = save all)}
+\item{time_thin}{Save every nth time point to reduce memory (default: NULL = auto)}
+
+\item{store_z}{Whether to store Z draws (default: NULL = auto based on memory)}
 
 \item{previous}{Previous dbn_dynamic results to continue from (optional)}
 
 \item{init}{List of initial values: A, B, sigma2, tau_A2, tau_B2, g2, rho_A, rho_B, Theta, M, Z (optional)}
+
+\item{symmetric}{Logical. If TRUE, enforce B = A after each MCMC update. Default: FALSE.}
 }
 \value{
 List containing MCMC results
 }
 \description{
 Fits DBN model with time-varying sender/receiver effects
+}
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
+fit <- dbn_dynamic(sim$Y, nscan = 200, burn = 100, verbose = FALSE)
+}
+}
+\seealso{
+\code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
 }

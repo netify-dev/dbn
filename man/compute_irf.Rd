@@ -2,7 +2,7 @@
 % Please edit documentation in R/irf.R
 \name{compute_irf}
 \alias{compute_irf}
-\title{Compute network-level impulse response functions}
+\title{Compute Network-Level Impulse Response Functions}
 \usage{
 compute_irf(
   fit,
@@ -18,35 +18,45 @@ compute_irf(
 \arguments{
 \item{fit}{A dbn model fit object}
 
-\item{shock}{Shock matrix or shock type (see build_shock)}
+\item{shock}{Shock matrix or shock type (see \code{\link{build_shock}})}
 
-\item{H}{Number of horizons to compute (default: 20)}
+\item{H}{Number of horizons to compute}
 
-\item{t0}{Shock time for dynamic models (default: 1)}
+\item{t0}{Shock time for dynamic models}
 
-\item{stat_fun}{Network statistic function (default: stat_density)}
+\item{stat_fun}{Network statistic function (default: \code{\link{stat_density}}).
+Must accept a matrix and return a scalar. When \code{ggplot2} is loaded,
+use \code{dbn::stat_density} explicitly to avoid name masking.}
 
-\item{n_draws}{Number of posterior draws to use (default: all)}
+\item{n_draws}{Number of posterior draws to use}
 
-\item{shock_pars}{List of parameters for build_shock if shock is character}
+\item{shock_pars}{List of parameters for \code{\link{build_shock}} if
+\code{shock} is a character string}
 
-\item{...}{Additional arguments passed to stat_fun}
+\item{...}{Additional arguments}
 }
 \value{
 Data frame with IRF results including posterior summaries
 }
 \description{
-Computes IRFs for network-level statistics given a shock
+Computes IRFs for network-level statistics given a shock.
+
+\strong{Important:} \code{ggplot2} exports its own \code{stat_density} function,
+which masks \code{dbn::stat_density} when both packages are loaded.
+If you use \code{ggplot2}, pass the statistic explicitly:
+\code{stat_fun = dbn::stat_density}.
 }
 \examples{
-\dontrun{
-# Unit edge shock to density
-irf_density <- compute_irf(fit, shock = "unit_edge", 
-                          shock_pars = list(i = 1, j = 2))
-
-# Node shock to out-degrees
-irf_outdeg <- compute_irf(fit, shock = "node_out",
-                         shock_pars = list(i = 1),
-                         stat_fun = stat_out_degree)
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+S <- build_shock(m = 6, type = "unit_edge", i = 1, j = 2)
+irf <- compute_irf(fit, shock = S, H = 5, stat_fun = dbn::stat_density)
+print(irf)
 }
+}
+\seealso{
+\code{\link{build_shock}}, \code{\link{plot.dbn_irf}},
+\code{\link{print.dbn_irf}}, \code{\link{debug_irf}},
+\code{\link{stat_density}}
 }

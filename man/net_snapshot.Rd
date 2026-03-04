@@ -35,3 +35,14 @@ ggplot2 object or base R plot
 \description{
 Heat map of Theta at given time (posterior mean)
 }
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+net_snapshot(fit, t = 5)
+}
+}
+\seealso{
+\code{\link{dbn}}, \code{\link{dyad_path}},
+\code{\link{theta_summary}}, \code{\link{role_trajectory}}
+}

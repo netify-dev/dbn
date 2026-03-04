@@ -2,17 +2,30 @@
 % Please edit documentation in R/irf.R
 \name{print.dbn_irf}
 \alias{print.dbn_irf}
-\title{Print method for dbn_irf objects}
+\title{Print IRF}
 \usage{
 \method{print}{dbn_irf}(x, digits = 3, ...)
 }
 \arguments{
 \item{x}{A dbn_irf object}
 
-\item{digits}{Number of digits to display}
+\item{digits}{Number of digits}
 
-\item{...}{Additional arguments (ignored)}
+\item{...}{Ignored}
 }
 \description{
-Print method for dbn_irf objects
+Print IRF
+}
+\examples{
+\donttest{
+sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
+fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+S <- build_shock(m = 6, type = "unit_edge", i = 1, j = 2)
+irf <- compute_irf(fit, S = S, H = 5)
+print(irf)
+}
+}
+\seealso{
+\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{plot.dbn_irf}}
 }

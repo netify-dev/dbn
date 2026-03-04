@@ -2,28 +2,28 @@
 % Please edit documentation in R/utils_z_update.R
 \name{update_Z_optimized}
 \alias{update_Z_optimized}
-\title{Z update for ordinal and binary data}
+\title{Update Z for Ordinal or Binary Data}
 \usage{
 update_Z_optimized(R, Z, Theta, M, IR = NULL, family = "ordinal")
 }
 \arguments{
-\item{R}{rank data array}
+\item{R}{Rank data array}
 
-\item{Z}{current latent values}
+\item{Z}{Current latent values}
 
-\item{Theta}{current theta values}
+\item{Theta}{Current theta values}
 
-\item{M}{mean array}
+\item{M}{Mean array}
 
-\item{IR}{rank indices (only needed for exact sampling)}
+\item{IR}{Rank indices (only needed for exact sampling)}
 
-\item{family}{data family}
+\item{family}{Data family}
 }
 \value{
-updated Z array
+Updated Z array
 }
 \description{
-handles z updates for ordinal data using either gaussian
-approximation or exact truncated normal sampling based on data characteristics
+Dispatches Z updates using either Gaussian approximation or
+exact truncated normal sampling based on data characteristics
 }
 \keyword{internal}

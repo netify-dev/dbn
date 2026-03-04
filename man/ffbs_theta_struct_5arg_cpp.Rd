@@ -7,19 +7,20 @@
 ffbs_theta_struct_5arg_cpp(Z, mu, A_array, B_array, sigma2)
 }
 \arguments{
-\item{Z}{Observations (m × m × T array as cube)}
+\item{Z}{Observations (n_row x n_col x T array as cube)}
 
-\item{mu}{Baseline mean (m × m matrix)}
+\item{mu}{Baseline mean (n_row x n_col matrix)}
 
-\item{A_array}{Time-varying A matrices (m × m × T)}
+\item{A_array}{Time-varying A matrices (n_row x n_row x T)}
 
-\item{B_array}{Time-varying B matrices (m × m × T)}
+\item{B_array}{Time-varying B matrices (n_col x n_col x T)}
 
 \item{sigma2}{Innovation variance (scalar)}
 }
 \value{
-Sampled Theta array (m × m × T)
+Sampled Theta array (n_row x n_col x T)
 }
 \description{
-Memory-efficient FFBS that avoids creating n² × n² matrices
+Memory-efficient FFBS that avoids creating n^2 x n^2 matrices.
+Supports rectangular (bipartite) Theta via row-covariance approximation.
 }

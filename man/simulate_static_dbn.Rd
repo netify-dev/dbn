@@ -6,49 +6,48 @@
 \usage{
 simulate_static_dbn(
   n = 30,
+  n_col = n,
   p = 2,
   time = 50,
   sigma2 = 0.5,
   tau2 = 0.1,
   K = 5,
   return_truth = TRUE,
-  seed = NULL
+  seed = NULL,
+  symmetric = FALSE
 )
 }
 \arguments{
-\item{n}{Number of actors (default: 30)}
+\item{n}{Number of row actors / senders}
 
-\item{p}{Number of relation types (default: 2)}
+\item{n_col}{Number of column actors / receivers (default: n)}
 
-\item{time}{Number of time points (default: 50)}
+\item{p}{Number of relation types}
 
-\item{sigma2}{Innovation variance (default: 0.5)}
+\item{time}{Number of time points}
 
-\item{tau2}{Variance for A/B deviations from identity (default: 0.1)}
+\item{sigma2}{Innovation variance}
 
-\item{K}{Number of ordinal categories (default: 5)}
+\item{tau2}{Variance for A/B deviations from identity}
 
-\item{return_truth}{Whether to return true parameters in a 'truth' sub-list (default: TRUE)}
+\item{K}{Number of ordinal categories}
 
-\item{seed}{Random seed for reproducibility}
+\item{return_truth}{Return true parameters in a truth sub-list}
+
+\item{seed}{Random seed}
+
+\item{symmetric}{Logical. If TRUE, set B = A for symmetric/undirected networks. Default: FALSE.}
 }
 \value{
-List containing:
-\item{Y}{Observed ordinal data array}
-\item{Z}{Latent continuous data array}
-\item{Theta}{True latent mean array}
-\item{A}{True A matrix}
-\item{B}{True B matrix}
-\item{M}{True baseline means}
-\item{cuts}{List of cutpoints used for each relation}
-\item{truth}{If return_truth=TRUE, contains A, B, Theta, and cuts}
+List containing simulated data and true parameters
 }
 \description{
-Generates data from a static DBN model with fixed A and B matrices
+Generates data from a static DBN with fixed A and B matrices
 }
 \examples{
-\dontrun{
-# Generate static model data
-data <- simulate_static_dbn(n = 30, p = 2, time = 50, seed = 123)
+sim <- simulate_static_dbn(n = 8, time = 5, seed = 42)
+str(sim$Y)
 }
+\seealso{
+\code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
 }

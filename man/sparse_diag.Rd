@@ -2,19 +2,19 @@
 % Please edit documentation in R/utils_safe.R
 \name{sparse_diag}
 \alias{sparse_diag}
-\title{Create sparse diagonal matrix}
+\title{Sparse Diagonal Matrix}
 \usage{
 sparse_diag(x, sparse_threshold = 100)
 }
 \arguments{
 \item{x}{Diagonal values or dimension}
 
-\item{sparse_threshold}{Size threshold for using sparse format}
+\item{sparse_threshold}{Size threshold for sparse format}
 }
 \value{
 Diagonal matrix
 }
 \description{
-Create diagonal matrix, using sparse format if large
+Creates diagonal matrix using sparse format for large dimensions
 }
 \keyword{internal}

@@ -15,3 +15,15 @@ A ggplot2 object or list of plots
 \description{
 Creates comparative plots for multiple DBN results using ggplot2
 }
+\examples{
+\donttest{
+sim <- simulate_static_dbn(n = 6, time = 10, seed = 1)
+fit1 <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
+fit2 <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
+compare_dbn(fit1, fit2)
+}
+}
+\seealso{
+\code{\link{dbn}}, \code{\link{check_convergence}},
+\code{\link{param_summary}}
+}
