@@ -1,0 +1,14 @@
+pandoc: 3.1.11
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles:
+  dynamic_dbn: dynamic_dbn.html
+  hmm_dbn: hmm_dbn.html
+  impulse_response: impulse_response.html
+  lowrank_dbn: lowrank_dbn.html
+  methodology: methodology.html
+  static_dbn: static_dbn.html
+last_built: 2026-03-05T00:00Z
+urls:
+  reference: https://netify-dev.github.io/dbn/reference
+  article: https://netify-dev.github.io/dbn/articles
