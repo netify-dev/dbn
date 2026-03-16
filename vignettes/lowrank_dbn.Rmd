@@ -48,7 +48,7 @@ factor decomposition of sender dynamics.
 
 ## 2 Simulate a low-rank network
 
-We start by simulating a 20-node network over 25 time periods with rank `r = 3`. This gives us ground truth to check recovery of the factor structure.
+We start by simulating a 20-node network over 25 time periods with `r` set to 3. This gives us ground truth to check recovery of the factor structure.
 
 ```{r sim-lr, cache = TRUE}
 sim = simulate_lowrank_dbn(
