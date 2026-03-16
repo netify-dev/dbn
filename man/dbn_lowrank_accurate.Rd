@@ -29,7 +29,9 @@ dbn_lowrank_accurate(
 
 \item{family}{Data family}
 
-\item{r}{Rank for low-rank factorization}
+\item{r}{Rank for low-rank factorization. A good starting point is
+\code{ceiling(log2(n))} where \code{n} is the number of nodes. Increase
+if posterior predictive checks show poor fit. Default: 2.}
 
 \item{nscan}{Number of iterations of the Markov chain (beyond burn-in)}
 

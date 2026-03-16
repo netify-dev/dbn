@@ -67,19 +67,23 @@ mathematical treatment.
 
 ## 2 Simulate a dynamic data set
 
+We generate a small network with 12 actors observed over 20 time periods. The simulation creates time-varying sender and receiver influence matrices so there is genuine dynamics to recover.
+
 ```{r simulate-dynamic}
 set.seed(6886)
-sim <- simulate_dynamic_dbn(n = 12,   # network size: 12 actors
+sim = simulate_dynamic_dbn(n = 12,   # network size: 12 actors
                            p   =  1,
                            time  = 20)   # total time periods: 20
-Y <- sim$Y
+Y = sim$Y
 dim(Y)
 ```
 
 ## 3 Fit the dynamic model
 
+We fit the model with `ar1 = TRUE` to allow autoregressive persistence in the influence matrices, and `update_rho = TRUE` so the AR(1) coefficients are estimated from the data. The `time_thin` argument controls how many time points are stored in the output; set it to 1 to keep all of them.
+
 ```{r fit-dynamic, cache = TRUE}
-fit_dyn <- dbn(Y,
+fit_dyn = dbn(Y,
                family = "ordinal",  # ordinal data via rank likelihood
                model = 'dynamic',   # time-varying A_t, B_t
                nscan = 800,
@@ -114,7 +118,7 @@ Generate forecasts 6 time steps ahead. The model propagates the estimated
 dynamics forward, giving you predicted network states with uncertainty:
 
 ```{r forecast}
-Theta_forecast <- predict(fit_dyn, H = 6, S = 200, summary = "mean")
+Theta_forecast = predict(fit_dyn, H = 6, S = 200, summary = "mean")
 dim(Theta_forecast)   # n_row x n_col x p x H
 ```
 
@@ -144,6 +148,8 @@ plot_group_influence(fit_dyn,
 
 ## 8 Parameter summaries
 
+`param_summary()` returns posterior means and credible intervals for all scalar parameters in a tidy data frame. This is a quick way to check whether the innovation variances and AR(1) coefficients are well-identified.
+
 ```{r param-summary}
 param_summary(fit_dyn)
 ```
@@ -155,26 +161,32 @@ dyad at each time point, the posterior mean and credible interval for the
 latent interaction intensity:
 
 ```{r theta-credible}
-tc <- theta_credible(fit_dyn, i = 1:6, j = 1:6, time = 1:20)
+tc = theta_credible(fit_dyn, i = 1:6, j = 1:6, time = 1:20)
 head(tc)
 ```
+
+You can use this output to flag dyads whose credible intervals exclude zero at a given time point, indicating a reliably non-zero relationship.
 
 Track network-level statistics over time. Network density summarizes how
 active the overall network is at each time point, with posterior uncertainty:
 
 ```{r network-summary}
-ns <- network_summary(fit_dyn, stat = "density")
+ns = network_summary(fit_dyn, stat = "density")
 head(ns)
 ```
+
+Look for time points where the credible interval is narrow versus wide -- narrow intervals mean the model is confident about the overall level of activity at that point.
 
 Compute the posterior probability that each edge is positive at a given time.
 Values near 1 indicate edges that are consistently positive across posterior
 draws; values near 0.5 indicate high uncertainty:
 
 ```{r edge-prob}
-ep <- edge_prob(fit_dyn, rel = 1, time = 20)
+ep = edge_prob(fit_dyn, rel = 1, time = 20)
 ep[1:5, 1:5]
 ```
+
+You can threshold these probabilities (e.g., > 0.95) to construct a binary network of edges that are reliably positive at a given time point.
 
 ## 10 Bipartite (rectangular) networks
 
@@ -182,10 +194,10 @@ The package automatically detects bipartite networks when senders and receivers
 differ. Simply pass a rectangular array:
 
 ```{r bipartite, cache = TRUE}
-sim_bp <- simulate_dynamic_dbn(n = 10, n_col = 8, p = 1, time = 15, seed = 77)
+sim_bp = simulate_dynamic_dbn(n = 10, n_col = 8, p = 1, time = 15, seed = 77)
 dim(sim_bp$Y)   # 10 senders x 8 receivers x 1 relation x 15 time points
 
-fit_bp <- dbn(sim_bp$Y, model = "dynamic", family = "ordinal",
+fit_bp = dbn(sim_bp$Y, model = "dynamic", family = "ordinal",
               nscan = 400, burn = 200, odens = 2, verbose = FALSE)
 summary(fit_bp)
 ```
@@ -200,7 +212,7 @@ The dynamic model parallelizes the row-wise A and B FFBS updates using
 OpenMP. Set the number of threads before fitting:
 
 ```{r threads}
-# Use physical cores (not logical/hyperthreaded)
+# use physical cores (not logical/hyperthreaded)
 set_dbn_threads(parallel::detectCores(logical = FALSE))
 get_dbn_threads()
 ```
@@ -227,7 +239,7 @@ is RAM, not computation. Use `estimate_memory()` to check requirements
 before fitting, and adjust `time_thin` and `odens` to manage memory:
 
 ```{r memory-est}
-# A 50-actor network
+# a 50-actor network
 estimate_memory(n_row = 50, n_col = 50, p = 1, Tt = 30,
                 nscan = 5000, burn = 1000, odens = 5,
                 time_thin = 2, family = "ordinal")

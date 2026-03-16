@@ -52,6 +52,7 @@ Suggests:
     network,
     igraph,
     lattice,
+    peacesciencer,
     RcppArmadillo
 Remotes:
     netify-dev/netify

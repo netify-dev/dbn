@@ -50,7 +50,9 @@ loglik_U <- function(U, alpha, Theta, Barray, sigma2) {
 #'
 #' @description Fits DBN with low-rank sender effects using batch FFBS
 #' @param Y Data array (nodes x nodes x relations x time)
-#' @param r Rank for low-rank factorization
+#' @param r Rank for low-rank factorization. A good starting point is
+#'   \code{ceiling(log2(n))} where \code{n} is the number of nodes. Increase
+#'   if posterior predictive checks show poor fit. Default: 2.
 #' @param nscan Number of iterations of the Markov chain (beyond burn-in)
 #' @param burn Burn-in for the Markov chain
 #' @param odens Output density for the Markov chain
@@ -233,7 +235,7 @@ dbn_lowrank_accurate <- function(Y,
 	time_keep <- seq(1, Tt, by = time_thin)
 
 	if (verbose) {
-		cli::cli_progress_step("Running low-rank DBN MCMC")
+		cli::cli_alert_info("Running low-rank DBN MCMC ({n_iter} iterations)")
 		cli::cli_progress_bar("MCMC iterations", total = n_iter)
 	}
 
@@ -505,6 +507,7 @@ dbn_lowrank_accurate <- function(Y,
 				draws = S,
 				thin = odens,
 				time_thin = time_thin,
+				time_kept = time_keep,
 				model = "lowrank"
 			),
 			family = FAM,
@@ -721,7 +724,7 @@ dbn_lowrank <- function(Y,
 	time_keep <- seq(1, Tt, by = time_thin)
 
 	if (verbose) {
-		cli::cli_progress_step("Running low-rank DBN MCMC")
+		cli::cli_alert_info("Running low-rank DBN MCMC ({n_iter} iterations)")
 		cli::cli_progress_bar("MCMC iterations", total = n_iter)
 	}
 
@@ -988,6 +991,7 @@ dbn_lowrank <- function(Y,
 				draws = S,
 				thin = odens,
 				time_thin = time_thin,
+				time_kept = time_keep,
 				model = "lowrank"
 			),
 			family = FAM,

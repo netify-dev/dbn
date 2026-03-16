@@ -76,8 +76,12 @@ plot_trace <- function(fit, pars = NULL, ncol = 2) {
 				color = "blue", linetype = "dashed") +
 			ggplot2::facet_wrap(~parameter, scales = "free_y", ncol = ncol) +
 			ggplot2::labs(title = "Parameter Trace Plots", x = "Iteration", y = "Value") +
-			ggplot2::theme_minimal() +
-			ggplot2::theme(strip.text = ggplot2::element_text(size = 10, face = "bold"))
+			ggplot2::theme_bw() +
+			ggplot2::theme(
+				panel.border = ggplot2::element_blank(),
+				strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+				strip.text.x = ggplot2::element_text(color = "white", hjust = 0, size = 10, face = "bold")
+			)
 		return(p)
 	}
 	####
@@ -155,8 +159,11 @@ plot_theta <- function(fit, time = 1, rel = 1, fun = mean, ...) {
 				title = paste0("Theta: Relation ", rel, ", Time ", time),
 				x = "Receiver (j)", y = "Sender (i)",
 				fill = expression(theta[ij])) +
-			ggplot2::theme_minimal() +
-			ggplot2::theme(panel.grid = ggplot2::element_blank())
+			ggplot2::theme_bw() +
+			ggplot2::theme(
+				panel.border = ggplot2::element_blank(),
+				panel.grid = ggplot2::element_blank()
+			)
 		if (n_row == n_col) p <- p + ggplot2::coord_equal()
 		return(p)
 	}
@@ -206,8 +213,11 @@ plot_regime_probs <- function(fit) {
 			ggplot2::scale_fill_brewer(palette = "Set2") +
 			ggplot2::labs(title = "Posterior Regime Probabilities",
 				x = "Time", y = "Probability", fill = NULL) +
-			ggplot2::theme_minimal() +
-			ggplot2::theme(legend.position = "bottom")
+			ggplot2::theme_bw() +
+			ggplot2::theme(
+				panel.border = ggplot2::element_blank(),
+				legend.position = "bottom"
+			)
 		return(p)
 	}
 	####

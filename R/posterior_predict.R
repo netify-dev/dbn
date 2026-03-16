@@ -427,8 +427,11 @@ plot_ppc_ecdf <- function(fit, ppd = NULL, ndraws_plot = 20,
 				y = "ECDF",
 				color = NULL, linewidth = NULL, alpha = NULL
 			) +
-			ggplot2::theme_minimal() +
-			ggplot2::theme(legend.position = "bottom")
+			ggplot2::theme_bw() +
+			ggplot2::theme(
+				panel.border = ggplot2::element_blank(),
+				legend.position = "bottom"
+			)
 
 		return(p)
 	}
@@ -519,7 +522,8 @@ plot_ppc_density <- function(fit, ppd = NULL, rel = 1, time = NULL, Y_obs = NULL
 				title = paste0("Posterior Predictive Density: Relation ", rel),
 				x = "Y", y = "Density", fill = NULL
 			) +
-			ggplot2::theme_minimal()
+			ggplot2::theme_bw() +
+			ggplot2::theme(panel.border = ggplot2::element_blank())
 
 		return(p)
 	}
@@ -615,7 +619,8 @@ plot_ppc_bars <- function(fit, ppd, rel = 1, time = NULL, Y_obs = NULL) {
 				title = paste0("Posterior Predictive Check: Relation ", rel),
 				x = "Y", y = "Frequency", fill = NULL
 			) +
-			ggplot2::theme_minimal()
+			ggplot2::theme_bw() +
+			ggplot2::theme(panel.border = ggplot2::element_blank())
 
 		return(p)
 	}

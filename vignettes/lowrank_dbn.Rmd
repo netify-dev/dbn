@@ -48,8 +48,10 @@ factor decomposition of sender dynamics.
 
 ## 2 Simulate a low-rank network
 
+We start by simulating a 20-node network over 25 time periods with rank `r = 3`. This gives us ground truth to check recovery of the factor structure.
+
 ```{r sim-lr, cache = TRUE}
-sim <- simulate_lowrank_dbn(
+sim = simulate_lowrank_dbn(
   n = 20, p = 1, time = 25,
   r = 3,
   sigma2 = 0.3,
@@ -63,7 +65,7 @@ dim(sim$Y)
 
 ## 3 Memory estimation
 
-Before fitting, estimate RAM requirements:
+Low-rank models store the Stiefel matrix $U$ and factor paths at each MCMC iteration, so memory usage can grow quickly with network size. Before fitting, you can estimate RAM requirements:
 
 ```{r memory-est}
 estimate_memory(
@@ -75,8 +77,10 @@ estimate_memory(
 
 ## 4 Fit the low-rank model
 
+The key argument is `r`, which sets the rank of the factor decomposition. Setting `r` much smaller than `n` is what makes this model tractable for larger networks.
+
 ```{r fit-lr, cache = TRUE}
-fit_lr <- dbn(
+fit_lr = dbn(
   sim$Y,
   model   = "lowrank",
   family  = "ordinal",
@@ -89,6 +93,8 @@ fit_lr <- dbn(
 ```
 
 ## 5 Model summary
+
+The summary shows posterior means for the variance parameters and the estimated rank structure.
 
 ```{r summary-lr}
 summary(fit_lr)
@@ -111,10 +117,10 @@ plot_trace(fit_lr)
 
 ## 7 Factor trajectories
 
-Extract factor paths in tidy format for custom plotting:
+The factor trajectories $\alpha_t$ capture how each latent dimension's influence on sender dynamics evolves over time. A flat trajectory means that factor's contribution is stable; a trending or volatile trajectory suggests structural change along that dimension. Extract factor paths in tidy format for custom plotting:
 
 ```{r tidy-lr}
-alpha_df <- tidy_dbn_lowrank(fit_lr)
+alpha_df = tidy_dbn_lowrank(fit_lr)
 head(alpha_df)
 ```
 
@@ -124,10 +130,17 @@ ggplot(alpha_df, aes(x = time, y = mean)) +
   geom_line() +
   facet_wrap(~factor, scales = "free_y", labeller = label_bquote(alpha[.(factor)])) +
   labs(x = "Time", y = expression(alpha)) +
-  theme_minimal()
+  theme_bw() +
+  theme(
+    panel.border = element_blank(),
+    strip.background = element_rect(fill = "black", color = "black"),
+    strip.text.x = element_text(color = "white", hjust = 0)
+  )
 ```
 
 ## 8 Network summaries
+
+You can compute summary statistics across the posterior distribution of fitted networks. `network_summary()` returns time-varying means or densities, and `edge_prob()` gives the posterior probability that each edge exceeds a threshold.
 
 ```{r network-summary}
 network_summary(fit_lr, stat = "mean")
@@ -137,14 +150,18 @@ edge_prob(fit_lr, threshold = 0)
 
 ## 9 Dyad trajectory
 
+Track a specific sender-receiver pair over time with posterior credible intervals.
+
 ```{r dyad-lr, cache = TRUE, fig.height = 3}
 dyad_path(fit_lr, i = 2, j = 7)
 ```
 
 ## 10 Forecasting
 
+`predict()` propagates the low-rank dynamics forward by `H` steps, sampling from the posterior to produce forecast distributions.
+
 ```{r forecast-lr}
-pred <- predict(fit_lr, H = 3, draws = 50, summary = "mean")
+pred = predict(fit_lr, H = 3, draws = 50, summary = "mean")
 dim(pred)
 ```
 

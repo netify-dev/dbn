@@ -36,24 +36,32 @@ plot_static <- function(results, alpha = 0.01) {
 		ggplot2::geom_line() +
 		ggplot2::facet_wrap(~parameter, scales = "free_y", ncol = 1) +
 		ggplot2::labs(title = "Parameter Traces", x = "Iteration", y = "Value") +
-		ggplot2::theme_minimal() +
-		ggplot2::theme(legend.position = "none")
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			legend.position = "none",
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		)
 
 	# posterior histograms
 	p_hist_s2 <- ggplot2::ggplot(params_df, ggplot2::aes(x = s2)) +
-		ggplot2::geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+		ggplot2::geom_histogram(bins = 30) +
 		ggplot2::labs(title = "s2 Posterior", x = "s2", y = "Count") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 
 	p_hist_t2 <- ggplot2::ggplot(params_df, ggplot2::aes(x = t2)) +
-		ggplot2::geom_histogram(bins = 30, fill = "darkgreen", alpha = 0.7) +
+		ggplot2::geom_histogram(bins = 30) +
 		ggplot2::labs(title = "t2 Posterior", x = "t2", y = "Count") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 
 	p_hist_g2 <- ggplot2::ggplot(params_df, ggplot2::aes(x = g2)) +
-		ggplot2::geom_histogram(bins = 30, fill = "darkred", alpha = 0.7) +
+		ggplot2::geom_histogram(bins = 30) +
 		ggplot2::labs(title = "g2 Posterior", x = "g2", y = "Count") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 
 	# network plot of the first B matrix
 	if (length(results$B) >= 1 && !is.null(results$B[[1]])) {
@@ -112,8 +120,9 @@ plot_static <- function(results, alpha = 0.01) {
 				ggplot2::geom_text(data = nodes, ggplot2::aes(x = x, y = y, label = label), size = 3) +
 				ggplot2::scale_color_manual(values = c("Positive" = "green3", "Negative" = "red3")) +
 				ggplot2::labs(title = "Network B[[1]]", color = "Edge Type") +
-				ggplot2::theme_minimal() +
+				ggplot2::theme_bw() +
 				ggplot2::theme(
+					panel.border = ggplot2::element_blank(),
 					axis.text = ggplot2::element_blank(),
 					axis.title = ggplot2::element_blank(),
 					panel.grid = ggplot2::element_blank()
@@ -226,7 +235,12 @@ plot_dynamic <- function(results, time_points = NULL) {
 		ggplot2::geom_line(color = "steelblue") +
 		ggplot2::facet_wrap(~parameter, scales = "free_y", ncol = 1) +
 		ggplot2::labs(title = "Parameter Traces", x = "Iteration", y = "Value") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		)
 
 	# distribution of A matrix entries at selected time points
 	if (!is.null(results$draws$misc$A)) {
@@ -257,10 +271,15 @@ plot_dynamic <- function(results, time_points = NULL) {
 	A_hist_data <- do.call(rbind, hist_list)
 
 	p_A_hist <- ggplot2::ggplot(A_hist_data, ggplot2::aes(x = value)) +
-		ggplot2::geom_histogram(bins = 20, fill = "darkgreen", alpha = 0.7) +
+		ggplot2::geom_histogram(bins = 20) +
 		ggplot2::facet_wrap(~time, ncol = length(time_points)) +
 		ggplot2::labs(title = "Distribution of A Matrix Elements", x = "Value", y = "Count") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		)
 	####
 
 	# AR(1) parameter traces
@@ -281,8 +300,13 @@ plot_dynamic <- function(results, time_points = NULL) {
 			ggplot2::geom_line() +
 			ggplot2::facet_wrap(~parameter, ncol = 2) +
 			ggplot2::labs(title = "AR(1) Parameters", x = "Iteration", y = "Value") +
-			ggplot2::theme_minimal() +
-			ggplot2::theme(legend.position = "none")
+			ggplot2::theme_bw() +
+			ggplot2::theme(
+				panel.border = ggplot2::element_blank(),
+				legend.position = "none",
+				strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+				strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+			)
 	} else if ("rhoA" %in% names(trace_df)) {
 		p_rho <- ggplot2::ggplot(
 			data.frame(iteration = trace_df$iteration, rhoA = trace_df$rhoA),
@@ -290,7 +314,8 @@ plot_dynamic <- function(results, time_points = NULL) {
 		) +
 			ggplot2::geom_line(color = "darkblue") +
 			ggplot2::labs(title = "AR(1) Parameter - rhoA", x = "Iteration", y = "rhoA") +
-			ggplot2::theme_minimal()
+			ggplot2::theme_bw() +
+			ggplot2::theme(panel.border = ggplot2::element_blank())
 	} else if ("rhoB" %in% names(trace_df)) {
 		p_rho <- ggplot2::ggplot(
 			data.frame(iteration = trace_df$iteration, rhoB = trace_df$rhoB),
@@ -298,7 +323,8 @@ plot_dynamic <- function(results, time_points = NULL) {
 		) +
 			ggplot2::geom_line(color = "darkred") +
 			ggplot2::labs(title = "AR(1) Parameter - rhoB", x = "Iteration", y = "rhoB") +
-			ggplot2::theme_minimal()
+			ggplot2::theme_bw() +
+			ggplot2::theme(panel.border = ggplot2::element_blank())
 	} else {
 		p_rho <- NULL
 	}
@@ -312,7 +338,8 @@ plot_dynamic <- function(results, time_points = NULL) {
 		) +
 			ggplot2::geom_line(color = "darkred") +
 			ggplot2::labs(title = "g^2 (tau_mu^2) Trace", x = "Iteration", y = "g^2") +
-			ggplot2::theme_minimal()
+			ggplot2::theme_bw() +
+			ggplot2::theme(panel.border = ggplot2::element_blank())
 	} else {
 		p_g2 <- NULL
 	}
@@ -591,14 +618,24 @@ compare_dbn <- function(...) {
 		ggplot2::geom_line() +
 		ggplot2::facet_wrap(~parameter, scales = "free") +
 		ggplot2::labs(title = "Model Comparison", x = "Iteration", y = "Value", color = "Model") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		)
 
 	# overlay posterior densities across models
 	p_density <- ggplot2::ggplot(compare_df, ggplot2::aes(x = value, fill = model)) +
 		ggplot2::geom_density(alpha = 0.5) +
 		ggplot2::facet_wrap(~parameter, scales = "free") +
 		ggplot2::labs(title = "Parameter Distributions", x = "Value", y = "Density", fill = "Model") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		)
 
 	if (requireNamespace("gridExtra", quietly = TRUE)) {
 		gridExtra::grid.arrange(p_compare, p_density, ncol = 1)
@@ -680,7 +717,8 @@ ppc_ecdf <- function(fit, n_rep = 20) {
 			title = "Posterior predictive ECDF overlay",
 			x = "Ordinal category", y = "ECDF"
 		) +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 }
 ####
 
@@ -781,7 +819,12 @@ dyad_path <- function(fit, i, j, rel = NULL, facet = TRUE, cred = c(0.025, 0.975
 			x = "Time", y = expression(theta[list(i, j, t)]),
 			title = sprintf("Dyad (%d,%d) trajectory", i, j)
 		) +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		)
 
 	if (facet && length(rel) > 1) {
 		g <- g + ggplot2::facet_wrap(~relation, scales = "free_y")
@@ -989,7 +1032,8 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 				subtitle = paste("Relation", rel, "- Sparse view"),
 				x = "Actor i", y = "Actor j"
 			) +
-			ggplot2::theme_minimal()
+			ggplot2::theme_bw() +
+			ggplot2::theme(panel.border = ggplot2::element_blank())
 	} else {
 		# tile heatmap for smaller networks
 		df <- expand.grid(i = 1:n_row, j = 1:n_col)
@@ -1010,7 +1054,8 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 				subtitle = paste("Relation", rel),
 				x = "Actor i", y = "Actor j"
 			) +
-			ggplot2::theme_minimal()
+			ggplot2::theme_bw() +
+			ggplot2::theme(panel.border = ggplot2::element_blank())
 	}
 	####
 }
@@ -1203,7 +1248,8 @@ plot_group_influence <- function(fit,
 			y = sprintf("Posterior median %s %d%% CI", "\u00B1", round(cred * 100)),
 			x = "Time"
 		) +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 }
 ####
 
@@ -1387,8 +1433,11 @@ compare_group_influence <- function(fit,
 			color = "Group",
 			fill = "Group"
 		) +
-		ggplot2::theme_minimal() +
-		ggplot2::theme(legend.position = "bottom")
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			legend.position = "bottom"
+		)
 }
 ####
 

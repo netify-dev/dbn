@@ -41,7 +41,8 @@ plot_hmm <- function(x) {
 		ggplot2::geom_tile() +
 		ggplot2::scale_fill_gradient(low = "white", high = "steelblue") +
 		ggplot2::labs(title = "Posterior regime probabilities", x = "Time", y = "Regime") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 	####
 
 	# transition matrix
@@ -61,7 +62,8 @@ plot_hmm <- function(x) {
 		ggplot2::scale_fill_gradient(low = "white", high = "firebrick") +
 		ggplot2::geom_text(ggplot2::aes(label = sprintf("%.2f", prob)), size = 3) +
 		ggplot2::labs(title = "Posterior mean transition matrix Pi", x = "From", y = "To") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 	####
 
 	# parameter trace plots
@@ -81,7 +83,12 @@ plot_hmm <- function(x) {
 	p_trace <- ggplot2::ggplot(tl, ggplot2::aes(iter, value)) +
 		ggplot2::geom_line(colour = "darkgreen") +
 		ggplot2::facet_wrap(~variable, scales = "free_y", ncol = 1) +
-		ggplot2::theme_minimal() +
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		) +
 		ggplot2::labs(title = "MCMC traces", x = "Iteration", y = NULL)
 	####
 

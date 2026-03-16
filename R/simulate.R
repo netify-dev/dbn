@@ -160,10 +160,10 @@ simulate_dynamic_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 	if (time > 1) {
 		for (t in 2:time) {
 			if (ar1) {
-				innovA <- matrix(rnorm(n_row^2, 0, sqrt(tauA2)), n_row, n_row)
-				innovB <- matrix(rnorm(n_col^2, 0, sqrt(tauB2)), n_col, n_col)
-				Aarray[, , t] <- rhoA * Aarray[, , t - 1] + (1 - rhoA) * diag(n_row) + innovA
-				Barray[, , t] <- rhoB * Barray[, , t - 1] + (1 - rhoB) * diag(n_col) + innovB
+				innov_a <- matrix(rnorm(n_row^2, 0, sqrt(tauA2)), n_row, n_row)
+				innov_b <- matrix(rnorm(n_col^2, 0, sqrt(tauB2)), n_col, n_col)
+				Aarray[, , t] <- rhoA * Aarray[, , t - 1] + (1 - rhoA) * diag(n_row) + innov_a
+				Barray[, , t] <- rhoB * Barray[, , t - 1] + (1 - rhoB) * diag(n_col) + innov_b
 			} else {
 				Aarray[, , t] <- Aarray[, , t - 1] + matrix(rnorm(n_row^2, 0, sqrt(tauA2)), n_row, n_row)
 				Barray[, , t] <- Barray[, , t - 1] + matrix(rnorm(n_col^2, 0, sqrt(tauB2)), n_col, n_col)

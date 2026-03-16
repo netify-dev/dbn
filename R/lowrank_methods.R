@@ -46,7 +46,12 @@ plot_lowrank <- function(x,
 		ggplot2::geom_line(colour = "steelblue") +
 		ggplot2::facet_wrap(~par, scales = "free_y", ncol = 1) +
 		ggplot2::labs(title = "MCMC traces", x = "Iteration", y = NULL) +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		)
 	####
 
 	# factor paths
@@ -76,7 +81,12 @@ plot_lowrank <- function(x,
 		ggplot2::facet_wrap(~k, scales = "free_y", ncol = 1,
 			labeller = ggplot2::label_bquote(alpha[.(k)])) +
 		ggplot2::labs(title = "Latent factor trajectories", x = "Time", y = expression(alpha)) +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(
+			panel.border = ggplot2::element_blank(),
+			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
+			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
+		)
 	####
 
 	# node loading heatmap
@@ -91,7 +101,8 @@ plot_lowrank <- function(x,
 		ggplot2::scale_fill_gradient2(low = "navy", mid = "white", high = "darkred", midpoint = 0) +
 		ggplot2::coord_equal() +
 		ggplot2::labs(title = "Posterior mean of U", x = "Factor k", y = "Actor i") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 	####
 
 	if (requireNamespace("gridExtra", quietly = TRUE)) {

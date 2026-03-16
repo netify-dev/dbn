@@ -519,7 +519,8 @@ plot.dbn_irf <- function(x, ci_level = 0.95, title = NULL, ...) {
 		ggplot2::geom_line(ggplot2::aes(y = mean), linewidth = 1) +
 		ggplot2::geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
 		ggplot2::labs(title = title, x = "Horizon", y = "Response") +
-		ggplot2::theme_minimal()
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 }
 ####
 

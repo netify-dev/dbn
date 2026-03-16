@@ -17,6 +17,7 @@ articles:
     - static_dbn
     - dynamic_dbn
     - impulse_response
+    - applied_ir
   - title: internal
     contents:
     - methodology

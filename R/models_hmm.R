@@ -285,7 +285,7 @@ dbn_hmm <- function(Y,
 
 	# progress bar
 	if (verbose) {
-		cli::cli_progress_step("Running HMM DBN MCMC")
+		cli::cli_alert_info("Running HMM DBN MCMC ({n_iter} iterations)")
 		cli::cli_progress_bar("MCMC iterations", total = n_iter)
 	}
 
@@ -302,7 +302,7 @@ dbn_hmm <- function(Y,
 
 	for (g in seq_len(n_iter)) {
 
-		# step 1: update Z and M
+		# update Z and M
 
 		regime_arrays <- build_regime_arrays(S, A_list, B_list, n_row, Tt)
 		Aarray <- regime_arrays$Aarray
@@ -321,7 +321,7 @@ dbn_hmm <- function(Y,
 			pre$Z <- update_Z_optimized(pre$R, pre$Z, pre$Theta, pre$M, pre$IR, family = "binary")
 		}
 
-		# step 2: Theta via FFBS
+		# theta via ffbs
 
 		for (rel in 1:p) {
 			pre$Theta[, , rel, ] <- FAM$ffbs_wrapper(
@@ -339,7 +339,7 @@ dbn_hmm <- function(Y,
 			Theta_avg[] <- rowMeans(aperm(pre$Theta, c(1L, 2L, 4L, 3L)), dims = 3L)
 		}
 
-		# step 3: forward-backward sample of regime sequence
+		# forward-backward sample of regime sequence
 
 		if (use_beam_search) {
 			log_alpha <- forward_hmm_fast(Theta_avg, A_list, B_list, Pi, sigma2_proc, pi0, beam_width)
@@ -357,7 +357,7 @@ dbn_hmm <- function(Y,
 			pi0 <- (pi0 * (g - burn - 1) + as.numeric(S[1] == 1:R)) / (g - burn)
 		}
 
-		# step 4: transition matrix Pi
+		# transition matrix pi
 
 		n_ij <- count_transitions(S, R)
 		# diagonal pseudo-counts to prevent empty rows
@@ -366,7 +366,7 @@ dbn_hmm <- function(Y,
 			Pi[i, ] <- rdirichlet(delta + n_ij[i, ])
 		}
 
-		# step 5: regime-specific A, B
+		# regime-specific A, B
 
 		for (r in 1:R) {
 			regime_data <- collect_regime_thetas(Theta_avg, S, r, n_row)
@@ -385,7 +385,7 @@ dbn_hmm <- function(Y,
 		}
 		if (symmetric) for (r in 1:R) B_list[[r]] <- A_list[[r]]
 
-		# step 6: hyperparameters (pooled across regimes)
+		# hyperparameters pooled across regimes
 
 		# tau_A2
 		A_resid <- compute_regime_residuals(A_list, I_nrow, R, n_row)
@@ -400,7 +400,7 @@ dbn_hmm <- function(Y,
 		tau_B2 <- safe_rinv_gamma(shape0_B + n_col * n_col * n_active / 2, rate0 + B_resid / 2)
 		if (symmetric) tau_B2 <- tau_A2
 
-		# step 7: sigma2_proc
+		# sigma2_proc
 
 		shape0_proc <- 10 + nc
 		if (large_scale) {
@@ -417,11 +417,11 @@ dbn_hmm <- function(Y,
 			sigma2_obs <- safe_rinv_gamma(10 + nc + length(pre$Z) / 2, rate0 + resid_obs / 2)
 		}
 
-		# step 8: g2
+		# g2
 
 		g2 <- safe_rinv_gamma(10 + nc + prod(dim(pre$M)) / 2, (rate0 + sum(pre$M^2)) / 2)
 
-		# step 9: store this iteration
+		# store this iteration
 
 		if (g %in% keep_idx) {
 			s <- s + 1
@@ -530,6 +530,7 @@ dbn_hmm <- function(Y,
 		draws = n_keep,
 		thin = odens,
 		time_thin = time_thin,
+		time_kept = time_keep,
 		model = "hmm",
 		R = R,
 		pi0 = pi0

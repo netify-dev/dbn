@@ -166,15 +166,18 @@ dbn <- function(data,
 			))
 		}
 		if (verbose) {
-			cli::cli_inform("i" = "Symmetric constraint active: B will be set equal to A.")
+			cli::cli_inform(c("i" = "Symmetric constraint active: B will be set equal to A."))
 		}
 	}
 	####
 
 	# suggest lowrank for large networks
 	if (model == "dynamic" && max(dim(Y)[1], dim(Y)[2]) > 80 && verbose) {
+		n_suggest <- max(dim(Y)[1], dim(Y)[2])
+		r_suggest <- min(max(2L, as.integer(ceiling(log2(n_suggest)))), n_suggest - 1L)
 		cli::cli_inform(c(
-			"i" = "Large network ({max(dim(Y)[1], dim(Y)[2])} nodes). Consider {.code model = \"lowrank\"} for better scalability."
+			"i" = "Large network ({n_suggest} nodes). Consider {.code model = \"lowrank\"} for better scalability.",
+			"i" = "Suggested rank: {.code r = {r_suggest}} (log2(n), increase if fit is poor)."
 		))
 	}
 	####
@@ -302,7 +305,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 	Z_flat <- array(Z, c(n_row, n_col, p * Tt))
 
 	if (verbose) {
-		cli::cli_progress_step("Running static DBN MCMC")
+		cli::cli_alert_info("Running static DBN MCMC ({n_iter} iterations)")
 		cli::cli_progress_bar("MCMC iterations", total = n_iter)
 	}
 
@@ -322,25 +325,42 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		Z_flat_mat <- matrix(0, nrow = nc, ncol = p * Tt)
 		EZ_flat_mat <- matrix(0, nrow = nc, ncol = p * Tt)
 	}
+
+	# precompute ordinal flags/arrays once (R doesn't change)
+	if (family == "ordinal") {
+		static_use_approx <- should_use_gaussian_approximation(R) ||
+							(nc * p * Tt > 5000)
+		static_R_flat <- array(R, c(n_row, n_col, p * Tt))
+		static_has_rz_cpp <- exists("rz_gaussian_approx_cpp", mode = "function")
+	}
 	####
+
+	# timing diagnostics (activated by verbose >= 200, e.g., verbose = 200L)
+	static_do_timing <- is.numeric(verbose) && verbose >= 200L
+	if (static_do_timing) {
+		stiming <- list(b_update = 0, z_update = 0, m_update = 0, s2_update = 0, storage = 0)
+		stiming_iters <- 0L
+	}
 
 	# main MCMC loop
 	for (iter in 1:n_iter) {
 
 		# update B matrices
+		if (static_do_timing) .t0 <- proc.time()[[3]]
 		if (is_large_network) {
 			B[[1]] <- update_B_static_tiled(Z_cube, M, s2, t2, n_row, n_col, p, Tt)
 		} else {
 			B[[1]] <- update_B_static(Z_cube, M, s2, t2, n_row, n_col, p, Tt)
 		}
-		####
 
 		# update t2 (B precision)
 		sse <- compute_diagonal_sse(B, K)
 		t2 <- safe_rinv_gamma((sum(d) + 1) / 2, (sse + 1) / 2)
+		if (static_do_timing) stiming$b_update <- stiming$b_update + (proc.time()[[3]] - .t0)
 		####
 
 		# update latent Z (ordinal/binary families)
+		if (static_do_timing) .t0 <- proc.time()[[3]]
 		if (FAM$name == "binary") {
 			for (j in 1:p) {
 				for (t in 1:Tt) {
@@ -364,21 +384,17 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 				Z_cube <- reshape_Z_to_cube(Z, n_row, n_col, p, Tt)
 			}
 		} else if (FAM$name == "ordinal") {
-			use_approx <- should_use_gaussian_approximation(R) ||
-						 (nc * p * Tt > 5000)
-
 			Z_flat <- array(Z, c(n_row, n_col, p * Tt))
-			R_flat <- array(R, c(n_row, n_col, p * Tt))
 			EZ_cube <- broadcast_M_and_compute_EZ(M, s2, n_row, n_col, p, Tt)
 
-			if (use_approx) {
-				if (exists("rz_gaussian_approx_cpp", mode = "function")) {
-					Z_flat <- rz_gaussian_approx_cpp(R_flat, Z_flat, EZ_cube)
+			if (static_use_approx) {
+				if (static_has_rz_cpp) {
+					Z_flat <- rz_gaussian_approx_cpp(static_R_flat, Z_flat, EZ_cube)
 				} else {
-					Z_flat <- rz_gaussian_approx(R_flat, Z_flat, EZ_cube)
+					Z_flat <- rz_gaussian_approx(static_R_flat, Z_flat, EZ_cube)
 				}
 			} else {
-				Z_flat <- rz_fc_batch(R_flat, Z_flat, EZ_cube, IR, n_row, n_col, p, Tt)
+				Z_flat <- rz_fc_batch(static_R_flat, Z_flat, EZ_cube, IR, n_row, n_col, p, Tt)
 			}
 
 			Z <- array(Z_flat, c(n_row, n_col, p, Tt))
@@ -389,9 +405,11 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 				Z_cube <- reshape_Z_to_cube(Z, n_row, n_col, p, Tt)
 			}
 		}
+		if (static_do_timing) stiming$z_update <- stiming$z_update + (proc.time()[[3]] - .t0)
 		####
 
 		# update baseline mean M
+		if (static_do_timing) .t0 <- proc.time()[[3]]
 		if (FAM$name == "ordinal" || iter %% 5 == 0) {
 			if (FAM$name != "ordinal") {
 				Z_flat <- array(Z, c(n_row, n_col, p * Tt))
@@ -407,9 +425,11 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 			M_sum_sq <- sum(M^2)
 			g2 <- (1 + M_sum_sq) / (2 * rgamma(1, shape = (1 + nc * p) / 2, rate = 1))
 		}
+		if (static_do_timing) stiming$m_update <- stiming$m_update + (proc.time()[[3]] - .t0)
 		####
 
 		# update observation variance s2 (gaussian only)
+		if (static_do_timing) .t0 <- proc.time()[[3]]
 		if (FAM$name == "gaussian") {
 			if (is_large_network) {
 				rss <- compute_rss_static_parallel(Z_cube, M, n_row, n_col, p, Tt)
@@ -420,9 +440,11 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		} else {
 			s2 <- 1
 		}
+		if (static_do_timing) stiming$s2_update <- stiming$s2_update + (proc.time()[[3]] - .t0)
 		####
 
 		# store thinned samples
+		if (static_do_timing) .t0 <- proc.time()[[3]]
 		if (iter %in% keep_idx) {
 			idx <- which(keep_idx == iter)
 			B_samples[[1]][, , idx] <- B[[1]]
@@ -450,7 +472,24 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 				Zsave[[idx]] <- Z
 			}
 		}
+		if (static_do_timing) stiming$storage <- stiming$storage + (proc.time()[[3]] - .t0)
 		####
+
+		if (static_do_timing) {
+			stiming_iters <- stiming_iters + 1L
+			if (iter == 10L) {
+				total <- Reduce(`+`, stiming)
+				if (total > 0) {
+					cli::cli_alert_info("Static MCMC timing (first 10 iterations, avg per iter):")
+					for (nm in names(stiming)) {
+						pct <- round(100 * stiming[[nm]] / total, 1)
+						ms <- round(1000 * stiming[[nm]] / stiming_iters, 1)
+						cli::cli_alert("{nm}: {ms}ms ({pct}%)")
+					}
+					cli::cli_alert("Total: {round(1000 * total / stiming_iters, 1)}ms/iter")
+				}
+			}
+		}
 
 		if (verbose && iter %% verbose == 0) {
 			cli::cli_progress_update()
@@ -814,30 +853,44 @@ dbn_dynamic <- function(Y,
 		}
 	}
 
+	# precompute function availability flags (avoid per-iteration exists() calls)
+	has_rz_gaussian_approx_cpp <- exists("rz_gaussian_approx_cpp", mode = "function")
+	has_IR_time_indices <- exists("IR_time_indices")
+	has_shape_sigma_proc <- exists("shape_sigma_proc")
+
 	if (verbose) {
-		cli::cli_progress_step("Running dynamic DBN MCMC")
+		cli::cli_alert_info("Running dynamic DBN MCMC ({n_iter} iterations)")
 		cli::cli_progress_bar("MCMC iterations", total = n_iter)
 	}
 	####
+
+	# timing diagnostics (activated by verbose >= 200, e.g., verbose = 200L)
+	do_timing <- is.numeric(verbose) && verbose >= 200L
+	if (do_timing) {
+		timing_accum <- list(z_update = 0, mu_update = 0, ffbs = 0, ab_update = 0,
+							 tau_update = 0, var_update = 0, rho_update = 0, storage = 0)
+		timing_iters <- 0L
+	}
 
 	# main MCMC loop
 	for (g in 1:n_iter) {
 
 		# update latent Z (ordinal/binary families)
+		if (do_timing) .t0 <- proc.time()[[3]]
 		if (FAM$name == "ordinal") {
 			if (use_approx) {
 				EZ_cube[] <- Theta_4d + M_expanded
 				Z_cube[]  <- Z_4d
 				R_cube[]  <- R_4d
 
-				if (exists("rz_gaussian_approx_cpp", mode = "function")) {
+				if (has_rz_gaussian_approx_cpp) {
 					Z_cube <- rz_gaussian_approx_cpp(R_cube, Z_cube, EZ_cube)
 				} else {
 					Z_cube <- rz_gaussian_approx(R_cube, Z_cube, EZ_cube)
 				}
 				Z_4d <- matrix(Z_cube, nrow = nc, ncol = p * Tt)
 			} else {
-				if (exists("IR_time_indices")) {
+				if (has_IR_time_indices) {
 					Z_4d <- batch_update_Z_ordinal_fast(R_4d, Z_4d, Theta_4d, M, IR, IR_time_indices, n_row, n_col, p, Tt)
 				} else {
 					Z_4d <- batch_update_Z_ordinal(R_4d, Z_4d, Theta_4d, M, IR, n_row, n_col, p, Tt)
@@ -850,16 +903,20 @@ dbn_dynamic <- function(Y,
 			Z <- update_Z_optimized(R, Z, Theta_all, M, IR = NULL, family = "binary")
 			Z_4d <- matrix(Z, nrow = nc, ncol = p * Tt)
 		}
+		if (do_timing) timing_accum$z_update <- timing_accum$z_update + (proc.time()[[3]] - .t0)
 		####
 
 		# update baseline mean M and g2
+		if (do_timing) .t0 <- proc.time()[[3]]
 		mu_result <- update_mu_dynamic(Z_4d, Theta_4d, g2, a_g, b_g, n_row, n_col, p, Tt)
 		M <- mu_result$M
 		g2 <- mu_result$g2
 		if (use_approx) M_expanded <- rep(as.vector(M), times = Tt)
+		if (do_timing) timing_accum$mu_update <- timing_accum$mu_update + (proc.time()[[3]] - .t0)
 		####
 
 		# FFBS for Theta
+		if (do_timing) .t0 <- proc.time()[[3]]
 		if (is_large_network && max(n_row, n_col) > 100) {
 			Theta_cube <- batch_ffbs_all_relations_blocked(Z_4d, M, Aarray, Barray, sigma2, n_row, n_col, p, Tt)
 		} else {
@@ -869,9 +926,11 @@ dbn_dynamic <- function(Y,
 			Theta_all <- array(Theta_cube, dim = c(n_row, n_col, p, Tt))
 		}
 		Theta_4d <- matrix(Theta_cube, nrow = nc, ncol = p * Tt)
+		if (do_timing) timing_accum$ffbs <- timing_accum$ffbs + (proc.time()[[3]] - .t0)
 		####
 
 		# update A and B matrices
+		if (do_timing) .t0 <- proc.time()[[3]]
 		if (is_large_network && max(n_row, n_col) > 100) {
 			AB_result <- update_AB_batch_large(
 				Theta_4d, Aarray, Barray,
@@ -890,9 +949,11 @@ dbn_dynamic <- function(Y,
 		Aarray <- AB_result$Aarray
 		Barray <- AB_result$Barray
 		if (symmetric) Barray <- Aarray
+		if (do_timing) timing_accum$ab_update <- timing_accum$ab_update + (proc.time()[[3]] - .t0)
 		####
 
 		# update innovation variances tauA2, tauB2
+		if (do_timing) .t0 <- proc.time()[[3]]
 		if (ar1) {
 			innovA_ss <- compute_ar1_innovation_ss_cpp(Aarray, rhoA, n_row, Tt)
 			innovB_ss <- compute_ar1_innovation_ss_cpp(Barray, rhoB, n_col, Tt)
@@ -915,12 +976,14 @@ dbn_dynamic <- function(Y,
 			}
 		}
 		if (symmetric) tauB2 <- tauA2
+		if (do_timing) timing_accum$tau_update <- timing_accum$tau_update + (proc.time()[[3]] - .t0)
 		####
 
 		# update process and observation variances
+		if (do_timing) .t0 <- proc.time()[[3]]
 		if (is_large_network && max(n_row, n_col) > 100) {
 			proc_rss <- compute_process_variance_blocked(Theta_4d, Aarray, Barray, n_row, n_col, p, Tt)
-			if (exists("shape_sigma_proc")) {
+			if (has_shape_sigma_proc) {
 				sigma2 <- (b_sig + proc_rss / 2.0) / rgamma(1, shape = shape_sigma_proc, rate = 1)
 			} else {
 				sigma2 <- (b_sig + proc_rss / 2.0) / rgamma(1, shape = (a_sig + nc * (Tt - 1) * p) / 2.0, rate = 1)
@@ -941,9 +1004,11 @@ dbn_dynamic <- function(Y,
 				sigma2_obs <- var_result$sigma2_obs
 			}
 		}
+		if (do_timing) timing_accum$var_update <- timing_accum$var_update + (proc.time()[[3]] - .t0)
 		####
 
 		# update AR(1) coefficients rhoA, rhoB
+		if (do_timing) .t0 <- proc.time()[[3]]
 		if (ar1 && update_rho) {
 			rhoA_result <- compute_rho_update_cpp(Aarray, n_row, Tt)
 			rho_mean <- rhoA_result$num / (rhoA_result$denom + 1e-10)
@@ -956,9 +1021,11 @@ dbn_dynamic <- function(Y,
 			rhoB <- truncnorm::rtruncnorm(1, a = -0.99, b = 0.99, mean = rho_mean, sd = sqrt(rho_var))
 			if (symmetric) rhoB <- rhoA
 		}
+		if (do_timing) timing_accum$rho_update <- timing_accum$rho_update + (proc.time()[[3]] - .t0)
 		####
 
 		# store thinned samples
+		if (do_timing) .t0 <- proc.time()[[3]]
 		if (g %in% keep) {
 			keep_id <- keep_id + 1
 
@@ -992,7 +1059,24 @@ dbn_dynamic <- function(Y,
 				rhoB_store[keep_id] <- rhoB
 			}
 		}
+		if (do_timing) timing_accum$storage <- timing_accum$storage + (proc.time()[[3]] - .t0)
 		####
+
+		if (do_timing) {
+			timing_iters <- timing_iters + 1L
+			if (g == 10L) {
+				total <- Reduce(`+`, timing_accum)
+				if (total > 0) {
+					cli::cli_alert_info("MCMC timing (first 10 iterations, avg per iter):")
+					for (nm in names(timing_accum)) {
+						pct <- round(100 * timing_accum[[nm]] / total, 1)
+						ms <- round(1000 * timing_accum[[nm]] / timing_iters, 1)
+						cli::cli_alert("{nm}: {ms}ms ({pct}%)")
+					}
+					cli::cli_alert("Total: {round(1000 * total / timing_iters, 1)}ms/iter")
+				}
+			}
+		}
 
 		if (verbose && (g %% verbose == 0)) cli::cli_progress_update()
 	}
@@ -1019,6 +1103,7 @@ dbn_dynamic <- function(Y,
 		dims = list(m = n_row, n_row = n_row, n_col = n_col, p = p, Tt = Tt,
 					is_bipartite = is_bipartite, is_symmetric = symmetric),
 		family = family,
+		time_kept = time_keep,
 		settings = list(time_thin = time_thin, store_z = store_z)
 	)
 
