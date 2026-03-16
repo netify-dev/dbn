@@ -13,6 +13,7 @@
 ^pkgdown$
 ^\.github$
 ^vignettes/.*_cache$
+^vignettes/.*\.Rmd\.orig$
 ^Rplots\.pdf$
 ^audit_docs\.R$
 ^audit_results\.rds$
