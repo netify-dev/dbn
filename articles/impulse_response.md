@@ -16,13 +16,13 @@ minimal settings for fast vignette building; see Section 8 for
 recommended settings in practice.
 
 ``` r
-sim <- simulate_dynamic_dbn(
+sim = simulate_dynamic_dbn(
   n = 10, p = 1, time = 10,
   sigma2 = 0.3, tauA2 = 0.03, tauB2 = 0.03,
   seed = 123
 )
 
-fit <- dbn(
+fit = dbn(
   sim$Y,
   model   = "dynamic",
   family  = "gaussian",
@@ -40,20 +40,20 @@ The
 function creates structured perturbation matrices:
 
 ``` r
-m <- 10
+m = 10
 
 # Shock a single edge (i -> j)
-S_edge <- build_shock(m, type = "unit_edge", i = 1, j = 2, magnitude = 2)
+S_edge = build_shock(m, type = "unit_edge", i = 1, j = 2, magnitude = 2)
 
 # Shock all outgoing edges from actor i
-S_node <- build_shock(m, type = "node_out", i = 1, magnitude = 1)
+S_node = build_shock(m, type = "node_out", i = 1, magnitude = 1)
 
 # Uniform density shock to all edges
-S_dens <- build_shock(m, type = "density", magnitude = 0.5)
+S_dens = build_shock(m, type = "density", magnitude = 0.5)
 
 # Custom shock matrix
-S_custom <- matrix(0, m, m)
-S_custom[1:3, 4:6] <- 1.0
+S_custom = matrix(0, m, m)
+S_custom[1:3, 4:6] = 1.0
 ```
 
 ## 4 Unit edge shock – network density
@@ -61,7 +61,7 @@ S_custom[1:3, 4:6] <- 1.0
 Track how a single edge shock affects overall network density:
 
 ``` r
-irf_dens <- compute_irf(
+irf_dens = compute_irf(
   fit,
   shock    = S_edge,
   H        = 6,
@@ -99,7 +99,7 @@ Track the effect of activating all outgoing edges of actor 1 on that
 actor’s out-degree:
 
 ``` r
-irf_deg <- compute_irf(
+irf_deg = compute_irf(
   fit,
   shock    = S_node,
   H        = 6,
@@ -118,7 +118,7 @@ plot(irf_deg, title = "Node-out shock -> Out-degree of actor 1")
 How does a uniform perturbation affect reciprocal ties?
 
 ``` r
-irf_recip <- compute_irf(
+irf_recip = compute_irf(
   fit,
   shock    = S_dens,
   H        = 6,
@@ -135,7 +135,7 @@ plot(irf_recip, title = "Density shock -> Reciprocity")
 ## 7 Custom shock – transitivity
 
 ``` r
-irf_trans <- compute_irf(
+irf_trans = compute_irf(
   fit,
   shock    = S_custom,
   H        = 6,
@@ -154,15 +154,15 @@ plot(irf_trans, title = "Block shock -> Transitivity")
 Combine IRF results for a faceted comparison:
 
 ``` r
-irfs <- list(
+irfs = list(
   "Edge -> Density"     = irf_dens,
   "Node -> Out-degree"  = irf_deg,
   "Density -> Recipr."  = irf_recip,
   "Block -> Transit."   = irf_trans
 )
 
-df_all <- do.call(rbind, lapply(names(irfs), function(nm) {
-  d <- irfs[[nm]]
+df_all = do.call(rbind, lapply(names(irfs), function(nm) {
+  d = irfs[[nm]]
   data.frame(
     horizon = d$horizon,
     mean    = d$mean,
@@ -178,7 +178,12 @@ ggplot(df_all, aes(x = horizon, y = mean)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
   facet_wrap(~shock, scales = "free_y") +
   labs(x = "Horizon", y = "IRF", title = "Impulse Response Comparison") +
-  theme_minimal()
+  theme_bw() +
+  theme(
+    panel.border = element_blank(),
+    strip.background = element_rect(fill = "black", color = "black"),
+    strip.text.x = element_text(color = "white", hjust = 0)
+  )
 ```
 
 ![](impulse_response_files/figure-html/compare-irfs-1.png)
@@ -189,11 +194,11 @@ building. For publication-quality results, increase these settings:
 
 ``` r
 # Recommended settings for substantive analysis
-sim <- simulate_dynamic_dbn(n = 30, p = 1, time = 50, seed = 123)
-fit <- dbn(sim$Y, model = "dynamic", family = "gaussian",
+sim = simulate_dynamic_dbn(n = 30, p = 1, time = 50, seed = 123)
+fit = dbn(sim$Y, model = "dynamic", family = "gaussian",
            nscan = 5000, burn = 2000, odens = 5, verbose = FALSE)
 
-irf <- compute_irf(fit, shock = S_edge, H = 20, t0 = 25,
+irf = compute_irf(fit, shock = S_edge, H = 20, t0 = 25,
                     stat_fun = dbn::stat_density, n_draws = 200)
 ```
 

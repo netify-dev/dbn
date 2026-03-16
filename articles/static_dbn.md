@@ -7,18 +7,23 @@ We start by simulating ordinal relational data.
 
 ``` r
 set.seed(1)
-sim <- simulate_static_dbn(n = 15,            # network size: 15 actors
+sim = simulate_static_dbn(n = 15,            # network size: 15 actors
                           p   =  1,            # single relation type
                           time  =  5)          # 5 replicate time periods
-Y <- sim$Y
+Y = sim$Y
 dim(Y)   # [n_row, n_col, p, time]
 #> [1] 15 15  1  5
 ```
 
 ## 2 Fit the model
 
+We pass the simulated array to
+[`dbn()`](https://netify-dev.github.io/dbn/reference/dbn.md) and specify
+the model type and outcome family. The MCMC sampler draws from the
+posterior over latent positions and variance parameters.
+
 ``` r
-fit_static <- dbn(sim$Y,
+fit_static = dbn(sim$Y,
                   model = 'static',
                   family = 'ordinal',   # rank-likelihood for ordinal data
                   nscan = 600,          # MCMC iterations after burn-in
@@ -29,7 +34,10 @@ fit_static <- dbn(sim$Y,
 
 ## 3 Convergence diagnostics
 
-Always check convergence before interpreting results.
+Always check convergence before interpreting results. You want to see
+stable, well-mixed chains with no visible drift or trend. If a trace
+plot shows the chain wandering or stuck in one region, increase `nscan`
+and `burn`.
 
 ``` r
 check_convergence(fit_static)
@@ -48,6 +56,12 @@ plot_trace(fit_static, pars = c("s2", "t2", "g2"))
 
 ## 4 Model summary and parameter inspection
 
+[`summary()`](https://rdrr.io/r/base/summary.html) gives you a
+high-level overview of the fitted model, including posterior means and
+credible intervals for the variance parameters.
+[`param_summary()`](https://netify-dev.github.io/dbn/reference/param_summary.md)
+returns a tidy data frame you can use for further analysis or plotting.
+
 ``` r
 summary(fit_static)
 param_summary(fit_static)
@@ -63,7 +77,7 @@ The baseline mean M captures the average relational tendency for each
 dyad. Extract and summarize M across posterior draws:
 
 ``` r
-M_summary <- latent_summary(fit_static, fun = mean)
+M_summary = latent_summary(fit_static, fun = mean)
 head(M_summary)
 #>   i j rel       value
 #> 1 1 1   1  14.7044468
@@ -76,18 +90,21 @@ head(M_summary)
 
 ## 6 Gaussian and binary families
 
-The static model supports all three outcome families.
+The static model supports all three outcome families. Switch the
+`family` argument depending on your data: use `"gaussian"` for
+continuous outcomes, `"binary"` for 0/1 data with a probit link, or
+`"ordinal"` when you only trust the rank ordering of ties.
 
 **Gaussian data** (continuous outcomes):
 
 ``` r
-# Simulate continuous data
+# simulate continuous data
 set.seed(10)
-n <- 10; p <- 1; time <- 5
-Z_gauss <- array(rnorm(n * n * p * time), dim = c(n, n, p, time))
-for (t in 1:time) diag(Z_gauss[,,1,t]) <- NA
+n = 10; p = 1; time = 5
+Z_gauss = array(rnorm(n * n * p * time), dim = c(n, n, p, time))
+for (t in 1:time) diag(Z_gauss[,,1,t]) = NA
 
-fit_gauss <- dbn(Z_gauss, model = "static", family = "gaussian",
+fit_gauss = dbn(Z_gauss, model = "static", family = "gaussian",
                  nscan = 300, burn = 150, verbose = FALSE)
 summary(fit_gauss)
 ```
@@ -96,12 +113,12 @@ summary(fit_gauss)
 
 ``` r
 set.seed(42)
-n_bin <- 8
-Y_bin <- array(rbinom(n_bin * n_bin * p * time, 1, 0.5),
+n_bin = 8
+Y_bin = array(rbinom(n_bin * n_bin * p * time, 1, 0.5),
                dim = c(n_bin, n_bin, p, time))
-for (t in 1:time) diag(Y_bin[,,1,t]) <- NA
+for (t in 1:time) diag(Y_bin[,,1,t]) = NA
 
-fit_bin <- dbn(Y_bin, model = "static", family = "binary",
+fit_bin = dbn(Y_bin, model = "static", family = "binary",
                nscan = 300, burn = 150, verbose = FALSE)
 summary(fit_bin)
 ```
@@ -113,3 +130,7 @@ summary(fit_bin)
 - checked convergence,
 - inspected parameter posteriors and latent means,
 - showed how to switch between ordinal, gaussian, and binary families.
+
+For models with time-varying parameters, see
+[`vignette("dynamic_dbn")`](https://netify-dev.github.io/dbn/articles/dynamic_dbn.md)
+as the natural next step.

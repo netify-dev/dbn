@@ -22,8 +22,12 @@ network dynamics rather than smooth evolution.
 
 ## 2 Simulate a regime-switching network
 
+We simulate a 12-node network over 30 time periods with `R = 2` regimes.
+The `transition_prob = 0.85` means each regime is moderately persistent,
+so we expect a few switches over the time series.
+
 ``` r
-sim <- simulate_hmm_dbn(
+sim = simulate_hmm_dbn(
   n = 12, p = 1, time = 30,
   R = 2,
   sigma2 = 0.3,
@@ -44,8 +48,12 @@ The true regime sequence `sim$S` shows how often each regime is active.
 
 ## 3 Fit the HMM model
 
+Set `model = "hmm"` and specify `R`, the number of regimes. The sampler
+estimates a separate pair of dynamics matrices ($A_{r}$, $B_{r}$) for
+each regime alongside the transition matrix $\Pi$.
+
 ``` r
-fit_hmm <- dbn(
+fit_hmm = dbn(
   sim$Y,
   model   = "hmm",
   family  = "ordinal",
@@ -58,6 +66,10 @@ fit_hmm <- dbn(
 ```
 
 ## 4 Model summary
+
+The summary prints the posterior mean transition matrix and
+regime-specific variance parameters. Look at the diagonal of $\Pi$ to
+gauge how persistent each regime is.
 
 ``` r
 summary(fit_hmm)
@@ -87,7 +99,7 @@ variance parameters for each regime.
 The posterior probability of each regime at each time point:
 
 ``` r
-probs <- regime_probs(fit_hmm)
+probs = regime_probs(fit_hmm)
 head(probs)
 #>       Regime1 Regime2
 #> Time1    0.00    1.00
@@ -98,7 +110,9 @@ head(probs)
 #> Time6    0.00    1.00
 ```
 
-Visualize with a stacked area plot:
+Visualize with a stacked area plot. Sharp transitions between colors
+indicate clear regime switches; blended regions suggest the model is
+uncertain about the active regime at those time points:
 
 ``` r
 plot_regime_probs(fit_hmm)
@@ -107,6 +121,10 @@ plot_regime_probs(fit_hmm)
 ![](hmm_dbn_files/figure-html/regime-plot-1.png)
 
 ## 6 Model diagnostics
+
+The default plot shows posterior summaries of the dynamics matrices for
+each regime. Well-mixed trace plots and stable posterior densities
+indicate convergence.
 
 ``` r
 plot(fit_hmm)
@@ -137,7 +155,7 @@ dyad_path(fit_hmm, i = 2, j = 7)
 Generate multi-step-ahead forecasts:
 
 ``` r
-pred <- predict(fit_hmm, H = 3, draws = 50, summary = "mean")
+pred = predict(fit_hmm, H = 3, draws = 50, summary = "mean")
 dim(pred)
 #> [1] 12 12  1  3
 ```

@@ -21,6 +21,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/static_dbn.html">Getting started: static bilinear network model</a></li>
     <li><a class="dropdown-item" href="../articles/dynamic_dbn.html">Dynamic bilinear network models</a></li>
     <li><a class="dropdown-item" href="../articles/impulse_response.html">Impulse response analysis for network models</a></li>
+    <li><a class="dropdown-item" href="../articles/applied_ir.html">Applied Example: Foreign Policy Alignment Among Major Powers</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul></li>
@@ -81,7 +82,9 @@
 
 
 <dt id="arg-r">r<a class="anchor" aria-label="anchor" href="#arg-r"></a></dt>
-<dd><p>Rank for low-rank factorization</p></dd>
+<dd><p>Rank for low-rank factorization. A good starting point is
+<code>ceiling(log2(n))</code> where <code>n</code> is the number of nodes. Increase
+if posterior predictive checks show poor fit. Default: 2.</p></dd>
 
 
 <dt id="arg-nscan">nscan<a class="anchor" aria-label="anchor" href="#arg-nscan"></a></dt>

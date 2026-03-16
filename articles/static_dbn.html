@@ -36,6 +36,7 @@
 <li><a class="dropdown-item" href="../articles/static_dbn.html">Getting started: static bilinear network model</a></li>
     <li><a class="dropdown-item" href="../articles/dynamic_dbn.html">Dynamic bilinear network models</a></li>
     <li><a class="dropdown-item" href="../articles/impulse_response.html">Impulse response analysis for network models</a></li>
+    <li><a class="dropdown-item" href="../articles/applied_ir.html">Applied Example: Foreign Policy Alignment Among Major Powers</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
@@ -64,7 +65,7 @@
                         <h4 data-toc-skip class="author">Tosin Salau
 &amp; Shahryar Minhas</h4>
             
-            <h4 data-toc-skip class="date">2026-03-05</h4>
+            <h4 data-toc-skip class="date">2026-03-16</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/netify-dev/dbn/blob/main/vignettes/static_dbn.Rmd" class="external-link"><code>vignettes/static_dbn.Rmd</code></a></small>
       <div class="d-none name"><code>static_dbn.Rmd</code></div>
@@ -79,18 +80,21 @@
 effects. We start by simulating ordinal relational data.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span>
-<span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_static_dbn.html">simulate_static_dbn</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">15</span>,            <span class="co"># network size: 15 actors</span></span>
+<span><span class="va">sim</span> <span class="op">=</span> <span class="fu"><a href="../reference/simulate_static_dbn.html">simulate_static_dbn</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">15</span>,            <span class="co"># network size: 15 actors</span></span>
 <span>                          p   <span class="op">=</span>  <span class="fl">1</span>,            <span class="co"># single relation type</span></span>
 <span>                          time  <span class="op">=</span>  <span class="fl">5</span><span class="op">)</span>          <span class="co"># 5 replicate time periods</span></span>
-<span><span class="va">Y</span> <span class="op">&lt;-</span> <span class="va">sim</span><span class="op">$</span><span class="va">Y</span></span>
+<span><span class="va">Y</span> <span class="op">=</span> <span class="va">sim</span><span class="op">$</span><span class="va">Y</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span>   <span class="co"># [n_row, n_col, p, time]</span></span>
 <span><span class="co">#&gt; [1] 15 15  1  5</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="fit-the-model">2 Fit the model<a class="anchor" aria-label="anchor" href="#fit-the-model"></a>
 </h2>
+<p>We pass the simulated array to <code><a href="../reference/dbn.html">dbn()</a></code> and specify the
+model type and outcome family. The MCMC sampler draws from the posterior
+over latent positions and variance parameters.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit_static</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Y</span>,</span>
+<code class="sourceCode R"><span><span class="va">fit_static</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Y</span>,</span>
 <span>                  model <span class="op">=</span> <span class="st">'static'</span>,</span>
 <span>                  family <span class="op">=</span> <span class="st">'ordinal'</span>,   <span class="co"># rank-likelihood for ordinal data</span></span>
 <span>                  nscan <span class="op">=</span> <span class="fl">600</span>,          <span class="co"># MCMC iterations after burn-in</span></span>
@@ -101,7 +105,10 @@ effects. We start by simulating ordinal relational data.</p>
 <div class="section level2">
 <h2 id="convergence-diagnostics">3 Convergence diagnostics<a class="anchor" aria-label="anchor" href="#convergence-diagnostics"></a>
 </h2>
-<p>Always check convergence before interpreting results.</p>
+<p>Always check convergence before interpreting results. You want to see
+stable, well-mixed chains with no visible drift or trend. If a trace
+plot shows the chain wandering or stuck in one region, increase
+<code>nscan</code> and <code>burn</code>.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/check_convergence.html">check_convergence</a></span><span class="op">(</span><span class="va">fit_static</span><span class="op">)</span></span>
 <span><span class="co">#&gt;        s2        t2        g2 </span></span>
@@ -118,6 +125,10 @@ effects. We start by simulating ordinal relational data.</p>
 <div class="section level2">
 <h2 id="model-summary-and-parameter-inspection">4 Model summary and parameter inspection<a class="anchor" aria-label="anchor" href="#model-summary-and-parameter-inspection"></a>
 </h2>
+<p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> gives you a high-level overview of the fitted
+model, including posterior means and credible intervals for the variance
+parameters. <code><a href="../reference/param_summary.html">param_summary()</a></code> returns a tidy data frame you
+can use for further analysis or plotting.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_static</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/param_summary.html">param_summary</a></span><span class="op">(</span><span class="va">fit_static</span><span class="op">)</span></span>
@@ -132,7 +143,7 @@ effects. We start by simulating ordinal relational data.</p>
 <p>The baseline mean M captures the average relational tendency for each
 dyad. Extract and summarize M across posterior draws:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">M_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/latent_summary.html">latent_summary</a></span><span class="op">(</span><span class="va">fit_static</span>, fun <span class="op">=</span> <span class="va">mean</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">M_summary</span> <span class="op">=</span> <span class="fu"><a href="../reference/latent_summary.html">latent_summary</a></span><span class="op">(</span><span class="va">fit_static</span>, fun <span class="op">=</span> <span class="va">mean</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">M_summary</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   i j rel       value</span></span>
 <span><span class="co">#&gt; 1 1 1   1  14.7044468</span></span>
@@ -145,27 +156,31 @@ dyad. Extract and summarize M across posterior draws:</p>
 <div class="section level2">
 <h2 id="gaussian-and-binary-families">6 Gaussian and binary families<a class="anchor" aria-label="anchor" href="#gaussian-and-binary-families"></a>
 </h2>
-<p>The static model supports all three outcome families.</p>
+<p>The static model supports all three outcome families. Switch the
+<code>family</code> argument depending on your data: use
+<code>"gaussian"</code> for continuous outcomes, <code>"binary"</code>
+for 0/1 data with a probit link, or <code>"ordinal"</code> when you only
+trust the rank ordering of ties.</p>
 <p><strong>Gaussian data</strong> (continuous outcomes):</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Simulate continuous data</span></span>
+<code class="sourceCode R"><span><span class="co"># simulate continuous data</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">10</span><span class="op">)</span></span>
-<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">10</span>; <span class="va">p</span> <span class="op">&lt;-</span> <span class="fl">1</span>; <span class="va">time</span> <span class="op">&lt;-</span> <span class="fl">5</span></span>
-<span><span class="va">Z_gauss</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="va">n</span> <span class="op">*</span> <span class="va">p</span> <span class="op">*</span> <span class="va">time</span><span class="op">)</span>, dim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">n</span>, <span class="va">p</span>, <span class="va">time</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="kw">for</span> <span class="op">(</span><span class="va">t</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">time</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">Z_gauss</span><span class="op">[</span>,,<span class="fl">1</span>,<span class="va">t</span><span class="op">]</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span>
+<span><span class="va">n</span> <span class="op">=</span> <span class="fl">10</span>; <span class="va">p</span> <span class="op">=</span> <span class="fl">1</span>; <span class="va">time</span> <span class="op">=</span> <span class="fl">5</span></span>
+<span><span class="va">Z_gauss</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="va">n</span> <span class="op">*</span> <span class="va">p</span> <span class="op">*</span> <span class="va">time</span><span class="op">)</span>, dim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">n</span>, <span class="va">p</span>, <span class="va">time</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">t</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">time</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">Z_gauss</span><span class="op">[</span>,,<span class="fl">1</span>,<span class="va">t</span><span class="op">]</span><span class="op">)</span> <span class="op">=</span> <span class="cn">NA</span></span>
 <span></span>
-<span><span class="va">fit_gauss</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Z_gauss</span>, model <span class="op">=</span> <span class="st">"static"</span>, family <span class="op">=</span> <span class="st">"gaussian"</span>,</span>
+<span><span class="va">fit_gauss</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Z_gauss</span>, model <span class="op">=</span> <span class="st">"static"</span>, family <span class="op">=</span> <span class="st">"gaussian"</span>,</span>
 <span>                 nscan <span class="op">=</span> <span class="fl">300</span>, burn <span class="op">=</span> <span class="fl">150</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_gauss</span><span class="op">)</span></span></code></pre></div>
 <p><strong>Binary data</strong> (0/1 outcomes via probit link):</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
-<span><span class="va">n_bin</span> <span class="op">&lt;-</span> <span class="fl">8</span></span>
-<span><span class="va">Y_bin</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n_bin</span> <span class="op">*</span> <span class="va">n_bin</span> <span class="op">*</span> <span class="va">p</span> <span class="op">*</span> <span class="va">time</span>, <span class="fl">1</span>, <span class="fl">0.5</span><span class="op">)</span>,</span>
+<span><span class="va">n_bin</span> <span class="op">=</span> <span class="fl">8</span></span>
+<span><span class="va">Y_bin</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="va">n_bin</span> <span class="op">*</span> <span class="va">n_bin</span> <span class="op">*</span> <span class="va">p</span> <span class="op">*</span> <span class="va">time</span>, <span class="fl">1</span>, <span class="fl">0.5</span><span class="op">)</span>,</span>
 <span>               dim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">n_bin</span>, <span class="va">n_bin</span>, <span class="va">p</span>, <span class="va">time</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="kw">for</span> <span class="op">(</span><span class="va">t</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">time</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">Y_bin</span><span class="op">[</span>,,<span class="fl">1</span>,<span class="va">t</span><span class="op">]</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="cn">NA</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">t</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">time</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">Y_bin</span><span class="op">[</span>,,<span class="fl">1</span>,<span class="va">t</span><span class="op">]</span><span class="op">)</span> <span class="op">=</span> <span class="cn">NA</span></span>
 <span></span>
-<span><span class="va">fit_bin</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Y_bin</span>, model <span class="op">=</span> <span class="st">"static"</span>, family <span class="op">=</span> <span class="st">"binary"</span>,</span>
+<span><span class="va">fit_bin</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Y_bin</span>, model <span class="op">=</span> <span class="st">"static"</span>, family <span class="op">=</span> <span class="st">"binary"</span>,</span>
 <span>               nscan <span class="op">=</span> <span class="fl">300</span>, burn <span class="op">=</span> <span class="fl">150</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_bin</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -180,6 +195,8 @@ dyad. Extract and summarize M across posterior draws:</p>
 <li>showed how to switch between ordinal, gaussian, and binary
 families.</li>
 </ul>
+<p>For models with time-varying parameters, see
+<code><a href="../articles/dynamic_dbn.html">vignette("dynamic_dbn")</a></code> as the natural next step.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

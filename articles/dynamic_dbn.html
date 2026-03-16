@@ -36,6 +36,7 @@
 <li><a class="dropdown-item" href="../articles/static_dbn.html">Getting started: static bilinear network model</a></li>
     <li><a class="dropdown-item" href="../articles/dynamic_dbn.html">Dynamic bilinear network models</a></li>
     <li><a class="dropdown-item" href="../articles/impulse_response.html">Impulse response analysis for network models</a></li>
+    <li><a class="dropdown-item" href="../articles/applied_ir.html">Applied Example: Foreign Policy Alignment Among Major Powers</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><a class="dropdown-item" href="../articles/index.html">More articles...</a></li>
   </ul>
@@ -64,7 +65,7 @@
                         <h4 data-toc-skip class="author">Tosin Salau
 &amp; Shahryar Minhas</h4>
             
-            <h4 data-toc-skip class="date">2026-03-05</h4>
+            <h4 data-toc-skip class="date">2026-03-16</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/netify-dev/dbn/blob/main/vignettes/dynamic_dbn.Rmd" class="external-link"><code>vignettes/dynamic_dbn.Rmd</code></a></small>
       <div class="d-none name"><code>dynamic_dbn.Rmd</code></div>
@@ -154,20 +155,29 @@ full mathematical treatment.</p>
 <div class="section level2">
 <h2 id="simulate-a-dynamic-data-set">2 Simulate a dynamic data set<a class="anchor" aria-label="anchor" href="#simulate-a-dynamic-data-set"></a>
 </h2>
+<p>We generate a small network with 12 actors observed over 20 time
+periods. The simulation creates time-varying sender and receiver
+influence matrices so there is genuine dynamics to recover.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">6886</span><span class="op">)</span></span>
-<span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_dynamic_dbn.html">simulate_dynamic_dbn</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">12</span>,   <span class="co"># network size: 12 actors</span></span>
+<span><span class="va">sim</span> <span class="op">=</span> <span class="fu"><a href="../reference/simulate_dynamic_dbn.html">simulate_dynamic_dbn</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">12</span>,   <span class="co"># network size: 12 actors</span></span>
 <span>                           p   <span class="op">=</span>  <span class="fl">1</span>,</span>
 <span>                           time  <span class="op">=</span> <span class="fl">20</span><span class="op">)</span>   <span class="co"># total time periods: 20</span></span>
-<span><span class="va">Y</span> <span class="op">&lt;-</span> <span class="va">sim</span><span class="op">$</span><span class="va">Y</span></span>
+<span><span class="va">Y</span> <span class="op">=</span> <span class="va">sim</span><span class="op">$</span><span class="va">Y</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 12 12  1 20</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="fit-the-dynamic-model">3 Fit the dynamic model<a class="anchor" aria-label="anchor" href="#fit-the-dynamic-model"></a>
 </h2>
+<p>We fit the model with <code>ar1 = TRUE</code> to allow autoregressive
+persistence in the influence matrices, and
+<code>update_rho = TRUE</code> so the AR(1) coefficients are estimated
+from the data. The <code>time_thin</code> argument controls how many
+time points are stored in the output; set it to 1 to keep all of
+them.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit_dyn</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Y</span>,</span>
+<code class="sourceCode R"><span><span class="va">fit_dyn</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Y</span>,</span>
 <span>               family <span class="op">=</span> <span class="st">"ordinal"</span>,  <span class="co"># ordinal data via rank likelihood</span></span>
 <span>               model <span class="op">=</span> <span class="st">'dynamic'</span>,   <span class="co"># time-varying A_t, B_t</span></span>
 <span>               nscan <span class="op">=</span> <span class="fl">800</span>,</span>
@@ -216,7 +226,7 @@ indicate strong temporal persistence in the influence structure</li>
 estimated dynamics forward, giving you predicted network states with
 uncertainty:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">Theta_forecast</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit_dyn</span>, H <span class="op">=</span> <span class="fl">6</span>, S <span class="op">=</span> <span class="fl">200</span>, summary <span class="op">=</span> <span class="st">"mean"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">Theta_forecast</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit_dyn</span>, H <span class="op">=</span> <span class="fl">6</span>, S <span class="op">=</span> <span class="fl">200</span>, summary <span class="op">=</span> <span class="st">"mean"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">Theta_forecast</span><span class="op">)</span>   <span class="co"># n_row x n_col x p x H</span></span>
 <span><span class="co">#&gt; [1] 12 12  1  6</span></span></code></pre></div>
 </div>
@@ -247,6 +257,10 @@ more or less structurally important in the network:</p>
 <div class="section level2">
 <h2 id="parameter-summaries">8 Parameter summaries<a class="anchor" aria-label="anchor" href="#parameter-summaries"></a>
 </h2>
+<p><code><a href="../reference/param_summary.html">param_summary()</a></code> returns posterior means and credible
+intervals for all scalar parameters in a tidy data frame. This is a
+quick way to check whether the innovation variances and AR(1)
+coefficients are well-identified.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/param_summary.html">param_summary</a></span><span class="op">(</span><span class="va">fit_dyn</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   parameter         mean           sd           q5          q50          q95</span></span>
@@ -262,23 +276,32 @@ more or less structurally important in the network:</p>
 each dyad at each time point, the posterior mean and credible interval
 for the latent interaction intensity:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">tc</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/theta_credible.html">theta_credible</a></span><span class="op">(</span><span class="va">fit_dyn</span>, i <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, j <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, time <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">20</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">tc</span> <span class="op">=</span> <span class="fu"><a href="../reference/theta_credible.html">theta_credible</a></span><span class="op">(</span><span class="va">fit_dyn</span>, i <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, j <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, time <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">20</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">tc</span><span class="op">)</span></span>
 <span><span class="co">#&gt; NULL</span></span></code></pre></div>
+<p>You can use this output to flag dyads whose credible intervals
+exclude zero at a given time point, indicating a reliably non-zero
+relationship.</p>
 <p>Track network-level statistics over time. Network density summarizes
 how active the overall network is at each time point, with posterior
 uncertainty:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ns</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/network_summary.html">network_summary</a></span><span class="op">(</span><span class="va">fit_dyn</span>, stat <span class="op">=</span> <span class="st">"density"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">ns</span> <span class="op">=</span> <span class="fu"><a href="../reference/network_summary.html">network_summary</a></span><span class="op">(</span><span class="va">fit_dyn</span>, stat <span class="op">=</span> <span class="st">"density"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">ns</span><span class="op">)</span></span>
 <span><span class="co">#&gt; NULL</span></span></code></pre></div>
+<p>Look for time points where the credible interval is narrow versus
+wide – narrow intervals mean the model is confident about the overall
+level of activity at that point.</p>
 <p>Compute the posterior probability that each edge is positive at a
 given time. Values near 1 indicate edges that are consistently positive
 across posterior draws; values near 0.5 indicate high uncertainty:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/edge_prob.html">edge_prob</a></span><span class="op">(</span><span class="va">fit_dyn</span>, rel <span class="op">=</span> <span class="fl">1</span>, time <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">ep</span> <span class="op">=</span> <span class="fu"><a href="../reference/edge_prob.html">edge_prob</a></span><span class="op">(</span><span class="va">fit_dyn</span>, rel <span class="op">=</span> <span class="fl">1</span>, time <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span>
 <span><span class="va">ep</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">5</span><span class="op">]</span></span>
 <span><span class="co">#&gt; NULL</span></span></code></pre></div>
+<p>You can threshold these probabilities (e.g., &gt; 0.95) to construct
+a binary network of edges that are reliably positive at a given time
+point.</p>
 </div>
 <div class="section level2">
 <h2 id="bipartite-rectangular-networks">10 Bipartite (rectangular) networks<a class="anchor" aria-label="anchor" href="#bipartite-rectangular-networks"></a>
@@ -286,11 +309,11 @@ across posterior draws; values near 0.5 indicate high uncertainty:</p>
 <p>The package automatically detects bipartite networks when senders and
 receivers differ. Simply pass a rectangular array:</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">sim_bp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_dynamic_dbn.html">simulate_dynamic_dbn</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">10</span>, n_col <span class="op">=</span> <span class="fl">8</span>, p <span class="op">=</span> <span class="fl">1</span>, time <span class="op">=</span> <span class="fl">15</span>, seed <span class="op">=</span> <span class="fl">77</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">sim_bp</span> <span class="op">=</span> <span class="fu"><a href="../reference/simulate_dynamic_dbn.html">simulate_dynamic_dbn</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">10</span>, n_col <span class="op">=</span> <span class="fl">8</span>, p <span class="op">=</span> <span class="fl">1</span>, time <span class="op">=</span> <span class="fl">15</span>, seed <span class="op">=</span> <span class="fl">77</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">sim_bp</span><span class="op">$</span><span class="va">Y</span><span class="op">)</span>   <span class="co"># 10 senders x 8 receivers x 1 relation x 15 time points</span></span>
 <span><span class="co">#&gt; [1] 10  8  1 15</span></span>
 <span></span>
-<span><span class="va">fit_bp</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">sim_bp</span><span class="op">$</span><span class="va">Y</span>, model <span class="op">=</span> <span class="st">"dynamic"</span>, family <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
+<span><span class="va">fit_bp</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">sim_bp</span><span class="op">$</span><span class="va">Y</span>, model <span class="op">=</span> <span class="st">"dynamic"</span>, family <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
 <span>              nscan <span class="op">=</span> <span class="fl">400</span>, burn <span class="op">=</span> <span class="fl">200</span>, odens <span class="op">=</span> <span class="fl">2</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_bp</span><span class="op">)</span></span></code></pre></div>
 <p>When <code>n_row != n_col</code>,
@@ -306,7 +329,7 @@ retained since senders and receivers are distinct.</p>
 <p>The dynamic model parallelizes the row-wise A and B FFBS updates
 using OpenMP. Set the number of threads before fitting:</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Use physical cores (not logical/hyperthreaded)</span></span>
+<code class="sourceCode R"><span><span class="co"># use physical cores (not logical/hyperthreaded)</span></span>
 <span><span class="fu"><a href="../reference/set_dbn_threads.html">set_dbn_threads</a></span><span class="op">(</span><span class="fu">parallel</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/parallel/detectCores.html" class="external-link">detectCores</a></span><span class="op">(</span>logical <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/get_dbn_threads.html">get_dbn_threads</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 4</span></span></code></pre></div>
@@ -330,7 +353,7 @@ constraint is RAM, not computation. Use <code><a href="../reference/estimate_mem
 to check requirements before fitting, and adjust <code>time_thin</code>
 and <code>odens</code> to manage memory:</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># A 50-actor network</span></span>
+<code class="sourceCode R"><span><span class="co"># a 50-actor network</span></span>
 <span><span class="fu"><a href="../reference/estimate_memory.html">estimate_memory</a></span><span class="op">(</span>n_row <span class="op">=</span> <span class="fl">50</span>, n_col <span class="op">=</span> <span class="fl">50</span>, p <span class="op">=</span> <span class="fl">1</span>, Tt <span class="op">=</span> <span class="fl">30</span>,</span>
 <span>                nscan <span class="op">=</span> <span class="fl">5000</span>, burn <span class="op">=</span> <span class="fl">1000</span>, odens <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>                time_thin <span class="op">=</span> <span class="fl">2</span>, family <span class="op">=</span> <span class="st">"ordinal"</span><span class="op">)</span></span>

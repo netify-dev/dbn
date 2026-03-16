@@ -38,7 +38,9 @@ dbn_lowrank(
 
 - r:
 
-  Rank for low-rank factorization
+  Rank for low-rank factorization. A good starting point is
+  `ceiling(log2(n))` where `n` is the number of nodes. Increase if
+  posterior predictive checks show poor fit. Default: 2.
 
 - nscan:
 

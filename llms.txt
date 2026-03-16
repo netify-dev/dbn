@@ -503,3 +503,5 @@ Example datasets
   models](https://netify-dev.github.io/dbn/articles/dynamic_dbn.md):
 - [Impulse response analysis for network
   models](https://netify-dev.github.io/dbn/articles/impulse_response.md):
+- [Applied Example: Foreign Policy Alignment Among Major
+  Powers](https://netify-dev.github.io/dbn/articles/applied_ir.md):
