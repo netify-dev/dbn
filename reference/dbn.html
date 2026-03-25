@@ -11,7 +11,7 @@ in network data through bilinear interactions between latent sender and receiver
 
     <a class="navbar-brand me-2" href="../index.html">dbn</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -24,6 +24,7 @@ in network data through bilinear interactions between latent sender and receiver
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/static_dbn.html">Getting started: static bilinear network model</a></li>
     <li><a class="dropdown-item" href="../articles/dynamic_dbn.html">Dynamic bilinear network models</a></li>
+    <li><a class="dropdown-item" href="../articles/piecewise_dbn.html">Piecewise-static models for structural change</a></li>
     <li><a class="dropdown-item" href="../articles/impulse_response.html">Impulse response analysis for network models</a></li>
     <li><a class="dropdown-item" href="../articles/applied_ir.html">Applied Example: Foreign Policy Alignment Among Major Powers</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -57,7 +58,7 @@ in network data through bilinear interactions between latent sender and receiver
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">dbn</span><span class="op">(</span></span>
 <span>  <span class="va">data</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ordinal"</span>, <span class="st">"gaussian"</span>, <span class="st">"binary"</span><span class="op">)</span>,</span>
-<span>  model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"static"</span>, <span class="st">"dynamic"</span>, <span class="st">"lowrank"</span>, <span class="st">"hmm"</span><span class="op">)</span>,</span>
+<span>  model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"static"</span>, <span class="st">"dynamic"</span>, <span class="st">"lowrank"</span>, <span class="st">"hmm"</span>, <span class="st">"piecewise"</span><span class="op">)</span>,</span>
 <span>  nscan <span class="op">=</span> <span class="fl">10000</span>,</span>
 <span>  burn <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  odens <span class="op">=</span> <span class="fl">1</span>,</span>
@@ -89,6 +90,7 @@ or 4-dimensional (actors x actors x relations x time) for multiple relations</p>
 <li><p>"dynamic": Time-varying sender/receiver effects</p></li>
 <li><p>"lowrank": Low-rank factorization of sender effects</p></li>
 <li><p>"hmm": Regime-switching model with hidden Markov states</p></li>
+<li><p>"piecewise": Block-constant influence matrices for structural change</p></li>
 </ul></dd>
 
 
@@ -119,6 +121,10 @@ or 4-dimensional (actors x actors x relations x time) for multiple relations</p>
 <dt><code>R</code></dt>
 <dd><p>Number of regimes for HMM model (default: 3)</p></dd>
 
+<dt><code>blocks</code></dt>
+<dd><p>Block specification for piecewise model: integer (number of equal blocks),
+numeric vector (block boundaries), named vector (labeled boundaries), or "auto" for automatic selection</p></dd>
+
 <dt><code>ar1</code></dt>
 <dd><p>Use AR(1) dynamics for dynamic model (default: FALSE)</p></dd>
 
@@ -139,6 +145,15 @@ or 4-dimensional (actors x actors x relations x time) for multiple relations</p>
 
 <dt><code>store_z</code></dt>
 <dd><p>Store Z draws for dynamic model (default: auto based on memory)</p></dd>
+
+<dt><code>store_theta</code></dt>
+<dd><p>Store full Theta trajectory draws for piecewise model (default: TRUE).
+<strong>Critical for large networks:</strong> Set to FALSE for networks with 100+ actors to avoid
+memory issues. Theta storage scales as O(n^2 * T * draws) – a 200-actor network with 50 time
+points and 500 draws requires ~40 GB. With <code>store_theta = FALSE</code>, you retain posterior
+draws for A, B, M and variance parameters, <code><a href="compare_blocks.html">compare_blocks()</a></code> functionality, and
+convergence diagnostics. You lose full posterior uncertainty on individual Theta entries
+and <code><a href="posterior_predict_dbn.html">posterior_predict_dbn()</a></code> with uncertainty propagation.</p></dd>
 
 
 </dl></dd>
@@ -196,6 +211,16 @@ or 4-dimensional (actors x actors x relations x time) for multiple relations</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># Run with detailed output every 100 iterations</span></span></span>
 <span class="r-in"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu">dbn</span><span class="op">(</span><span class="va">example_data</span>, model <span class="op">=</span> <span class="st">"dynamic"</span>, verbose <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Run piecewise model with 4 blocks</span></span></span>
+<span class="r-in"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu">dbn</span><span class="op">(</span><span class="va">example_data</span>, model <span class="op">=</span> <span class="st">"piecewise"</span>, blocks <span class="op">=</span> <span class="fl">4</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Run piecewise model with specific block boundaries</span></span></span>
+<span class="r-in"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu">dbn</span><span class="op">(</span><span class="va">example_data</span>, model <span class="op">=</span> <span class="st">"piecewise"</span>,</span></span>
+<span class="r-in"><span>    blocks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>pre <span class="op">=</span> <span class="fl">25</span>, crisis <span class="op">=</span> <span class="fl">50</span>, post <span class="op">=</span> <span class="fl">100</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Run piecewise model with automatic block selection</span></span></span>
+<span class="r-in"><span><span class="va">results</span> <span class="op">&lt;-</span> <span class="fu">dbn</span><span class="op">(</span><span class="va">example_data</span>, model <span class="op">=</span> <span class="st">"piecewise"</span>, blocks <span class="op">=</span> <span class="st">"auto"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>

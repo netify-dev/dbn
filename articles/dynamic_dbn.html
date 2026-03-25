@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dbn</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -35,6 +35,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/static_dbn.html">Getting started: static bilinear network model</a></li>
     <li><a class="dropdown-item" href="../articles/dynamic_dbn.html">Dynamic bilinear network models</a></li>
+    <li><a class="dropdown-item" href="../articles/piecewise_dbn.html">Piecewise-static models for structural change</a></li>
     <li><a class="dropdown-item" href="../articles/impulse_response.html">Impulse response analysis for network models</a></li>
     <li><a class="dropdown-item" href="../articles/applied_ir.html">Applied Example: Foreign Policy Alignment Among Major Powers</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -65,7 +66,7 @@
                         <h4 data-toc-skip class="author">Tosin Salau
 &amp; Shahryar Minhas</h4>
             
-            <h4 data-toc-skip class="date">2026-03-16</h4>
+            <h4 data-toc-skip class="date">2026-03-25</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/netify-dev/dbn/blob/main/vignettes/dynamic_dbn.Rmd" class="external-link"><code>vignettes/dynamic_dbn.Rmd</code></a></small>
       <div class="d-none name"><code>dynamic_dbn.Rmd</code></div>
@@ -157,7 +158,7 @@ full mathematical treatment.</p>
 </h2>
 <p>We generate a small network with 12 actors observed over 20 time
 periods. The simulation creates time-varying sender and receiver
-influence matrices so there is genuine dynamics to recover.</p>
+influence matrices.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">6886</span><span class="op">)</span></span>
 <span><span class="va">sim</span> <span class="op">=</span> <span class="fu"><a href="../reference/simulate_dynamic_dbn.html">simulate_dynamic_dbn</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">12</span>,   <span class="co"># network size: 12 actors</span></span>
@@ -223,8 +224,7 @@ indicate strong temporal persistence in the influence structure</li>
 <h2 id="forecasting">5 Forecasting<a class="anchor" aria-label="anchor" href="#forecasting"></a>
 </h2>
 <p>Generate forecasts 6 time steps ahead. The model propagates the
-estimated dynamics forward, giving you predicted network states with
-uncertainty:</p>
+estimated dynamics forward:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">Theta_forecast</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit_dyn</span>, H <span class="op">=</span> <span class="fl">6</span>, S <span class="op">=</span> <span class="fl">200</span>, summary <span class="op">=</span> <span class="st">"mean"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">Theta_forecast</span><span class="op">)</span>   <span class="co"># n_row x n_col x p x H</span></span>
@@ -258,16 +258,16 @@ more or less structurally important in the network:</p>
 <h2 id="parameter-summaries">8 Parameter summaries<a class="anchor" aria-label="anchor" href="#parameter-summaries"></a>
 </h2>
 <p><code><a href="../reference/param_summary.html">param_summary()</a></code> returns posterior means and credible
-intervals for all scalar parameters in a tidy data frame. This is a
-quick way to check whether the innovation variances and AR(1)
-coefficients are well-identified.</p>
+intervals for all scalar parameters in a tidy data frame.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/param_summary.html">param_summary</a></span><span class="op">(</span><span class="va">fit_dyn</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   parameter         mean           sd           q5          q50          q95</span></span>
 <span><span class="co">#&gt; 1    sigma2 3.805361e+03 1.305657e+03 1.870896e+03 3.817688e+03 6.043277e+03</span></span>
 <span><span class="co">#&gt; 2    tau_A2 7.416453e-02 5.577535e-03 6.387336e-02 7.464214e-02 8.341511e-02</span></span>
 <span><span class="co">#&gt; 3    tau_B2 9.957576e-02 1.053630e-02 8.458207e-02 9.884585e-02 1.197036e-01</span></span>
-<span><span class="co">#&gt; 4        g2 1.252089e-01 3.077106e-02 8.612315e-02 1.185952e-01 1.854716e-01</span></span></code></pre></div>
+<span><span class="co">#&gt; 4        g2 1.252089e-01 3.077106e-02 8.612315e-02 1.185952e-01 1.854716e-01</span></span>
+<span><span class="co">#&gt; 5      rhoA 7.907962e-01 2.107282e-02 7.570238e-01 7.909403e-01 8.268467e-01</span></span>
+<span><span class="co">#&gt; 6      rhoB 7.608620e-01 2.727771e-02 7.125525e-01 7.623608e-01 8.050317e-01</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="credible-intervals-and-network-statistics">9 Credible intervals and network statistics<a class="anchor" aria-label="anchor" href="#credible-intervals-and-network-statistics"></a>
@@ -278,7 +278,13 @@ for the latent interaction intensity:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">tc</span> <span class="op">=</span> <span class="fu"><a href="../reference/theta_credible.html">theta_credible</a></span><span class="op">(</span><span class="va">fit_dyn</span>, i <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, j <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>, time <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">20</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">tc</span><span class="op">)</span></span>
-<span><span class="co">#&gt; NULL</span></span></code></pre></div>
+<span><span class="co">#&gt;   i j rel time        mean     lower      median     upper</span></span>
+<span><span class="co">#&gt; 1 1 1   1    1   2.0504579 -22.18684   3.3534039  21.58073</span></span>
+<span><span class="co">#&gt; 2 2 1   1    1  29.1609381  14.82135  28.6266136  42.72343</span></span>
+<span><span class="co">#&gt; 3 3 1   1    1 -34.1252481 -51.40412 -33.0155181 -24.89329</span></span>
+<span><span class="co">#&gt; 4 4 1   1    1  36.4255985  14.29147  37.6021427  53.06615</span></span>
+<span><span class="co">#&gt; 5 5 1   1    1  -0.6984207 -17.40425  -0.6098354  12.21810</span></span>
+<span><span class="co">#&gt; 6 6 1   1    1 -60.2127657 -75.67646 -59.7203886 -44.05003</span></span></code></pre></div>
 <p>You can use this output to flag dyads whose credible intervals
 exclude zero at a given time point, indicating a reliably non-zero
 relationship.</p>
@@ -288,7 +294,13 @@ uncertainty:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ns</span> <span class="op">=</span> <span class="fu"><a href="../reference/network_summary.html">network_summary</a></span><span class="op">(</span><span class="va">fit_dyn</span>, stat <span class="op">=</span> <span class="st">"density"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">ns</span><span class="op">)</span></span>
-<span><span class="co">#&gt; NULL</span></span></code></pre></div>
+<span><span class="co">#&gt;   time      mean     lower     upper</span></span>
+<span><span class="co">#&gt; 1    1 0.4722727 0.4469697 0.5000000</span></span>
+<span><span class="co">#&gt; 2    2 0.5009470 0.4696970 0.5303030</span></span>
+<span><span class="co">#&gt; 3    3 0.5054545 0.4768939 0.5378788</span></span>
+<span><span class="co">#&gt; 4    4 0.4954924 0.4621212 0.5303030</span></span>
+<span><span class="co">#&gt; 5    5 0.5085227 0.4545455 0.5609848</span></span>
+<span><span class="co">#&gt; 6    6 0.4986364 0.4621212 0.5303030</span></span></code></pre></div>
 <p>Look for time points where the credible interval is narrow versus
 wide – narrow intervals mean the model is confident about the overall
 level of activity at that point.</p>
@@ -298,7 +310,12 @@ across posterior draws; values near 0.5 indicate high uncertainty:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ep</span> <span class="op">=</span> <span class="fu"><a href="../reference/edge_prob.html">edge_prob</a></span><span class="op">(</span><span class="va">fit_dyn</span>, rel <span class="op">=</span> <span class="fl">1</span>, time <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span>
 <span><span class="va">ep</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">5</span><span class="op">]</span></span>
-<span><span class="co">#&gt; NULL</span></span></code></pre></div>
+<span><span class="co">#&gt;      [,1] [,2]  [,3]  [,4]  [,5]</span></span>
+<span><span class="co">#&gt; [1,]   NA 0.00 1.000 1.000 0.000</span></span>
+<span><span class="co">#&gt; [2,]    1   NA 1.000 0.025 0.000</span></span>
+<span><span class="co">#&gt; [3,]    0 0.02    NA 1.000 0.995</span></span>
+<span><span class="co">#&gt; [4,]    1 0.00 1.000    NA 0.025</span></span>
+<span><span class="co">#&gt; [5,]    1 1.00 0.015 1.000    NA</span></span></code></pre></div>
 <p>You can threshold these probabilities (e.g., &gt; 0.95) to construct
 a binary network of edges that are reliably positive at a given time
 point.</p>

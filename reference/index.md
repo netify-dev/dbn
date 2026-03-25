@@ -33,6 +33,8 @@ Generate synthetic network data
   : Simulate from Static DBN Model
 - [`simulate_dynamic_dbn()`](https://netify-dev.github.io/dbn/reference/simulate_dynamic_dbn.md)
   : Simulate from Dynamic DBN Model
+- [`simulate_piecewise_dbn()`](https://netify-dev.github.io/dbn/reference/simulate_piecewise_dbn.md)
+  : Simulate Data from Piecewise DBN
 - [`simulate_lowrank_dbn()`](https://netify-dev.github.io/dbn/reference/simulate_lowrank_dbn.md)
   : Simulate from Low-Rank DBN Model
 - [`simulate_hmm_dbn()`](https://netify-dev.github.io/dbn/reference/simulate_hmm_dbn.md)
@@ -155,6 +157,8 @@ S3 methods for dbn objects
   : Plot Parameter Trace Plots
 - [`compare_dbn()`](https://netify-dev.github.io/dbn/reference/compare_dbn.md)
   : Compare Multiple DBN Models
+- [`compare_blocks()`](https://netify-dev.github.io/dbn/reference/compare_blocks.md)
+  : Compare Influence Matrices Across Blocks
 - [`check_convergence()`](https://netify-dev.github.io/dbn/reference/check_convergence.md)
   : Check MCMC Convergence
 

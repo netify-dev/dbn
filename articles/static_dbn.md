@@ -41,14 +41,14 @@ and `burn`.
 
 ``` r
 check_convergence(fit_static)
-#>        s2        t2        g2 
-#>   0.00000 600.00000   3.98164
+#>         s2         t2         g2 
+#>   0.000000 600.000000   1.615836
 #> 
 #> Fraction in 1st window = 0.1
 #> Fraction in 2nd window = 0.5 
 #> 
-#>      s2      t2      g2 
-#>     NaN  0.2725 -6.3480
+#>    s2    t2    g2 
+#>   NaN  1.76 -5.79
 plot_trace(fit_static, pars = c("s2", "t2", "g2"))
 ```
 
@@ -56,19 +56,18 @@ plot_trace(fit_static, pars = c("s2", "t2", "g2"))
 
 ## 4 Model summary and parameter inspection
 
-[`summary()`](https://rdrr.io/r/base/summary.html) gives you a
-high-level overview of the fitted model, including posterior means and
-credible intervals for the variance parameters.
+[`summary()`](https://rdrr.io/r/base/summary.html) shows posterior means
+and credible intervals for the variance parameters.
 [`param_summary()`](https://netify-dev.github.io/dbn/reference/param_summary.md)
-returns a tidy data frame you can use for further analysis or plotting.
+returns a tidy data frame for further analysis or plotting.
 
 ``` r
 summary(fit_static)
 param_summary(fit_static)
-#>   parameter        mean          sd          q5         q50         q95
-#> 1        s2  1.00000000 0.000000000  1.00000000  1.00000000  1.00000000
-#> 2        t2  0.03595741 0.009392147  0.02297707  0.03450002  0.05275058
-#> 3        g2 31.68052827 7.814626594 20.39281353 31.40524413 45.65532359
+#>   parameter         mean           sd           q5          q50          q95
+#> 1        s2   1.00000000 0.000000e+00   1.00000000   1.00000000   1.00000000
+#> 2        t2   0.03411929 9.043186e-03   0.02222235   0.03283632   0.05078364
+#> 3        g2 501.75461287 2.744300e+02 147.71915496 451.92929611 980.56082492
 ```
 
 ## 5 Latent mean structure
@@ -79,13 +78,13 @@ dyad. Extract and summarize M across posterior draws:
 ``` r
 M_summary = latent_summary(fit_static, fun = mean)
 head(M_summary)
-#>   i j rel       value
-#> 1 1 1   1  14.7044468
-#> 2 2 1   1  -0.7994569
-#> 3 3 1   1  -1.3856077
-#> 4 4 1   1 -18.1040416
-#> 5 5 1   1  -2.4671833
-#> 6 6 1   1   0.6407300
+#>   i j rel      value
+#> 1 1 1   1   0.000000
+#> 2 2 1   1   3.113400
+#> 3 3 1   1 -40.374945
+#> 4 4 1   1 -33.221025
+#> 5 5 1   1 -18.398423
+#> 6 6 1   1  -6.575227
 ```
 
 ## 6 Gaussian and binary families
@@ -132,5 +131,4 @@ summary(fit_bin)
 - showed how to switch between ordinal, gaussian, and binary families.
 
 For models with time-varying parameters, see
-[`vignette("dynamic_dbn")`](https://netify-dev.github.io/dbn/articles/dynamic_dbn.md)
-as the natural next step.
+[`vignette("dynamic_dbn")`](https://netify-dev.github.io/dbn/articles/dynamic_dbn.md).

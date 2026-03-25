@@ -34,7 +34,7 @@ check_convergence(fit)
 #> 
 #> ── Effective Sample Sizes 
 #>         s2         t2         g2 
-#>   0.000000 114.447593   9.374666 
+#>   0.000000 246.975262   7.237814 
 #> 
 #> ── Geweke Diagnostic 
 #> 
@@ -42,7 +42,7 @@ check_convergence(fit)
 #> Fraction in 2nd window = 0.5 
 #> 
 #>     s2     t2     g2 
-#>    NaN  1.263 -2.793 
+#>    NaN -2.115 -5.600 
 #> 
 # }
 ```

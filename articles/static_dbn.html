@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dbn</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -35,6 +35,7 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/static_dbn.html">Getting started: static bilinear network model</a></li>
     <li><a class="dropdown-item" href="../articles/dynamic_dbn.html">Dynamic bilinear network models</a></li>
+    <li><a class="dropdown-item" href="../articles/piecewise_dbn.html">Piecewise-static models for structural change</a></li>
     <li><a class="dropdown-item" href="../articles/impulse_response.html">Impulse response analysis for network models</a></li>
     <li><a class="dropdown-item" href="../articles/applied_ir.html">Applied Example: Foreign Policy Alignment Among Major Powers</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -65,7 +66,7 @@
                         <h4 data-toc-skip class="author">Tosin Salau
 &amp; Shahryar Minhas</h4>
             
-            <h4 data-toc-skip class="date">2026-03-16</h4>
+            <h4 data-toc-skip class="date">2026-03-25</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/netify-dev/dbn/blob/main/vignettes/static_dbn.Rmd" class="external-link"><code>vignettes/static_dbn.Rmd</code></a></small>
       <div class="d-none name"><code>static_dbn.Rmd</code></div>
@@ -111,31 +112,30 @@ plot shows the chain wandering or stuck in one region, increase
 <code>nscan</code> and <code>burn</code>.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/check_convergence.html">check_convergence</a></span><span class="op">(</span><span class="va">fit_static</span><span class="op">)</span></span>
-<span><span class="co">#&gt;        s2        t2        g2 </span></span>
-<span><span class="co">#&gt;   0.00000 600.00000   3.98164</span></span>
+<span><span class="co">#&gt;         s2         t2         g2 </span></span>
+<span><span class="co">#&gt;   0.000000 600.000000   1.615836</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Fraction in 1st window = 0.1</span></span>
 <span><span class="co">#&gt; Fraction in 2nd window = 0.5 </span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;      s2      t2      g2 </span></span>
-<span><span class="co">#&gt;     NaN  0.2725 -6.3480</span></span>
+<span><span class="co">#&gt;    s2    t2    g2 </span></span>
+<span><span class="co">#&gt;   NaN  1.76 -5.79</span></span>
 <span><span class="fu"><a href="../reference/plot_trace.html">plot_trace</a></span><span class="op">(</span><span class="va">fit_static</span>, pars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"s2"</span>, <span class="st">"t2"</span>, <span class="st">"g2"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p><img src="static_dbn_files/figure-html/convergence-1.png" class="r-plt" alt="" width="576" style="display: block; margin: auto;"></p>
 </div>
 <div class="section level2">
 <h2 id="model-summary-and-parameter-inspection">4 Model summary and parameter inspection<a class="anchor" aria-label="anchor" href="#model-summary-and-parameter-inspection"></a>
 </h2>
-<p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> gives you a high-level overview of the fitted
-model, including posterior means and credible intervals for the variance
-parameters. <code><a href="../reference/param_summary.html">param_summary()</a></code> returns a tidy data frame you
-can use for further analysis or plotting.</p>
+<p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> shows posterior means and credible intervals
+for the variance parameters. <code><a href="../reference/param_summary.html">param_summary()</a></code> returns a tidy
+data frame for further analysis or plotting.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_static</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/param_summary.html">param_summary</a></span><span class="op">(</span><span class="va">fit_static</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   parameter        mean          sd          q5         q50         q95</span></span>
-<span><span class="co">#&gt; 1        s2  1.00000000 0.000000000  1.00000000  1.00000000  1.00000000</span></span>
-<span><span class="co">#&gt; 2        t2  0.03595741 0.009392147  0.02297707  0.03450002  0.05275058</span></span>
-<span><span class="co">#&gt; 3        g2 31.68052827 7.814626594 20.39281353 31.40524413 45.65532359</span></span></code></pre></div>
+<span><span class="co">#&gt;   parameter         mean           sd           q5          q50          q95</span></span>
+<span><span class="co">#&gt; 1        s2   1.00000000 0.000000e+00   1.00000000   1.00000000   1.00000000</span></span>
+<span><span class="co">#&gt; 2        t2   0.03411929 9.043186e-03   0.02222235   0.03283632   0.05078364</span></span>
+<span><span class="co">#&gt; 3        g2 501.75461287 2.744300e+02 147.71915496 451.92929611 980.56082492</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="latent-mean-structure">5 Latent mean structure<a class="anchor" aria-label="anchor" href="#latent-mean-structure"></a>
@@ -145,13 +145,13 @@ dyad. Extract and summarize M across posterior draws:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">M_summary</span> <span class="op">=</span> <span class="fu"><a href="../reference/latent_summary.html">latent_summary</a></span><span class="op">(</span><span class="va">fit_static</span>, fun <span class="op">=</span> <span class="va">mean</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">M_summary</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   i j rel       value</span></span>
-<span><span class="co">#&gt; 1 1 1   1  14.7044468</span></span>
-<span><span class="co">#&gt; 2 2 1   1  -0.7994569</span></span>
-<span><span class="co">#&gt; 3 3 1   1  -1.3856077</span></span>
-<span><span class="co">#&gt; 4 4 1   1 -18.1040416</span></span>
-<span><span class="co">#&gt; 5 5 1   1  -2.4671833</span></span>
-<span><span class="co">#&gt; 6 6 1   1   0.6407300</span></span></code></pre></div>
+<span><span class="co">#&gt;   i j rel      value</span></span>
+<span><span class="co">#&gt; 1 1 1   1   0.000000</span></span>
+<span><span class="co">#&gt; 2 2 1   1   3.113400</span></span>
+<span><span class="co">#&gt; 3 3 1   1 -40.374945</span></span>
+<span><span class="co">#&gt; 4 4 1   1 -33.221025</span></span>
+<span><span class="co">#&gt; 5 5 1   1 -18.398423</span></span>
+<span><span class="co">#&gt; 6 6 1   1  -6.575227</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="gaussian-and-binary-families">6 Gaussian and binary families<a class="anchor" aria-label="anchor" href="#gaussian-and-binary-families"></a>
@@ -196,7 +196,7 @@ trust the rank ordering of ties.</p>
 families.</li>
 </ul>
 <p>For models with time-varying parameters, see
-<code><a href="../articles/dynamic_dbn.html">vignette("dynamic_dbn")</a></code> as the natural next step.</p>
+<code><a href="../articles/dynamic_dbn.html">vignette("dynamic_dbn")</a></code>.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

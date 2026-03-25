@@ -47,6 +47,6 @@ A ggplot object or NULL
 sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
 fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 if (requireNamespace("ggplot2", quietly = TRUE)) plot_theta(fit)
-#> Warning: No Theta values found for specified indices
+
 # }
 ```

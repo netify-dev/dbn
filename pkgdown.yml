@@ -8,8 +8,9 @@ articles:
   impulse_response: impulse_response.html
   lowrank_dbn: lowrank_dbn.html
   methodology: methodology.html
+  piecewise_dbn: piecewise_dbn.html
   static_dbn: static_dbn.html
-last_built: 2026-03-16T19:14Z
+last_built: 2026-03-25T19:46Z
 urls:
   reference: https://netify-dev.github.io/dbn/reference
   article: https://netify-dev.github.io/dbn/articles

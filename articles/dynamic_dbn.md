@@ -48,7 +48,7 @@ for the full mathematical treatment.
 
 We generate a small network with 12 actors observed over 20 time
 periods. The simulation creates time-varying sender and receiver
-influence matrices so there is genuine dynamics to recover.
+influence matrices.
 
 ``` r
 set.seed(6886)
@@ -116,8 +116,7 @@ plot_trace(fit_dyn, pars = c("sigma2", "tau_A2", "tau_B2", "rho_A", "rho_B"))
 ## 5 Forecasting
 
 Generate forecasts 6 time steps ahead. The model propagates the
-estimated dynamics forward, giving you predicted network states with
-uncertainty:
+estimated dynamics forward:
 
 ``` r
 Theta_forecast = predict(fit_dyn, H = 6, S = 200, summary = "mean")
@@ -157,8 +156,7 @@ plot_group_influence(fit_dyn,
 
 [`param_summary()`](https://netify-dev.github.io/dbn/reference/param_summary.md)
 returns posterior means and credible intervals for all scalar parameters
-in a tidy data frame. This is a quick way to check whether the
-innovation variances and AR(1) coefficients are well-identified.
+in a tidy data frame.
 
 ``` r
 param_summary(fit_dyn)
@@ -167,6 +165,8 @@ param_summary(fit_dyn)
 #> 2    tau_A2 7.416453e-02 5.577535e-03 6.387336e-02 7.464214e-02 8.341511e-02
 #> 3    tau_B2 9.957576e-02 1.053630e-02 8.458207e-02 9.884585e-02 1.197036e-01
 #> 4        g2 1.252089e-01 3.077106e-02 8.612315e-02 1.185952e-01 1.854716e-01
+#> 5      rhoA 7.907962e-01 2.107282e-02 7.570238e-01 7.909403e-01 8.268467e-01
+#> 6      rhoB 7.608620e-01 2.727771e-02 7.125525e-01 7.623608e-01 8.050317e-01
 ```
 
 ## 9 Credible intervals and network statistics
@@ -178,7 +178,13 @@ for the latent interaction intensity:
 ``` r
 tc = theta_credible(fit_dyn, i = 1:6, j = 1:6, time = 1:20)
 head(tc)
-#> NULL
+#>   i j rel time        mean     lower      median     upper
+#> 1 1 1   1    1   2.0504579 -22.18684   3.3534039  21.58073
+#> 2 2 1   1    1  29.1609381  14.82135  28.6266136  42.72343
+#> 3 3 1   1    1 -34.1252481 -51.40412 -33.0155181 -24.89329
+#> 4 4 1   1    1  36.4255985  14.29147  37.6021427  53.06615
+#> 5 5 1   1    1  -0.6984207 -17.40425  -0.6098354  12.21810
+#> 6 6 1   1    1 -60.2127657 -75.67646 -59.7203886 -44.05003
 ```
 
 You can use this output to flag dyads whose credible intervals exclude
@@ -191,7 +197,13 @@ uncertainty:
 ``` r
 ns = network_summary(fit_dyn, stat = "density")
 head(ns)
-#> NULL
+#>   time      mean     lower     upper
+#> 1    1 0.4722727 0.4469697 0.5000000
+#> 2    2 0.5009470 0.4696970 0.5303030
+#> 3    3 0.5054545 0.4768939 0.5378788
+#> 4    4 0.4954924 0.4621212 0.5303030
+#> 5    5 0.5085227 0.4545455 0.5609848
+#> 6    6 0.4986364 0.4621212 0.5303030
 ```
 
 Look for time points where the credible interval is narrow versus wide –
@@ -205,7 +217,12 @@ posterior draws; values near 0.5 indicate high uncertainty:
 ``` r
 ep = edge_prob(fit_dyn, rel = 1, time = 20)
 ep[1:5, 1:5]
-#> NULL
+#>      [,1] [,2]  [,3]  [,4]  [,5]
+#> [1,]   NA 0.00 1.000 1.000 0.000
+#> [2,]    1   NA 1.000 0.025 0.000
+#> [3,]    0 0.02    NA 1.000 0.995
+#> [4,]    1 0.00 1.000    NA 0.025
+#> [5,]    1 1.00 0.015 1.000    NA
 ```
 
 You can threshold these probabilities (e.g., \> 0.95) to construct a

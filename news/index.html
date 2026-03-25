@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dbn</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.0.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -20,6 +20,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/static_dbn.html">Getting started: static bilinear network model</a></li>
     <li><a class="dropdown-item" href="../articles/dynamic_dbn.html">Dynamic bilinear network models</a></li>
+    <li><a class="dropdown-item" href="../articles/piecewise_dbn.html">Piecewise-static models for structural change</a></li>
     <li><a class="dropdown-item" href="../articles/impulse_response.html">Impulse response analysis for network models</a></li>
     <li><a class="dropdown-item" href="../articles/applied_ir.html">Applied Example: Foreign Policy Alignment Among Major Powers</a></li>
     <li><hr class="dropdown-divider"></li>
@@ -42,29 +43,29 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.2.0" id="dbn-020">dbn 0.2.0<a class="anchor" aria-label="anchor" href="#dbn-020"></a></h2>
+<h2 class="pkg-version" data-toc-text="1.0.0" id="dbn-100">dbn 1.0.0<a class="anchor" aria-label="anchor" href="#dbn-100"></a></h2>
 <div class="section level3">
-<h3 id="major-features-0-2-0">Major features<a class="anchor" aria-label="anchor" href="#major-features-0-2-0"></a></h3>
-<ul><li>Four model types: static, dynamic, low-rank, and HMM (regime-switching).</li>
-<li>Three outcome families: ordinal (rank likelihood), Gaussian, and binary (probit).</li>
-<li>Full bipartite network support for static and dynamic models (<code>n_row != n_col</code>).</li>
-<li>OpenMP-parallelized A/B row/column updates with thread-safe RNG.</li>
-<li>Impulse response analysis (<code><a href="../reference/compute_irf.html">compute_irf()</a></code>, <code><a href="../reference/build_shock.html">build_shock()</a></code>).</li>
-<li>Posterior predictive distribution generation and PPC plots.</li>
-<li>Memory-aware dynamic model: auto time-thinning, optional Z storage, <code><a href="../reference/estimate_memory.html">estimate_memory()</a></code>.</li>
-<li>Warm start support via the <code>previous</code> argument for continuing MCMC chains.</li>
+<h3 id="models-1-0-0">Models<a class="anchor" aria-label="anchor" href="#models-1-0-0"></a></h3>
+<ul><li>Static, dynamic, and piecewise-static bilinear network models.</li>
+<li>Low-rank and HMM (regime-switching) variants available but still under development.</li>
+<li>Three outcome families: ordinal (rank likelihood), Gaussian, binary (probit).</li>
+<li>Bipartite network support for all models.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="infrastructure-0-2-0">Infrastructure<a class="anchor" aria-label="anchor" href="#infrastructure-0-2-0"></a></h3>
-<ul><li>C++ backend via Rcpp/RcppArmadillo with safe matrix operations (regularized inversions, Cholesky fallbacks).</li>
-<li>Comprehensive test suite (1200+ tests).</li>
-<li>Five vignettes covering all model types plus impulse response analysis.</li>
+<h3 id="features-1-0-0">Features<a class="anchor" aria-label="anchor" href="#features-1-0-0"></a></h3>
+<ul><li>Impulse response analysis for counterfactual shock propagation.</li>
+<li>Block comparison for piecewise models via <code><a href="../reference/compare_blocks.html">compare_blocks()</a></code>.</li>
+<li>Posterior predictive checks and visualization.</li>
+<li>OpenMP parallelization for row/column FFBS updates.</li>
+<li>Memory-aware fitting with <code><a href="../reference/estimate_memory.html">estimate_memory()</a></code> and <code>store_theta</code> options.</li>
+<li>Warm start support for continuing MCMC chains.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="infrastructure-1-0-0">Infrastructure<a class="anchor" aria-label="anchor" href="#infrastructure-1-0-0"></a></h3>
+<ul><li>C++ backend with numerical stability safeguards.</li>
+<li>Comprehensive test suite.</li>
+<li>Eight vignettes covering methodology and all model types.</li>
 <li>pkgdown documentation site.</li>
-</ul></div>
-<div class="section level3">
-<h3 id="known-limitations-0-2-0">Known limitations<a class="anchor" aria-label="anchor" href="#known-limitations-0-2-0"></a></h3>
-<ul><li>HMM and low-rank models are still under construction.</li>
-<li>Dynamic binary models may encounter numerical singularities with small networks (n &lt; 15).</li>
 </ul></div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -50,6 +50,5 @@ Data frame with columns: time, mean, lower, upper
 sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
 fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 ns <- network_summary(fit)
-#> Warning: Model fit does not contain theta draws
 # }
 ```

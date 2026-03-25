@@ -11,7 +11,7 @@ interactions between latent sender and receiver effects.
 dbn(
   data,
   family = c("ordinal", "gaussian", "binary"),
-  model = c("static", "dynamic", "lowrank", "hmm"),
+  model = c("static", "dynamic", "lowrank", "hmm", "piecewise"),
   nscan = 10000,
   burn = 1000,
   odens = 1,
@@ -53,6 +53,8 @@ dbn(
 
   - "hmm": Regime-switching model with hidden Markov states
 
+  - "piecewise": Block-constant influence matrices for structural change
+
 - nscan:
 
   Number of iterations of the Markov chain (beyond burn-in)
@@ -88,6 +90,12 @@ dbn(
 
   :   Number of regimes for HMM model (default: 3)
 
+  `blocks`
+
+  :   Block specification for piecewise model: integer (number of equal
+      blocks), numeric vector (block boundaries), named vector (labeled
+      boundaries), or "auto" for automatic selection
+
   `ar1`
 
   :   Use AR(1) dynamics for dynamic model (default: FALSE)
@@ -116,6 +124,20 @@ dbn(
   `store_z`
 
   :   Store Z draws for dynamic model (default: auto based on memory)
+
+  `store_theta`
+
+  :   Store full Theta trajectory draws for piecewise model (default:
+      TRUE). **Critical for large networks:** Set to FALSE for networks
+      with 100+ actors to avoid memory issues. Theta storage scales as
+      O(n^2 \* T \* draws) – a 200-actor network with 50 time points and
+      500 draws requires ~40 GB. With `store_theta = FALSE`, you retain
+      posterior draws for A, B, M and variance parameters,
+      [`compare_blocks()`](https://netify-dev.github.io/dbn/reference/compare_blocks.md)
+      functionality, and convergence diagnostics. You lose full
+      posterior uncertainty on individual Theta entries and
+      [`posterior_predict_dbn()`](https://netify-dev.github.io/dbn/reference/posterior_predict_dbn.md)
+      with uncertainty propagation.
 
 ## Value
 
@@ -176,5 +198,15 @@ results <- dbn(example_data, model = "static", verbose = FALSE)
 
 # Run with detailed output every 100 iterations
 results <- dbn(example_data, model = "dynamic", verbose = 100)
+
+# Run piecewise model with 4 blocks
+results <- dbn(example_data, model = "piecewise", blocks = 4)
+
+# Run piecewise model with specific block boundaries
+results <- dbn(example_data, model = "piecewise",
+    blocks = c(pre = 25, crisis = 50, post = 100))
+
+# Run piecewise model with automatic block selection
+results <- dbn(example_data, model = "piecewise", blocks = "auto")
 } # }
 ```
