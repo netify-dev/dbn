@@ -66,7 +66,7 @@ plot_trace(fit_static, pars = c("s2", "t2", "g2"))
 
 ## 4 Model summary and parameter inspection
 
-`summary()` gives you a high-level overview of the fitted model, including posterior means and credible intervals for the variance parameters. `param_summary()` returns a tidy data frame you can use for further analysis or plotting.
+`summary()` shows posterior means and credible intervals for the variance parameters. `param_summary()` returns a tidy data frame for further analysis or plotting.
 
 ```{r summaries}
 summary(fit_static)
@@ -123,4 +123,4 @@ summary(fit_bin)
 * inspected parameter posteriors and latent means,
 * showed how to switch between ordinal, gaussian, and binary families.
 
-For models with time-varying parameters, see `vignette("dynamic_dbn")` as the natural next step.
+For models with time-varying parameters, see `vignette("dynamic_dbn")`.

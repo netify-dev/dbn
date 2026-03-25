@@ -7,7 +7,7 @@
 dbn(
   data,
   family = c("ordinal", "gaussian", "binary"),
-  model = c("static", "dynamic", "lowrank", "hmm"),
+  model = c("static", "dynamic", "lowrank", "hmm", "piecewise"),
   nscan = 10000,
   burn = 1000,
   odens = 1,
@@ -34,6 +34,7 @@ or 4-dimensional (actors x actors x relations x time) for multiple relations}
 \item "dynamic": Time-varying sender/receiver effects
 \item "lowrank": Low-rank factorization of sender effects
 \item "hmm": Regime-switching model with hidden Markov states
+\item "piecewise": Block-constant influence matrices for structural change
 }}
 
 \item{nscan}{Number of iterations of the Markov chain (beyond burn-in)}
@@ -50,6 +51,8 @@ or 4-dimensional (actors x actors x relations x time) for multiple relations}
 \describe{
 \item{\code{r}}{Rank for lowrank model (default: 2)}
 \item{\code{R}}{Number of regimes for HMM model (default: 3)}
+\item{\code{blocks}}{Block specification for piecewise model: integer (number of equal blocks),
+numeric vector (block boundaries), named vector (labeled boundaries), or "auto" for automatic selection}
 \item{\code{ar1}}{Use AR(1) dynamics for dynamic model (default: FALSE)}
 \item{\code{update_rho}}{Update AR coefficient in dynamic model (default: FALSE)}
 \item{\code{seed}}{Random seed for reproducibility (default: 6886)}
@@ -57,6 +60,13 @@ or 4-dimensional (actors x actors x relations x time) for multiple relations}
 \item{\code{init}}{List of initial values for parameters}
 \item{\code{time_thin}}{Time thinning factor for dynamic/lowrank/HMM (default: auto for dynamic, 1 for others)}
 \item{\code{store_z}}{Store Z draws for dynamic model (default: auto based on memory)}
+\item{\code{store_theta}}{Store full Theta trajectory draws for piecewise model (default: TRUE).
+\strong{Critical for large networks:} Set to FALSE for networks with 100+ actors to avoid
+memory issues. Theta storage scales as O(n^2 * T * draws) -- a 200-actor network with 50 time
+points and 500 draws requires ~40 GB. With \code{store_theta = FALSE}, you retain posterior
+draws for A, B, M and variance parameters, \code{compare_blocks()} functionality, and
+convergence diagnostics. You lose full posterior uncertainty on individual Theta entries
+and \code{posterior_predict_dbn()} with uncertainty propagation.}
 }}
 }
 \value{
@@ -99,5 +109,15 @@ results <- dbn(example_data, model = "static", verbose = FALSE)
 
 # Run with detailed output every 100 iterations
 results <- dbn(example_data, model = "dynamic", verbose = 100)
+
+# Run piecewise model with 4 blocks
+results <- dbn(example_data, model = "piecewise", blocks = 4)
+
+# Run piecewise model with specific block boundaries
+results <- dbn(example_data, model = "piecewise",
+    blocks = c(pre = 25, crisis = 50, post = 100))
+
+# Run piecewise model with automatic block selection
+results <- dbn(example_data, model = "piecewise", blocks = "auto")
 }
 }

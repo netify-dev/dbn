@@ -18,6 +18,7 @@
 #'   - "dynamic": Time-varying sender/receiver effects
 #'   - "lowrank": Low-rank factorization of sender effects
 #'   - "hmm": Regime-switching model with hidden Markov states
+#'   - "piecewise": Block-constant influence matrices for structural change
 #' @param nscan Number of iterations of the Markov chain (beyond burn-in)
 #' @param burn Burn-in for the Markov chain
 #' @param odens Output density for the Markov chain (save every odens-th iteration)
@@ -27,6 +28,8 @@
 #'   \describe{
 #'     \item{\code{r}}{Rank for lowrank model (default: 2)}
 #'     \item{\code{R}}{Number of regimes for HMM model (default: 3)}
+#'     \item{\code{blocks}}{Block specification for piecewise model: integer (number of equal blocks),
+#'       numeric vector (block boundaries), named vector (labeled boundaries), or "auto" for automatic selection}
 #'     \item{\code{ar1}}{Use AR(1) dynamics for dynamic model (default: FALSE)}
 #'     \item{\code{update_rho}}{Update AR coefficient in dynamic model (default: FALSE)}
 #'     \item{\code{seed}}{Random seed for reproducibility (default: 6886)}
@@ -34,6 +37,13 @@
 #'     \item{\code{init}}{List of initial values for parameters}
 #'     \item{\code{time_thin}}{Time thinning factor for dynamic/lowrank/HMM (default: auto for dynamic, 1 for others)}
 #'     \item{\code{store_z}}{Store Z draws for dynamic model (default: auto based on memory)}
+#'     \item{\code{store_theta}}{Store full Theta trajectory draws for piecewise model (default: TRUE).
+#'       \strong{Critical for large networks:} Set to FALSE for networks with 100+ actors to avoid
+#'       memory issues. Theta storage scales as O(n^2 * T * draws) -- a 200-actor network with 50 time
+#'       points and 500 draws requires ~40 GB. With \code{store_theta = FALSE}, you retain posterior
+#'       draws for A, B, M and variance parameters, \code{compare_blocks()} functionality, and
+#'       convergence diagnostics. You lose full posterior uncertainty on individual Theta entries
+#'       and \code{posterior_predict_dbn()} with uncertainty propagation.}
 #'   }
 #' @return A list of class "dbn" containing:
 #'   \item{B}{List of posterior samples for B matrices (static model)}
@@ -69,11 +79,21 @@
 #'
 #' # Run with detailed output every 100 iterations
 #' results <- dbn(example_data, model = "dynamic", verbose = 100)
+#'
+#' # Run piecewise model with 4 blocks
+#' results <- dbn(example_data, model = "piecewise", blocks = 4)
+#'
+#' # Run piecewise model with specific block boundaries
+#' results <- dbn(example_data, model = "piecewise",
+#'     blocks = c(pre = 25, crisis = 50, post = 100))
+#'
+#' # Run piecewise model with automatic block selection
+#' results <- dbn(example_data, model = "piecewise", blocks = "auto")
 #' }
 ####
 dbn <- function(data,
 				family = c("ordinal", "gaussian", "binary"),
-				model = c("static", "dynamic", "lowrank", "hmm"),
+				model = c("static", "dynamic", "lowrank", "hmm", "piecewise"),
 				nscan = 10000,
 				burn = 1000,
 				odens = 1,
@@ -122,6 +142,15 @@ dbn <- function(data,
 			))
 		}
 		cli::cli_inform("Single time point detected -- using static model.")
+	}
+
+	# piecewise model requires sufficient time points
+	if (model == "piecewise" && Tt < 4) {
+		cli::cli_abort(c(
+			"Piecewise model requires at least 4 time points.",
+			"i" = "Your data has {Tt} time point{?s}.",
+			"i" = "Use {.code model = \"static\"} for short time series."
+		))
 	}
 	####
 
@@ -183,11 +212,50 @@ dbn <- function(data,
 	####
 
 	# dispatch to model-specific sampler
+	dots <- list(...)
+
 	results <- switch(model,
 		static = dbn_static(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
 		dynamic = dbn_dynamic(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
 		lowrank = dbn_lowrank(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
-		hmm = dbn_hmm(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...)
+		hmm = dbn_hmm(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
+		piecewise = {
+			blocks <- dots$blocks
+			if (is.null(blocks)) {
+				cli::cli_abort(c(
+					"Piecewise model requires {.arg blocks} parameter.",
+					"i" = "Use {.code blocks = 4} for 4 equal blocks,",
+					"i" = "or {.code blocks = c(25, 50, 75)} for custom boundaries,",
+					"i" = "or {.code blocks = \"auto\"} for automatic selection."
+				))
+			}
+
+			# handle automatic block selection
+			auto_K_result <- NULL
+			if (is.character(blocks) && blocks == "auto") {
+				if (verbose) cli::cli_h2("Automatic Block Selection")
+				auto_K_result <- select_K_auto(Y, family = family,
+											   K_min = dots$K_min %||% 1L,
+											   K_max = dots$K_max %||% NULL,
+											   verbose = (verbose > 0))
+				blocks <- auto_K_result$selected_boundaries
+			}
+
+			# filter out blocks parameter from dots
+			piecewise_dots <- dots[!names(dots) %in% c("blocks", "K_min", "K_max")]
+
+			fit <- do.call(dbn_piecewise, c(
+				list(Y = Y, family = family, blocks = blocks,
+					 nscan = nscan, burn = burn, odens = odens,
+					 verbose = verbose, symmetric = symmetric),
+				piecewise_dots
+			))
+
+			if (!is.null(auto_K_result)) {
+				fit$auto_K <- auto_K_result
+			}
+			fit
+		}
 	)
 
 	results$model <- model
@@ -329,7 +397,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 	# precompute ordinal flags/arrays once (R doesn't change)
 	if (family == "ordinal") {
 		static_use_approx <- should_use_gaussian_approximation(R) ||
-							(nc * p * Tt > 5000)
+							(nc * p * Tt > 500)
 		static_R_flat <- array(R, c(n_row, n_col, p * Tt))
 		static_has_rz_cpp <- exists("rz_gaussian_approx_cpp", mode = "function")
 	}
@@ -1084,10 +1152,83 @@ dbn_dynamic <- function(Y,
 
 	if (verbose) cli::cli_progress_done()
 
-	# assemble output list
+	# convert arrays to lists for unified draws structure
+	Theta_list <- lapply(seq_len(n_keep), function(i) Theta_store[, , , , i, drop = FALSE])
+	for (i in seq_along(Theta_list)) {
+		dim(Theta_list[[i]]) <- dim(Theta_store)[1:4]
+	}
+	M_list <- lapply(seq_len(n_keep), function(i) M_store[, , , i, drop = FALSE])
+	for (i in seq_along(M_list)) {
+		dim(M_list[[i]]) <- dim(M_store)[1:3]
+	}
+
+	# build unified draws structure (matching static/piecewise)
+	draws <- list(
+		theta = Theta_list,
+		z = NULL,
+		pars = data.frame(
+			sigma2 = sigma2_store,
+			tau_A2 = tau_A2_store,
+			tau_B2 = tau_B2_store,
+			g2 = g2_store
+		),
+		misc = list(
+			A = A_store,
+			B = B_store,
+			M = M_list
+		)
+	)
+
+	# add Z to draws if stored
+	if (FAM$name %in% c("ordinal", "binary") && store_z) {
+		Z_list <- lapply(seq_len(n_keep), function(i) Z_store[, , , , i, drop = FALSE])
+		for (i in seq_along(Z_list)) {
+			dim(Z_list[[i]]) <- dim(Z_store)[1:4]
+		}
+		draws$z <- Z_list
+	}
+
+	# add AR1 parameters if used
+	if (ar1) {
+		draws$pars$rhoA <- rhoA_store
+		draws$pars$rhoB <- rhoB_store
+	}
+
+	# add sigma2_obs for gaussian
+	if (FAM$name == "gaussian") {
+		draws$pars$sigma2_obs <- sigma2_obs_store
+	}
+
+	# params data.frame for API consistency
+	params <- draws$pars
+
+	# assemble output list with unified structure
 	out <- list(
 		model = "dynamic",
+		family = family,
 		Y = Y,
+		dims = list(m = n_row, n_row = n_row, n_col = n_col, p = p, Tt = Tt,
+					is_bipartite = is_bipartite, is_symmetric = symmetric),
+		settings = list(
+			nscan = nscan,
+			burn = burn,
+			odens = odens,
+			time_thin = time_thin,
+			store_z = store_z,
+			draws = n_keep
+		),
+		meta = list(
+			family = family,
+			dims = list(m = n_row, n_row = n_row, n_col = n_col, p = p, Tt = Tt,
+						is_bipartite = is_bipartite, is_symmetric = symmetric),
+			draws = n_keep,
+			settings = list(nscan = nscan, burn = burn, odens = odens, time_thin = time_thin)
+		),
+		params = params,
+		draws = draws,
+		time_kept = time_keep,
+
+		# --- backward compatibility (deprecated) ---
 		Theta = Theta_store,
 		A = A_store,
 		B = B_store,
@@ -1099,20 +1240,16 @@ dbn_dynamic <- function(Y,
 		n_iter = n_iter,
 		burn = burn,
 		thin = odens,
-		time_thin = time_thin,
-		dims = list(m = n_row, n_row = n_row, n_col = n_col, p = p, Tt = Tt,
-					is_bipartite = is_bipartite, is_symmetric = symmetric),
-		family = family,
-		time_kept = time_keep,
-		settings = list(time_thin = time_thin, store_z = store_z)
+		time_thin = time_thin
 	)
 
+	# backward compat: Z and sigma2_obs
 	if (FAM$name == "gaussian") {
 		out$sigma2_obs <- sigma2_obs_store
 	}
-
 	if (FAM$name %in% c("ordinal", "binary") && store_z) {
 		out$Z <- Z_store
+		out$Z_final <- Z_4d  # match static/piecewise naming
 	}
 
 	if (ar1) {

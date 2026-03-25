@@ -1,24 +1,24 @@
-# dbn 0.2.0
+# dbn 1.0.0
 
-## Major features
+## Models
 
-* Four model types: static, dynamic, low-rank, and HMM (regime-switching).
-* Three outcome families: ordinal (rank likelihood), Gaussian, and binary (probit).
-* Full bipartite network support for static and dynamic models (`n_row != n_col`).
-* OpenMP-parallelized A/B row/column updates with thread-safe RNG.
-* Impulse response analysis (`compute_irf()`, `build_shock()`).
-* Posterior predictive distribution generation and PPC plots.
-* Memory-aware dynamic model: auto time-thinning, optional Z storage, `estimate_memory()`.
-* Warm start support via the `previous` argument for continuing MCMC chains.
+* Static, dynamic, and piecewise-static bilinear network models.
+* Low-rank and HMM (regime-switching) variants available but still under development.
+* Three outcome families: ordinal (rank likelihood), Gaussian, binary (probit).
+* Bipartite network support for all models.
+
+## Features
+
+* Impulse response analysis for counterfactual shock propagation.
+* Block comparison for piecewise models via `compare_blocks()`.
+* Posterior predictive checks and visualization.
+* OpenMP parallelization for row/column FFBS updates.
+* Memory-aware fitting with `estimate_memory()` and `store_theta` options.
+* Warm start support for continuing MCMC chains.
 
 ## Infrastructure
 
-* C++ backend via Rcpp/RcppArmadillo with safe matrix operations (regularized inversions, Cholesky fallbacks).
-* Comprehensive test suite (1200+ tests).
-* Five vignettes covering all model types plus impulse response analysis.
+* C++ backend with numerical stability safeguards.
+* Comprehensive test suite.
+* Eight vignettes covering methodology and all model types.
 * pkgdown documentation site.
-
-## Known limitations
-
-* HMM and low-rank models are still under construction.
-* Dynamic binary models may encounter numerical singularities with small networks (n < 15).

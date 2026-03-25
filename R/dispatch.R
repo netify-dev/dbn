@@ -26,6 +26,7 @@ plot.dbn <- function(x, ...) {
 		lowrank = "plot_lowrank",
 		lowrank_accurate = "plot_lowrank",
 		hmm = "plot_hmm",
+		piecewise = "plot_piecewise",
 		cli::cli_abort("Unknown model: {.val {x$model}}.")
 	)
 	do.call(plot_fun, list(x, ...))
@@ -41,6 +42,7 @@ summary.dbn <- function(object, ...) {
 		lowrank = "summary_lowrank",
 		lowrank_accurate = "summary_lowrank",
 		hmm = "summary_hmm",
+		piecewise = "summary_piecewise",
 		cli::cli_abort("Unknown model: {.val {object$model}}.")
 	)
 	do.call(summary_fun, list(object, ...))
@@ -72,6 +74,7 @@ predict.dbn <- function(object, ...) {
 		predict_fun <- switch(object$model,
 			static = "simulate_static",
 			dynamic = "simulate_dynamic",
+			piecewise = "simulate_piecewise",
 			cli::cli_abort("Unknown model: {.val {object$model}}.")
 		)
 		return(do.call(predict_fun, list(object, ...)))
@@ -87,6 +90,7 @@ predict.dbn <- function(object, ...) {
 	predict_fun <- switch(object$model,
 		static = "simulate_static",
 		dynamic = "simulate_dynamic",
+		piecewise = "simulate_piecewise",
 		cli::cli_abort("Unknown model: {.val {object$model}}.")
 	)
 	do.call(predict_fun, c(list(object), ppd_args))
@@ -163,6 +167,9 @@ print.dbn <- function(x, ...) {
 		cat("\nRegimes: ", x$R, "\n", sep = "")
 	} else if (x$model == "lowrank" && !is.null(x$rank)) {
 		cat("\nRank: ", x$rank, "\n", sep = "")
+	} else if (x$model == "piecewise" && !is.null(x$blocks)) {
+		cat("\nBlocks: ", x$blocks$K, "\n", sep = "")
+		cat("Boundaries: ", paste(x$blocks$boundaries, collapse = ", "), "\n", sep = "")
 	}
 
 	# stored components

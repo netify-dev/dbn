@@ -16,6 +16,7 @@ articles:
     contents:
     - static_dbn
     - dynamic_dbn
+    - piecewise_dbn
     - impulse_response
     - applied_ir
   - title: internal
@@ -44,6 +45,7 @@ reference:
     - simulate_test_data
     - simulate_static_dbn
     - simulate_dynamic_dbn
+    - simulate_piecewise_dbn
     - simulate_lowrank_dbn
     - simulate_hmm_dbn
 
@@ -106,6 +108,7 @@ reference:
     - starts_with("predict.")
     - starts_with("plot.")
     - compare_dbn
+    - compare_blocks
     - check_convergence
 
   - title: "Utilities"

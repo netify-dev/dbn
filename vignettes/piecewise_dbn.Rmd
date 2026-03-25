@@ -1,0 +1,553 @@
+---
+title:  "Piecewise-static models for structural change"
+author: "Shahryar Minhas"
+date:   "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Piecewise-static models for structural change}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.align = "center",
+  fig.width = 6, fig.height = 4,
+  message   = FALSE, warning = FALSE
+)
+library(dbn)
+if (requireNamespace("ggplot2", quietly = TRUE)) {
+  library(ggplot2)
+} else {
+  message("Install 'ggplot2' to see plots in this vignette.")
+}
+```
+
+## 1 Overview
+
+Many political processes exhibit **structural breaks** --- discrete moments when the rules governing network dynamics fundamentally change. The 2008 financial crisis reshuffled economic dependencies. The Arab Spring reorganized regional alliance patterns. A leadership transition can redirect a country's foreign policy orientation overnight.
+
+The **piecewise-static model** handles this case: you know (or hypothesize) *when* structural breaks occurred, and want to estimate *how* the influence structure differed across regimes. It estimates block-constant influence matrices $A_k$ and $B_k$ for each regime $k = 1, \ldots, K$, rather than allowing continuous evolution as in the fully dynamic model.
+
+**When to choose piecewise over dynamic:**
+
+| Consideration | Piecewise | Dynamic |
+|:---|:---:|:---:|
+| Breaks are discrete and known | ✓ | |
+| Influence evolves smoothly | | ✓ |
+| Comparing pre/post periods | ✓ | |
+| Want interpretable regime summaries | ✓ | |
+| Memory constraints (large networks) | ✓ | |
+| Need time-point-specific estimates | | ✓ |
+
+You get one influence matrix per regime, so you can ask "did sender $i$'s influence increase after the crisis?" The piecewise model also uses less memory when storing posterior draws. You must specify break points in advance --- the model does not discover them automatically.
+
+## 2 The model
+
+The piecewise model is:
+
+$$\Theta_t = A_{k(t)} \, \Theta_{t-1} \, B_{k(t)}^\top + M + \varepsilon_t$$
+
+where $k(t)$ maps time $t$ to its regime. Within each regime, the influence matrices $A_k$ and $B_k$ are constant. Across regimes, they are estimated independently.
+
+**What each parameter tells you:**
+
+- **$A_k$ (sender influence in regime $k$):** Entry $a_{i,i',k}$ measures how strongly actor $i'$'s past sending behavior predicts actor $i$'s current sending in regime $k$. Comparing $A_1$ and $A_2$ reveals which actors gained or lost sender influence after a structural break.
+
+- **$B_k$ (receiver influence in regime $k$):** Entry $b_{j,j',k}$ captures how past targeting of actor $j'$ predicts current targeting of $j$. Shifts in $B$ across regimes reveal changing patterns of who attracts attention.
+
+- **$M$ (baseline mean):** Stable dyad-specific tendencies that persist across all regimes. A large $M_{ij}$ indicates a persistent relationship regardless of the regime.
+
+- **Block boundaries:** The time points where regimes change. These are user-specified based on substantive knowledge (e.g., "the crisis began in period 15").
+
+## 3 Simulated example: detecting structural change
+
+We start with simulated data where we *know* the true break points and can assess recovery.
+
+```{r simulate-piecewise, cache = TRUE}
+set.seed(2024)
+
+# simulate a small network with 2 regimes
+# regime 1: t = 1-10 (pre-crisis)
+# regime 2: t = 11-20 (post-crisis)
+sim = simulate_piecewise_dbn(
+  n = 6,
+  time = 20,
+  blocks = c(10, 20),  # boundary at t=10
+  p = 1,
+  seed = 2024
+)
+
+dim(sim$Y)
+```
+
+The simulation creates distinct $A$ and $B$ matrices for each regime:
+
+```{r true-differences}
+# mean absolute difference between true A matrices
+cat("True |A1 - A2|:", round(mean(abs(sim$true_A[[1]] - sim$true_A[[2]])), 3), "\n")
+```
+
+## 4 Fit the piecewise model
+
+We pass the known break points via the `blocks` argument. The model estimates separate $A_k$ and $B_k$ for each regime.
+
+```{r fit-piecewise, cache = TRUE}
+fit = dbn(
+  sim$Y,
+  model  = "piecewise",
+  family = "ordinal",
+  blocks = c(10, 20),  # must match simulation
+  nscan  = 100,
+  burn   = 50,
+  odens  = 1,
+  verbose = FALSE
+)
+
+summary(fit)
+```
+
+## 5 Convergence diagnostics
+
+Always check convergence before interpreting regime-specific estimates:
+
+```{r convergence}
+check_convergence(fit)
+plot_trace(fit, pars = c("s2", "t2", "g2"))
+```
+
+## 6 Comparing regimes
+
+The `compare_blocks()` function quantifies differences between adjacent regimes with posterior uncertainty:
+
+```{r compare-blocks}
+regime_diffs = compare_blocks(fit)
+print(regime_diffs)
+```
+
+The output shows:
+
+- **mean_diff:** Posterior mean of $||A_k - A_{k+1}||$ (Frobenius norm)
+- **ci:** 95% credible interval for the difference
+- **prob_above_threshold:** Probability that the difference exceeds a substantively meaningful threshold (default 0.1)
+
+A high `prob_above_threshold` indicates strong evidence that the influence structure genuinely changed across regimes, not just sampling noise.
+
+## 7 Extracting regime-specific influence
+
+Each regime has its own estimated $A$ and $B$ matrices:
+
+```{r regime-matrices}
+# posterior mean A for each regime
+A1 = fit$A_blocks[[1]]
+A2 = fit$A_blocks[[2]]
+
+cat("Regime 1 (pre-crisis) - A range:", round(range(A1), 3), "\n")
+cat("Regime 2 (post-crisis) - A range:", round(range(A2), 3), "\n")
+```
+
+The key quantity is the *change* in influence structure across regimes:
+
+```{r regime-diff}
+# mean absolute difference between regimes
+cat("Mean |A1 - A2|:", round(mean(abs(A1 - A2)), 4), "\n")
+```
+
+We can visualize the difference matrix to identify which actors' influence changed most:
+
+```{r plot-diff, fig.height = 5}
+# difference between crisis and pre-crisis
+diff_12 = A2 - A1
+
+# simple heatmap
+n = nrow(diff_12)
+image(1:n, 1:n, diff_12,
+      xlab = "Sender (influenced by)",
+      ylab = "Sender (influences)",
+      main = "Change in sender influence: Crisis vs. Pre-crisis",
+      col = colorRampPalette(c("blue", "white", "red"))(50))
+```
+
+Red entries indicate actors whose influence *increased* during the crisis; blue entries indicate *decreased* influence. The scale represents the change in influence weight --- large positive values mean actor $i'$ became more important for predicting actor $i$'s behavior.
+
+## 8 Actor positions across time
+
+The piecewise model stores posterior draws of $\Theta_t$, allowing you to track actor positions with uncertainty:
+
+```{r theta-draws}
+# number of posterior draws
+n_draws = length(fit$draws$misc$Theta)
+cat("Posterior draws available:", n_draws, "\n")
+
+# extract actor positions at t=5 (pre-crisis) vs t=15 (post-crisis)
+theta_draw1 = fit$draws$misc$Theta[[1]]
+positions_t5 = theta_draw1[, , 1, 5]
+positions_t15 = theta_draw1[, , 1, 15]
+
+cat("Mean position at t=5 (pre-crisis): ", round(mean(positions_t5, na.rm = TRUE), 3), "\n")
+cat("Mean position at t=15 (post-crisis):", round(mean(positions_t15, na.rm = TRUE), 3), "\n")
+```
+
+## 9 Speed and memory advantages
+
+The piecewise model is both **faster** and more **memory-efficient** than the fully dynamic model:
+
+```{r timing-comparison, cache = TRUE}
+# Compare timing: piecewise vs dynamic
+sim_timing = simulate_piecewise_dbn(n = 10, time = 30, blocks = 3, seed = 42)
+
+t_pw = system.time({
+  fit_pw = dbn(sim_timing$Y, model = "piecewise", blocks = 3,
+               nscan = 100, burn = 50, verbose = FALSE)
+})
+
+t_dyn = system.time({
+  fit_dyn = dbn(sim_timing$Y, model = "dynamic",
+                nscan = 100, burn = 50, verbose = FALSE)
+})
+
+cat("Piecewise:", round(t_pw["elapsed"], 2), "s\n")
+cat("Dynamic:  ", round(t_dyn["elapsed"], 2), "s\n")
+cat("Speedup:  ", round(t_dyn["elapsed"] / t_pw["elapsed"], 1), "x\n")
+```
+
+The speedup comes from:
+
+1. **Fewer parameters:** $K$ influence matrices instead of $T-1$
+2. **More data per parameter:** Each regime pools information across multiple time points
+3. **Efficient approximation:** Uses fast Gaussian approximation for ordinal sampling
+
+Use `store_theta = FALSE` for additional memory savings when you only need regime-level estimates:
+
+```{r memory-comparison}
+# Memory comparison
+fit_full = dbn(sim$Y, model = "piecewise", blocks = c(10, 20),
+               nscan = 50, burn = 25, verbose = FALSE, store_theta = TRUE)
+fit_lean = dbn(sim$Y, model = "piecewise", blocks = c(10, 20),
+               nscan = 50, burn = 25, verbose = FALSE, store_theta = FALSE)
+
+cat("With Theta storage:   ", round(object.size(fit_full) / 1e6, 2), "MB\n")
+cat("Without Theta storage:", round(object.size(fit_lean) / 1e6, 2), "MB\n")
+cat("Memory reduction:     ", round(100 * (1 - object.size(fit_lean) / object.size(fit_full))), "%\n")
+```
+
+## 10 Specifying blocks
+
+The `blocks` argument is flexible:
+
+```{r block-specs, eval = FALSE}
+# integer: equal-sized regimes
+fit = dbn(Y, model = "piecewise", blocks = 4)  # 4 equal blocks
+
+# vector of endpoints
+fit = dbn(Y, model = "piecewise", blocks = c(10, 25, 40))
+
+# named vector for interpretability
+fit = dbn(Y, model = "piecewise",
+           blocks = c(pre_war = 15, war = 30, post_war = 45))
+```
+
+## 11 Gaussian family for continuous data
+
+The piecewise model supports all three outcome families. For continuous alignment or trade data:
+
+```{r gaussian-piecewise, cache = TRUE}
+# use the continuous version of simulated data
+fit_gauss = dbn(
+  sim$Y_continuous,
+  model  = "piecewise",
+  family = "gaussian",
+  blocks = c(10, 20),
+  nscan  = 100,
+  burn   = 50,
+  verbose = FALSE
+)
+
+summary(fit_gauss)
+```
+
+## 12 Applied example: Financial crisis and alignment shifts
+
+Here we examine UN General Assembly voting alignment using the 2008 financial crisis as a structural break point. We include ~100 countries to show how the model scales.
+
+```{r applied-setup, eval = requireNamespace("peacesciencer", quietly = TRUE)}
+# This example requires the peacesciencer package
+# install.packages("peacesciencer")
+library(peacesciencer)
+
+# build dyadic panel 1995-2015 (longer span for better block sizes)
+dyads = create_dyadyears(subset_years = 1995:2015) |>
+  add_fpsim()
+
+# get countries with complete data across the period
+# find countries present in all years
+years = 1995:2015
+complete_countries = Reduce(intersect, lapply(years, function(y) {
+  unique(c(dyads$ccode1[dyads$year == y], dyads$ccode2[dyads$year == y]))
+}))
+
+# select top ~100 countries by dyadic coverage
+# (ensures we have good data quality)
+country_coverage = table(c(dyads$ccode1[dyads$ccode1 %in% complete_countries],
+                            dyads$ccode2[dyads$ccode2 %in% complete_countries]))
+top_countries = as.numeric(names(sort(country_coverage, decreasing = TRUE)[1:min(100, length(country_coverage))]))
+
+# filter to selected countries
+dyads_sub = dyads[dyads$ccode1 %in% top_countries &
+                    dyads$ccode2 %in% top_countries, ]
+
+# create country labels (using COW codes as names for simplicity)
+actor_codes = sort(unique(c(dyads_sub$ccode1, dyads_sub$ccode2)))
+n_actors = length(actor_codes)
+actor_labels = as.character(actor_codes)
+
+years = sort(unique(dyads_sub$year))
+Tt = length(years)
+
+# build [n, n, 1, T] array
+code_to_idx = setNames(seq_along(actor_codes), actor_codes)
+Y_unga = array(NA_real_, dim = c(n_actors, n_actors, 1, Tt),
+                dimnames = list(actor_labels, actor_labels, "unga",
+                               as.character(years)))
+
+for (i in seq_len(nrow(dyads_sub))) {
+  row_i = code_to_idx[as.character(dyads_sub$ccode1[i])]
+  col_j = code_to_idx[as.character(dyads_sub$ccode2[i])]
+  t_idx = which(years == dyads_sub$year[i])
+  Y_unga[row_i, col_j, 1, t_idx] = dyads_sub$kappavv[i]
+}
+for (t in 1:Tt) diag(Y_unga[, , 1, t]) = NA
+
+cat("Network:", n_actors, "actors,", Tt, "time points (", min(years), "-", max(years), ")\n")
+```
+
+The 2008 financial crisis provides a natural break point. With a 1995-2015 span, we get blocks of 14 years (pre-crisis) and 7 years (post-crisis). For networks of this size, we recommend using `store_theta = FALSE` to reduce memory usage:
+
+```{r applied-fit, eval = requireNamespace("peacesciencer", quietly = TRUE), cache = TRUE}
+# block boundaries: pre-crisis (1995-2008) and post-crisis (2009-2015)
+crisis_year = 2008
+t_break = which(years == crisis_year)
+
+# for large networks, disable theta storage to save memory
+# use more iterations with thinning for better convergence
+fit_crisis = dbn(
+  Y_unga,
+  model  = "piecewise",
+  family = "gaussian",
+  blocks = c(t_break, Tt),  # end of each block
+  nscan  = 1000,
+  burn   = 500,
+  odens  = 2,  # thin to reduce autocorrelation
+  store_theta = FALSE,  # important for large networks
+  verbose = FALSE
+)
+
+summary(fit_crisis)
+```
+
+Always check convergence before interpreting results:
+
+```{r applied-convergence, eval = requireNamespace("peacesciencer", quietly = TRUE)}
+check_convergence(fit_crisis)
+```
+
+Note: Variance parameters (tau2, g2) often show slow mixing in hierarchical models. The effective sample sizes above are typical; for publication-quality inference, consider longer chains (nscan = 5000+) or multiple chains.
+
+The key question: did the influence structure change after the crisis? We use `compare_blocks()` to quantify the difference:
+
+```{r applied-compare, eval = requireNamespace("peacesciencer", quietly = TRUE)}
+regime_diff = compare_blocks(fit_crisis)
+print(regime_diff)
+```
+
+A high probability that the difference exceeds threshold (e.g., `prob > 0.9`) suggests the crisis genuinely altered how alignment patterns propagate through the network --- not just sampling noise.
+
+We can examine which actors' influence changed most:
+
+```{r applied-actors, eval = requireNamespace("peacesciencer", quietly = TRUE)}
+A_pre  = fit_crisis$A_blocks[[1]]
+A_post = fit_crisis$A_blocks[[2]]
+
+# which actors gained/lost sender influence?
+influence_change = rowSums(abs(A_post)) - rowSums(abs(A_pre))
+names(influence_change) = actor_labels
+
+cat("Top 10 gainers in sender influence (post - pre):\n")
+head(sort(round(influence_change, 3), decreasing = TRUE), 10)
+
+cat("\nTop 10 losers in sender influence:\n")
+head(sort(round(influence_change, 3)), 10)
+
+# compare major power blocs (using COW codes)
+g7_codes = c("2", "20", "200", "220", "255", "325", "740")  # USA, CAN, UK, FRA, GER, ITA, JPN
+brics_codes = c("140", "365", "750", "710", "560")  # BRA, RUS, IND, CHN, ZAF
+
+g7_present = g7_codes[g7_codes %in% names(influence_change)]
+brics_present = brics_codes[brics_codes %in% names(influence_change)]
+
+if (length(g7_present) > 0) {
+  cat("\nG7 average change:   ", round(mean(influence_change[g7_present]), 3), "\n")
+}
+if (length(brics_present) > 0) {
+  cat("BRICS average change:", round(mean(influence_change[brics_present]), 3), "\n")
+}
+```
+
+### Interpreting the results
+
+With ~100 countries, the model captures system-wide shifts in alignment dynamics after the financial crisis. The results typically show:
+
+**Emerging market gains:** Countries from Latin America, Asia, and Africa often show increased influence on alignment patterns, consistent with the redistribution of diplomatic weight post-2008.
+
+**Traditional power stasis:** G7 nations tend to show flat or declining dynamic influence --- not because they became less powerful, but because their alignment positions were already well-established and predictable.
+
+**Regional leaders:** Countries that actively built coalitions (e.g., Brazil, Turkey, South Africa) often emerge as gainers because their changing positions pulled others along.
+
+**Important caveats:** This analysis is illustrative. Substantive conclusions would require longer MCMC runs, robustness checks with different break points, and domain expertise. The exact rankings may vary across runs due to MCMC variability.
+
+## 13 Scaling to large networks
+
+The piecewise model can handle networks substantially larger than the ~100-actor example above. This section provides guidance for scaling to 200+ actors.
+
+### Computational bottlenecks
+
+The main bottlenecks for large networks are:
+
+| Component | Scaling | Bottleneck for... |
+|:---|:---:|:---|
+| A and B matrices | $O(n^2)$ | Memory storage |
+| Theta storage | $O(n^2 \times T \times \text{draws})$ | Memory (if `store_theta = TRUE`) |
+| Matrix operations | $O(n^3)$ per MCMC iteration | Computation time |
+| Observation likelihood | $O(n^2 \times T)$ | Computation time |
+
+For a 200-actor network with 50 time points and 500 posterior draws:
+
+- **A and B storage:** $200^2 \times K \times 500 \approx 160$ MB (manageable)
+- **Theta storage:** $200^2 \times 50 \times 500 \approx 40$ GB (prohibitive!)
+
+The takeaway: **Theta storage is the primary bottleneck** for large networks.
+
+### Recommended settings for large networks
+
+```{r large-network-settings, eval = FALSE}
+# For 200+ actors:
+fit_large = dbn(
+  Y_large,
+  model  = "piecewise",
+  family = "gaussian",
+  blocks = c(25, 50),
+
+  # CRITICAL: disable theta storage
+
+  store_theta = FALSE,
+
+  # can still run substantial MCMC
+  nscan  = 1000,
+  burn   = 500,
+  odens  = 2,
+
+  verbose = TRUE
+)
+```
+
+With `store_theta = FALSE`, you retain:
+
+- ✓ Posterior draws for A, B, M, and variance parameters
+- ✓ Point estimates of Theta (posterior mean)
+- ✓ `compare_blocks()` functionality
+- ✓ Convergence diagnostics
+
+You lose:
+
+- ✗ Full posterior uncertainty on individual $\Theta_t$ entries
+- ✗ `theta_slice()` and `theta_summary()` with credible intervals
+- ✗ `posterior_predict_dbn()` with proper uncertainty propagation
+
+For most substantive analyses, the regime-level A and B matrices are the primary quantities of interest, so this tradeoff is usually acceptable.
+
+### Network size guidelines
+
+| Actors | Theta storage | Expected runtime | Memory |
+|:---:|:---:|:---:|:---:|
+| 50 | OK | 1-5 min | < 1 GB |
+| 100 | Marginal | 5-20 min | 2-8 GB |
+| 200 | **Disable** | 30-90 min | 1-4 GB |
+| 500+ | Disable | Hours | 5-20 GB |
+
+Runtimes assume ~500 post-burn iterations. Actual times depend on number of regimes, time points, and hardware.
+
+### Tips for very large networks (500+)
+
+1. **Start small:** Fit a subset (e.g., 100 actors) first to verify convergence and sensible results
+2. **Use Gaussian family:** Ordinal/binary require latent variable augmentation, adding overhead
+3. **Increase `odens`:** Thinning reduces storage without losing much information
+4. **Monitor memory:** Use `verbose = TRUE` to track progress
+5. **Consider parallelization:** Future versions may support parallel chains
+
+### Bipartite (rectangular) networks
+
+For sender-receiver networks where rows ≠ columns (e.g., 50 senders, 200 receivers), the model uses row-covariance approximation:
+
+```{r bipartite-example, eval = FALSE}
+# 50 senders, 200 receivers
+Y_bipartite = array(..., dim = c(50, 200, 1, T))
+
+fit_bip = dbn(
+  Y_bipartite,
+  model = "piecewise",
+  blocks = c(10, 20),
+  store_theta = FALSE  # recommended for n_col > 100
+)
+```
+
+The A matrix is $50 \times 50$ (sender influence) and B is $200 \times 200$ (receiver influence), allowing asymmetric network analysis.
+
+## 14 Additional practical guidance
+
+### Choosing break points
+
+The piecewise model requires you to specify break points in advance. Good candidates include:
+
+- **Known events:** War onset, treaty signing, regime change, election
+- **Policy interventions:** Sanctions, trade agreements, diplomatic ruptures
+- **External shocks:** Financial crises, pandemics, natural disasters
+- **Theoretical periods:** Pre/during/post-conflict phases
+
+If you're uncertain about break points, fit multiple models with different specifications and compare using `compare_dbn()`.
+
+### How many regimes?
+
+Start with substantively motivated regimes (e.g., pre/post intervention = 2 blocks). Adding more regimes increases flexibility but reduces data per regime. As a rough guide:
+
+| Time points | Max regimes |
+|:---:|:---:|
+| 20-30 | 2-3 |
+| 30-50 | 3-4 |
+| 50-100 | 4-6 |
+
+### Relationship to other models
+
+- **vs. Static:** Piecewise with $K=1$ is equivalent to the static model
+- **vs. Dynamic:** Piecewise trades time-point precision for interpretability and speed
+- **vs. HMM:** Piecewise has known break points; HMM discovers them probabilistically
+
+### When not to use piecewise
+
+- Influence evolves gradually with no discrete breaks
+- You need estimates at every time point
+- Break points are unknown and you want data-driven discovery (use HMM instead)
+
+## 15 Wrap-up
+
+The piecewise-static model sits between the static and dynamic extremes:
+
+- Discrete structural breaks with known timing
+- Regime-specific influence matrices for direct comparison
+- Faster and more memory-efficient than full dynamics
+- Straightforward interpretation: "how did influence change after the event?"
+
+For applications where influence evolves smoothly, see `vignette("dynamic_dbn")`. For data-driven regime discovery, the HMM model (in development) may be more appropriate.

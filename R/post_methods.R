@@ -508,7 +508,7 @@ check_convergence <- function(results) {
 		))
 
 		# basic diagnostics when coda is not installed
-		if (results$model == "static") {
+		if (results$model %in% c("static", "piecewise")) {
 			params <- results$params
 		} else {
 			params <- cbind(
@@ -534,7 +534,7 @@ check_convergence <- function(results) {
 	}
 
 	# coda-based diagnostics (ESS, Geweke, autocorrelation)
-	if (results$model == "static") {
+	if (results$model %in% c("static", "piecewise")) {
 		params_mcmc <- coda::mcmc(results$params)
 	} else {
 		params_df <- cbind(

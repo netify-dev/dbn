@@ -450,6 +450,36 @@ rz_gaussian_approx_cpp <- function(R, Z, EZ, sigma = 1.0) {
     .Call('_dbn_rz_gaussian_approx_cpp', PACKAGE = 'dbn', R, Z, EZ, sigma)
 }
 
+#' @keywords internal
+#' @noRd
+piecewise_theta_update_cpp <- function(Z_block, Theta_prev, M, A, B, s2, is_first_block) {
+    .Call('_dbn_piecewise_theta_update_cpp', PACKAGE = 'dbn', Z_block, Theta_prev, M, A, B, s2, is_first_block)
+}
+
+#' @keywords internal
+#' @noRd
+piecewise_suff_stats_A_cpp <- function(Theta_block, Theta_prev, M, B, is_first_block) {
+    .Call('_dbn_piecewise_suff_stats_A_cpp', PACKAGE = 'dbn', Theta_block, Theta_prev, M, B, is_first_block)
+}
+
+#' @keywords internal
+#' @noRd
+piecewise_suff_stats_B_cpp <- function(Theta_block, Theta_prev, M, A, is_first_block) {
+    .Call('_dbn_piecewise_suff_stats_B_cpp', PACKAGE = 'dbn', Theta_block, Theta_prev, M, A, is_first_block)
+}
+
+#' @keywords internal
+#' @noRd
+piecewise_block_update_cpp <- function(Z_4d, Theta_4d, M, A_blocks, B_blocks, block_starts, block_ends, s2, t2, symmetric) {
+    .Call('_dbn_piecewise_block_update_cpp', PACKAGE = 'dbn', Z_4d, Theta_4d, M, A_blocks, B_blocks, block_starts, block_ends, s2, t2, symmetric)
+}
+
+#' @keywords internal
+#' @noRd
+piecewise_mcmc_iter_cpp <- function(Z, Theta, M, A_blocks, B_blocks, block_starts, block_ends, s2, t2, g2, symmetric) {
+    .Call('_dbn_piecewise_mcmc_iter_cpp', PACKAGE = 'dbn', Z, Theta, M, A_blocks, B_blocks, block_starts, block_ends, s2, t2, g2, symmetric)
+}
+
 #' Validate transition matrix proposals
 #' 
 #' @param A_prop Proposed actor transition matrix

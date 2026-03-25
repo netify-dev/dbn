@@ -28,7 +28,16 @@ NULL
 #' @export
 theta_slice <- function(fit, draws = NULL, i = NULL, j = NULL, rel = NULL, time = NULL) {
 
-	if (is.null(fit$draws) || is.null(fit$draws$theta)) {
+	# find theta draws - different models store them differently
+	theta_draws <- NULL
+	if (!is.null(fit$draws$theta)) {
+		theta_draws <- fit$draws$theta
+	} else if (!is.null(fit$draws$misc$Theta)) {
+		# piecewise model stores at draws$misc$Theta
+		theta_draws <- fit$draws$misc$Theta
+	}
+
+	if (is.null(theta_draws)) {
 		warning("Model fit does not contain theta draws")
 		return(NULL)
 	}
@@ -44,11 +53,11 @@ theta_slice <- function(fit, draws = NULL, i = NULL, j = NULL, rel = NULL, time 
 	}
 
 	if (is.null(draws)) {
-		n_draws <- length(fit$draws$theta)
+		n_draws <- length(theta_draws)
 		draws <- seq_len(n_draws)
 	}
 
-	out <- lapply(fit$draws$theta[draws], function(th) {
+	out <- lapply(theta_draws[draws], function(th) {
 		th[i, j, rel, time, drop = FALSE]
 	})
 
@@ -91,7 +100,14 @@ theta_summary <- function(fit, fun = mean,
 						  draws = NULL, i = NULL, j = NULL,
 						  rel = NULL, time = NULL, chunk = 20) {
 	if (is.null(draws)) {
-		n_draws <- fit$meta$draws %||% length(fit$draws$theta)
+		# find theta draws - different models store them differently
+		if (!is.null(fit$draws$theta)) {
+			n_draws <- length(fit$draws$theta)
+		} else if (!is.null(fit$draws$misc$Theta)) {
+			n_draws <- length(fit$draws$misc$Theta)
+		} else {
+			n_draws <- fit$meta$draws %||% 0
+		}
 		draws <- seq_len(n_draws)
 	}
 
@@ -525,11 +541,20 @@ derive_draws <- function(fit, fun, draws = NULL, chunk = 20, name = "derived") {
 	}
 
 	if (is.null(draws)) {
-		n_draws <- fit$meta$draws %||%
-			length(fit$draws$theta) %||%
-			length(fit$draws$misc$A) %||%
-			length(fit$draws$misc$B)
-		if (is.null(n_draws) || n_draws == 0) {
+		# find n_draws from various possible storage locations
+		n_draws <- 0
+		if (!is.null(fit$meta$draws) && fit$meta$draws > 0) {
+			n_draws <- fit$meta$draws
+		} else if (length(fit$draws$theta) > 0) {
+			n_draws <- length(fit$draws$theta)
+		} else if (length(fit$draws$misc$Theta) > 0) {
+			n_draws <- length(fit$draws$misc$Theta)
+		} else if (length(fit$draws$misc$A) > 0) {
+			n_draws <- length(fit$draws$misc$A)
+		} else if (length(fit$draws$misc$B) > 0) {
+			n_draws <- length(fit$draws$misc$B)
+		}
+		if (n_draws == 0) {
 			warning("Could not determine number of draws")
 			return(NULL)
 		}

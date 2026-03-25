@@ -23,10 +23,10 @@
 #'     Factor loadings \eqn{\alpha_t} and U should be interpreted together.}
 #' }
 #'
-#' @importFrom grDevices adjustcolor heat.colors rainbow
-#' @importFrom graphics abline barplot image legend lines matplot par polygon
+#' @importFrom grDevices adjustcolor colorRampPalette heat.colors rainbow
+#' @importFrom graphics abline arrows barplot image legend lines matplot par plot.new polygon text
 #' @importFrom methods as
-#' @importFrom stats aggregate cor density dnorm ecdf kmeans median na.pass pnorm predict qnorm quantile rbinom rgamma rnorm runif sd time var
+#' @importFrom stats acf aggregate complete.cases cor density dnorm ecdf kmeans median na.pass pnorm predict qnorm quantile rbinom rgamma rnorm runif sd time var
 #' @importFrom utils tail
 #' @importFrom Rcpp evalCpp
 "_PACKAGE"

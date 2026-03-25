@@ -67,7 +67,7 @@ mathematical treatment.
 
 ## 2 Simulate a dynamic data set
 
-We generate a small network with 12 actors observed over 20 time periods. The simulation creates time-varying sender and receiver influence matrices so there is genuine dynamics to recover.
+We generate a small network with 12 actors observed over 20 time periods. The simulation creates time-varying sender and receiver influence matrices.
 
 ```{r simulate-dynamic}
 set.seed(6886)
@@ -115,7 +115,7 @@ plot_trace(fit_dyn, pars = c("sigma2", "tau_A2", "tau_B2", "rho_A", "rho_B"))
 ## 5 Forecasting
 
 Generate forecasts 6 time steps ahead. The model propagates the estimated
-dynamics forward, giving you predicted network states with uncertainty:
+dynamics forward:
 
 ```{r forecast}
 Theta_forecast = predict(fit_dyn, H = 6, S = 200, summary = "mean")
@@ -148,7 +148,7 @@ plot_group_influence(fit_dyn,
 
 ## 8 Parameter summaries
 
-`param_summary()` returns posterior means and credible intervals for all scalar parameters in a tidy data frame. This is a quick way to check whether the innovation variances and AR(1) coefficients are well-identified.
+`param_summary()` returns posterior means and credible intervals for all scalar parameters in a tidy data frame.
 
 ```{r param-summary}
 param_summary(fit_dyn)

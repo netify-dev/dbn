@@ -42,6 +42,8 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 			n_total_draws <- length(fit$draws$pars$sigma2_proc)
 		} else if (fit$model == "lowrank" || fit$model == "lowrank_accurate") {
 			n_total_draws <- length(fit$sigma2)
+		} else if (fit$model == "piecewise") {
+			n_total_draws <- length(fit$draws$misc$Theta)
 		} else {
 			n_total_draws <- fit$meta$draws %||% length(fit$draws$theta)
 		}
@@ -202,6 +204,18 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 						}
 					}
 				}
+			}
+
+		} else if (fit$model == "piecewise") {
+
+			# piecewise stores theta at draws$misc$Theta
+			if (!is.null(fit$draws$misc$Theta) && length(fit$draws$misc$Theta) >= draw_idx) {
+				th <- fit$draws$misc$Theta[[draw_idx]]
+			} else {
+				cli::cli_abort(c(
+					"x" = "cannot extract theta for piecewise model.",
+					"i" = "ensure store_theta = TRUE when fitting the model."
+				))
 			}
 
 		} else {

@@ -959,6 +959,94 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// piecewise_theta_update_cpp
+arma::field<arma::cube> piecewise_theta_update_cpp(const arma::field<arma::cube>& Z_block, const arma::cube& Theta_prev, const arma::cube& M, const arma::mat& A, const arma::mat& B, double s2, bool is_first_block);
+RcppExport SEXP _dbn_piecewise_theta_update_cpp(SEXP Z_blockSEXP, SEXP Theta_prevSEXP, SEXP MSEXP, SEXP ASEXP, SEXP BSEXP, SEXP s2SEXP, SEXP is_first_blockSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::field<arma::cube>& >::type Z_block(Z_blockSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type Theta_prev(Theta_prevSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type B(BSEXP);
+    Rcpp::traits::input_parameter< double >::type s2(s2SEXP);
+    Rcpp::traits::input_parameter< bool >::type is_first_block(is_first_blockSEXP);
+    rcpp_result_gen = Rcpp::wrap(piecewise_theta_update_cpp(Z_block, Theta_prev, M, A, B, s2, is_first_block));
+    return rcpp_result_gen;
+END_RCPP
+}
+// piecewise_suff_stats_A_cpp
+Rcpp::List piecewise_suff_stats_A_cpp(const arma::field<arma::cube>& Theta_block, const arma::cube& Theta_prev, const arma::cube& M, const arma::mat& B, bool is_first_block);
+RcppExport SEXP _dbn_piecewise_suff_stats_A_cpp(SEXP Theta_blockSEXP, SEXP Theta_prevSEXP, SEXP MSEXP, SEXP BSEXP, SEXP is_first_blockSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::field<arma::cube>& >::type Theta_block(Theta_blockSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type Theta_prev(Theta_prevSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type B(BSEXP);
+    Rcpp::traits::input_parameter< bool >::type is_first_block(is_first_blockSEXP);
+    rcpp_result_gen = Rcpp::wrap(piecewise_suff_stats_A_cpp(Theta_block, Theta_prev, M, B, is_first_block));
+    return rcpp_result_gen;
+END_RCPP
+}
+// piecewise_suff_stats_B_cpp
+Rcpp::List piecewise_suff_stats_B_cpp(const arma::field<arma::cube>& Theta_block, const arma::cube& Theta_prev, const arma::cube& M, const arma::mat& A, bool is_first_block);
+RcppExport SEXP _dbn_piecewise_suff_stats_B_cpp(SEXP Theta_blockSEXP, SEXP Theta_prevSEXP, SEXP MSEXP, SEXP ASEXP, SEXP is_first_blockSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::field<arma::cube>& >::type Theta_block(Theta_blockSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type Theta_prev(Theta_prevSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
+    Rcpp::traits::input_parameter< bool >::type is_first_block(is_first_blockSEXP);
+    rcpp_result_gen = Rcpp::wrap(piecewise_suff_stats_B_cpp(Theta_block, Theta_prev, M, A, is_first_block));
+    return rcpp_result_gen;
+END_RCPP
+}
+// piecewise_block_update_cpp
+Rcpp::List piecewise_block_update_cpp(const arma::cube& Z_4d, arma::cube& Theta_4d, const arma::mat& M, Rcpp::List A_blocks, Rcpp::List B_blocks, const arma::ivec& block_starts, const arma::ivec& block_ends, double s2, double t2, bool symmetric);
+RcppExport SEXP _dbn_piecewise_block_update_cpp(SEXP Z_4dSEXP, SEXP Theta_4dSEXP, SEXP MSEXP, SEXP A_blocksSEXP, SEXP B_blocksSEXP, SEXP block_startsSEXP, SEXP block_endsSEXP, SEXP s2SEXP, SEXP t2SEXP, SEXP symmetricSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::cube& >::type Z_4d(Z_4dSEXP);
+    Rcpp::traits::input_parameter< arma::cube& >::type Theta_4d(Theta_4dSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type A_blocks(A_blocksSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type B_blocks(B_blocksSEXP);
+    Rcpp::traits::input_parameter< const arma::ivec& >::type block_starts(block_startsSEXP);
+    Rcpp::traits::input_parameter< const arma::ivec& >::type block_ends(block_endsSEXP);
+    Rcpp::traits::input_parameter< double >::type s2(s2SEXP);
+    Rcpp::traits::input_parameter< double >::type t2(t2SEXP);
+    Rcpp::traits::input_parameter< bool >::type symmetric(symmetricSEXP);
+    rcpp_result_gen = Rcpp::wrap(piecewise_block_update_cpp(Z_4d, Theta_4d, M, A_blocks, B_blocks, block_starts, block_ends, s2, t2, symmetric));
+    return rcpp_result_gen;
+END_RCPP
+}
+// piecewise_mcmc_iter_cpp
+Rcpp::List piecewise_mcmc_iter_cpp(arma::cube Z, arma::cube Theta, arma::mat M, Rcpp::List A_blocks, Rcpp::List B_blocks, const arma::ivec& block_starts, const arma::ivec& block_ends, double s2, double t2, double g2, bool symmetric);
+RcppExport SEXP _dbn_piecewise_mcmc_iter_cpp(SEXP ZSEXP, SEXP ThetaSEXP, SEXP MSEXP, SEXP A_blocksSEXP, SEXP B_blocksSEXP, SEXP block_startsSEXP, SEXP block_endsSEXP, SEXP s2SEXP, SEXP t2SEXP, SEXP g2SEXP, SEXP symmetricSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::cube >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Theta(ThetaSEXP);
+    Rcpp::traits::input_parameter< arma::mat >::type M(MSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type A_blocks(A_blocksSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type B_blocks(B_blocksSEXP);
+    Rcpp::traits::input_parameter< const arma::ivec& >::type block_starts(block_startsSEXP);
+    Rcpp::traits::input_parameter< const arma::ivec& >::type block_ends(block_endsSEXP);
+    Rcpp::traits::input_parameter< double >::type s2(s2SEXP);
+    Rcpp::traits::input_parameter< double >::type t2(t2SEXP);
+    Rcpp::traits::input_parameter< double >::type g2(g2SEXP);
+    Rcpp::traits::input_parameter< bool >::type symmetric(symmetricSEXP);
+    rcpp_result_gen = Rcpp::wrap(piecewise_mcmc_iter_cpp(Z, Theta, M, A_blocks, B_blocks, block_starts, block_ends, s2, t2, g2, symmetric));
+    return rcpp_result_gen;
+END_RCPP
+}
 // validate_transition_proposal
 bool validate_transition_proposal(const arma::mat& A_prop, const arma::mat& B_prop, int p, int q, bool check_stationary);
 RcppExport SEXP _dbn_validate_transition_proposal(SEXP A_propSEXP, SEXP B_propSEXP, SEXP pSEXP, SEXP qSEXP, SEXP check_stationarySEXP) {
@@ -1657,6 +1745,11 @@ static const R_CallMethodDef CallEntries[] = {
     {"_dbn_update_alpha_batch", (DL_FUNC) &_dbn_update_alpha_batch, 11},
     {"_dbn_update_Z_ordinal_vectorized", (DL_FUNC) &_dbn_update_Z_ordinal_vectorized, 7},
     {"_dbn_rz_gaussian_approx_cpp", (DL_FUNC) &_dbn_rz_gaussian_approx_cpp, 4},
+    {"_dbn_piecewise_theta_update_cpp", (DL_FUNC) &_dbn_piecewise_theta_update_cpp, 7},
+    {"_dbn_piecewise_suff_stats_A_cpp", (DL_FUNC) &_dbn_piecewise_suff_stats_A_cpp, 5},
+    {"_dbn_piecewise_suff_stats_B_cpp", (DL_FUNC) &_dbn_piecewise_suff_stats_B_cpp, 5},
+    {"_dbn_piecewise_block_update_cpp", (DL_FUNC) &_dbn_piecewise_block_update_cpp, 10},
+    {"_dbn_piecewise_mcmc_iter_cpp", (DL_FUNC) &_dbn_piecewise_mcmc_iter_cpp, 11},
     {"_dbn_validate_transition_proposal", (DL_FUNC) &_dbn_validate_transition_proposal, 5},
     {"_dbn_propose_transition_adaptive", (DL_FUNC) &_dbn_propose_transition_adaptive, 5},
     {"_dbn_check_edge_cases", (DL_FUNC) &_dbn_check_edge_cases, 1},

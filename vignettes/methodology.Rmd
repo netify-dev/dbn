@@ -75,6 +75,21 @@ The package provides four model types that differ in how the influence matrices 
 
 **Key outputs.** Full time-varying $A_t$ and $B_t$ trajectories; $\tau_A^2$ and $\tau_B^2$ (measuring how rapidly influence reorganizes); optional AR(1) persistence parameters $\rho_A$, $\rho_B$; impulse response functions; forecasts; credible intervals for any dyad at any time.
 
+### Piecewise model (`model = "piecewise"`)
+
+**What it does.** Estimates block-constant influence matrices $A_k$ and $B_k$ for user-specified regimes $k = 1, \ldots, K$. Within each regime, the influence structure is fixed; across regimes, it can differ arbitrarily. This model sits between the static and dynamic extremes.
+
+**When to use it.**
+
+- You know (or hypothesize) when structural breaks occurred
+- You want interpretable regime-specific influence summaries
+- You're comparing pre/post periods around a known event (financial crisis, policy change, conflict onset)
+- Memory constraints prevent storing full time-varying parameters
+
+**What you can learn.** How the influence structure differed across regimes; which actors gained or lost influence after a structural break; whether the break represents a genuine shift (via `compare_blocks()`).
+
+**Key outputs.** Regime-specific $A_k$ and $B_k$ matrices; `compare_blocks()` for quantifying regime differences with posterior uncertainty; same convergence diagnostics as other models.
+
 ### Low-rank model (`model = "lowrank"`) --- *in development*
 
 The low-rank variant applies a factorization to the sender dynamics matrix
@@ -94,17 +109,21 @@ refined. See the [HMM vignette](hmm_dbn.html) for preliminary examples.
 
 ## Choosing a model
 
-For most applications, the choice is between the **static** and **dynamic** models:
+For most applications, the choice is between the **static**, **dynamic**, and **piecewise** models:
 
-| Consideration | Static | Dynamic |
-|:---|:---:|:---:|
-| Influence structure changes over time | | &#10003; |
-| Few time points or cross-sectional | &#10003; | |
-| Want time-indexed influence diagnostics | | &#10003; |
-| Want impulse response analysis | | &#10003; |
-| Want forecasting with propagated dynamics | | &#10003; |
+| Consideration | Static | Dynamic | Piecewise |
+|:---|:---:|:---:|:---:|
+| Influence structure changes over time | | ✓ | ✓ |
+| Few time points or cross-sectional | ✓ | | |
+| Breaks are discrete and known | | | ✓ |
+| Influence evolves smoothly | | ✓ | |
+| Want time-indexed diagnostics | | ✓ | |
+| Want interpretable regime summaries | | | ✓ |
+| Memory constraints (large networks) | | | ✓ |
+| Want impulse response analysis | | ✓ | |
+| Want forecasting | | ✓ | |
 
-The static model is nested within the dynamic model (setting $\tau_A^2 = \tau_B^2 = 0$ recovers it exactly), so the posterior of $\tau_A^2$ itself serves as an informal diagnostic: if it concentrates near zero, the data favor a static structure.
+The static model is nested within the dynamic model (setting $\tau_A^2 = \tau_B^2 = 0$ recovers it exactly), so the posterior of $\tau_A^2$ itself serves as an informal diagnostic: if it concentrates near zero, the data favor a static structure. Similarly, piecewise with $K=1$ is equivalent to static.
 
 The **low-rank** and **HMM** variants extend the framework for specific use cases (large networks and regime-switching, respectively) and are under active development.
 
