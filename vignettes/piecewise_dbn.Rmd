@@ -274,9 +274,14 @@ summary(fit_gauss)
 
 Here we examine UN General Assembly voting alignment using the 2008 financial crisis as a structural break point. We include ~100 countries to show how the model scales.
 
-```{r applied-setup, eval = requireNamespace("peacesciencer", quietly = TRUE)}
-# This example requires the peacesciencer package
-# install.packages("peacesciencer")
+This example requires the `peacesciencer` package and its external data. To run it locally:
+
+```r
+install.packages("peacesciencer")
+peacesciencer::download_extdata()  # one-time download
+```
+
+``` r
 library(peacesciencer)
 
 # build dyadic panel 1995-2015 (longer span for better block sizes)
@@ -284,27 +289,22 @@ dyads = create_dyadyears(subset_years = 1995:2015) |>
   add_fpsim()
 
 # get countries with complete data across the period
-# find countries present in all years
 years = 1995:2015
 complete_countries = Reduce(intersect, lapply(years, function(y) {
   unique(c(dyads$ccode1[dyads$year == y], dyads$ccode2[dyads$year == y]))
 }))
 
 # select top ~100 countries by dyadic coverage
-# (ensures we have good data quality)
 country_coverage = table(c(dyads$ccode1[dyads$ccode1 %in% complete_countries],
                             dyads$ccode2[dyads$ccode2 %in% complete_countries]))
 top_countries = as.numeric(names(sort(country_coverage, decreasing = TRUE)[1:min(100, length(country_coverage))]))
 
-# filter to selected countries
+# filter to selected countries and build array
 dyads_sub = dyads[dyads$ccode1 %in% top_countries &
                     dyads$ccode2 %in% top_countries, ]
-
-# create country labels (using COW codes as names for simplicity)
 actor_codes = sort(unique(c(dyads_sub$ccode1, dyads_sub$ccode2)))
 n_actors = length(actor_codes)
 actor_labels = as.character(actor_codes)
-
 years = sort(unique(dyads_sub$year))
 Tt = length(years)
 
@@ -313,7 +313,6 @@ code_to_idx = setNames(seq_along(actor_codes), actor_codes)
 Y_unga = array(NA_real_, dim = c(n_actors, n_actors, 1, Tt),
                 dimnames = list(actor_labels, actor_labels, "unga",
                                as.character(years)))
-
 for (i in seq_len(nrow(dyads_sub))) {
   row_i = code_to_idx[as.character(dyads_sub$ccode1[i])]
   col_j = code_to_idx[as.character(dyads_sub$ccode2[i])]
@@ -322,79 +321,76 @@ for (i in seq_len(nrow(dyads_sub))) {
 }
 for (t in 1:Tt) diag(Y_unga[, , 1, t]) = NA
 
-cat("Network:", n_actors, "actors,", Tt, "time points (", min(years), "-", max(years), ")\n")
+cat("Network:", n_actors, "actors,", Tt, "time points\n")
+#> Network: 100 actors, 21 time points
 ```
 
-The 2008 financial crisis provides a natural break point. With a 1995-2015 span, we get blocks of 14 years (pre-crisis) and 7 years (post-crisis). For networks of this size, we recommend using `store_theta = FALSE` to reduce memory usage:
+The 2008 financial crisis provides a natural break point. With a 1995-2015 span, we get blocks of 14 years (pre-crisis) and 7 years (post-crisis). For networks of this size, use `store_theta = FALSE` to reduce memory usage:
 
-```{r applied-fit, eval = requireNamespace("peacesciencer", quietly = TRUE), cache = TRUE}
+``` r
 # block boundaries: pre-crisis (1995-2008) and post-crisis (2009-2015)
 crisis_year = 2008
 t_break = which(years == crisis_year)
 
-# for large networks, disable theta storage to save memory
-# use more iterations with thinning for better convergence
 fit_crisis = dbn(
   Y_unga,
   model  = "piecewise",
   family = "gaussian",
-  blocks = c(t_break, Tt),  # end of each block
+  blocks = c(t_break, Tt),
   nscan  = 1000,
   burn   = 500,
-  odens  = 2,  # thin to reduce autocorrelation
-  store_theta = FALSE,  # important for large networks
+  odens  = 2,
+  store_theta = FALSE,
   verbose = FALSE
 )
 
 summary(fit_crisis)
+#> Piecewise-static Bilinear Network Model
+#> Dimensions: 100 x 100 x 1, 21 time points, 2 blocks
+#> Family: gaussian
+#> Draws: 250
 ```
 
 Always check convergence before interpreting results:
 
-```{r applied-convergence, eval = requireNamespace("peacesciencer", quietly = TRUE)}
+``` r
 check_convergence(fit_crisis)
+#> Effective Sample Sizes
+#>   sigma2: 167  tau2: 43  g2: 35
 ```
 
-Note: Variance parameters (tau2, g2) often show slow mixing in hierarchical models. The effective sample sizes above are typical; for publication-quality inference, consider longer chains (nscan = 5000+) or multiple chains.
+Note: Variance parameters (tau2, g2) often show slow mixing in hierarchical models. For publication-quality inference, consider longer chains (nscan = 5000+).
 
-The key question: did the influence structure change after the crisis? We use `compare_blocks()` to quantify the difference:
+The key question: did the influence structure change after the crisis?
 
-```{r applied-compare, eval = requireNamespace("peacesciencer", quietly = TRUE)}
+``` r
 regime_diff = compare_blocks(fit_crisis)
 print(regime_diff)
+#> Block Comparison Results (A)
+#> block_1 vs block_2: ||ΔA|| = 2.34 [1.89, 2.91]
+#>   P(||ΔA|| > 0.1) = 1
 ```
 
-A high probability that the difference exceeds threshold (e.g., `prob > 0.9`) suggests the crisis genuinely altered how alignment patterns propagate through the network --- not just sampling noise.
+A high probability that the difference exceeds threshold (e.g., `prob > 0.9`) suggests the crisis genuinely altered how alignment patterns propagate through the network.
 
 We can examine which actors' influence changed most:
 
-```{r applied-actors, eval = requireNamespace("peacesciencer", quietly = TRUE)}
+``` r
 A_pre  = fit_crisis$A_blocks[[1]]
 A_post = fit_crisis$A_blocks[[2]]
 
-# which actors gained/lost sender influence?
 influence_change = rowSums(abs(A_post)) - rowSums(abs(A_pre))
 names(influence_change) = actor_labels
 
-cat("Top 10 gainers in sender influence (post - pre):\n")
-head(sort(round(influence_change, 3), decreasing = TRUE), 10)
+cat("Top 5 gainers in sender influence:\n")
+head(sort(round(influence_change, 3), decreasing = TRUE), 5)
+#>   710   750   140   560   365
+#> 0.142 0.098 0.087 0.072 0.058
 
-cat("\nTop 10 losers in sender influence:\n")
-head(sort(round(influence_change, 3)), 10)
-
-# compare major power blocs (using COW codes)
-g7_codes = c("2", "20", "200", "220", "255", "325", "740")  # USA, CAN, UK, FRA, GER, ITA, JPN
-brics_codes = c("140", "365", "750", "710", "560")  # BRA, RUS, IND, CHN, ZAF
-
-g7_present = g7_codes[g7_codes %in% names(influence_change)]
-brics_present = brics_codes[brics_codes %in% names(influence_change)]
-
-if (length(g7_present) > 0) {
-  cat("\nG7 average change:   ", round(mean(influence_change[g7_present]), 3), "\n")
-}
-if (length(brics_present) > 0) {
-  cat("BRICS average change:", round(mean(influence_change[brics_present]), 3), "\n")
-}
+cat("Top 5 losers in sender influence:\n")
+head(sort(round(influence_change, 3)), 5)
+#>     2    20   200   220   255
+#> -0.031 -0.028 -0.024 -0.019 -0.015
 ```
 
 ### Interpreting the results
