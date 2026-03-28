@@ -111,11 +111,12 @@ test_that("network statistics are computed correctly", {
 
 test_that("compute_irf works with static model", {
 		skip_if_not_installed("dbn")
-		
+		set.seed(6886)
+
 		# minimal static model fit
 		m = 5
 		n_draws = 10
-		
+
 		fit = list(
 				model = "static",
 				dims = list(m = m, n_row = m, n_col = m, p = 1, Tt = 1, is_bipartite = FALSE),

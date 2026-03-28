@@ -28,34 +28,41 @@ simulate_lowrank_dbn(
 
 \item{time}{Number of time points}
 
-\item{r}{Rank}
+\item{r}{Rank of the factorization}
 
-\item{sigma2}{Innovation variance}
+\item{sigma2}{Process noise variance}
 
-\item{tau_alpha2}{Variance for alpha innovations}
+\item{tau_alpha2}{Variance for alpha factor innovations}
 
 \item{tauB2}{Variance for B innovations}
 
-\item{ar1_alpha}{Use AR(1) for alpha dynamics}
+\item{ar1_alpha}{Use AR(1) for alpha dynamics (default TRUE)}
 
-\item{rho_alpha}{AR coefficient for alpha}
+\item{rho_alpha}{AR(1) persistence for alpha (default 0.9)}
 
-\item{seed}{Random seed}
+\item{seed}{Random seed for reproducibility}
 
-\item{return_truth}{Return true latent factors and parameters}
+\item{return_truth}{If TRUE (default), include true parameters in output}
 }
 \value{
-List containing simulated data and true parameters
+A list containing:
+\item{Y}{Observed ordinal data array \verb{[n, n, p, time]}}
+\item{Z}{Continuous latent values (use with \code{family = "gaussian"})}
+\item{Theta}{True latent network state at each time point}
+\item{U}{True orthogonal factor matrix \verb{[n, r]}}
+\item{alpha}{True factor trajectories \verb{[r, time]}}
+\item{A}{True time-varying sender influence \verb{[n, n, time]} (reconstructed from U and alpha)}
+\item{B}{True time-varying receiver influence \verb{[n_col, n_col, time]}}
+\item{M}{True baseline mean array \verb{[n, n_col, p]}}
+\item{sigma2, tau_alpha2, tauB2, r}{True parameter values used in simulation}
 }
 \description{
 Generates data from a low-rank DBN with factored A = U diag(alpha) U'
 }
 \examples{
-\dontrun{
-sim <- simulate_lowrank_dbn(n = 25, p = 1, time = 12, r = 1,
-    sigma2 = 0.2, tau_alpha2 = 0.02, seed = 42)
-fit <- dbn_lowrank(sim$Y, r = 1, n_iter = 600, burn = 200, thin = 2)
-}
+sim <- simulate_lowrank_dbn(n = 8, p = 1, time = 5, r = 2, seed = 6886)
+dim(sim$Y)
+dim(sim$alpha)
 }
 \seealso{
 \code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data

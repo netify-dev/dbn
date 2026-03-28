@@ -14,23 +14,50 @@ build_shock(
 )
 }
 \arguments{
-\item{m}{Number of sender nodes}
+\item{m}{Number of actors (senders). This should match the fitted model's
+network size.}
 
-\item{type}{Type of shock: "unit_edge", "node_out", "node_in", or "density"}
+\item{type}{Type of shock:
+\itemize{
+\item \code{"unit_edge"}: perturb a single directed edge (i -> j)
+\item \code{"node_out"}: perturb all outgoing edges from actor i
+\item \code{"node_in"}: perturb all incoming edges to actor i
+\item \code{"density"}: uniform perturbation to all edges
+}}
 
-\item{i}{Source node index}
+\item{i}{Source actor index (sender)}
 
-\item{j}{Target node index (for unit_edge)}
+\item{j}{Target actor index (receiver), used only for \code{"unit_edge"}}
 
-\item{magnitude}{Shock magnitude}
+\item{magnitude}{Size of the perturbation. Scale relative to your data:
+e.g., if data ranges from -1 to 1, a magnitude of 0.5 is a large shock.}
 
-\item{n_col}{Number of receiver nodes (default: m)}
+\item{n_col}{Number of receiver nodes (default: same as \code{m})}
 }
 \value{
-n_row x n_col shock matrix
+An \verb{m x n_col} matrix of zeros with the specified entries set to
+\code{magnitude}. Pass this to \code{\link[=compute_irf]{compute_irf()}} as the \code{shock} argument.
 }
 \description{
-Creates shock matrices for different types of network interventions
+Creates structured perturbation matrices for impulse response
+analysis. The shock matrix S is added to the latent network at a single
+time point, and \code{\link[=compute_irf]{compute_irf()}} tracks how the perturbation propagates.
+}
+\details{
+\strong{When to use each shock type:}
+\itemize{
+\item \code{"unit_edge"}: Shock a single bilateral tie (e.g., "what if USA-Russia
+relations improve?"). Use when you care about a specific dyad.
+\item \code{"node_out"}: Shock all outgoing ties from one actor (e.g., "what if
+China engages all partners at once?"). Use when you care about one
+actor's overall engagement.
+\item \code{"node_in"}: Shock all incoming ties to one actor.
+\item \code{"density"}: Apply a uniform shock to all edges. Use to study how
+a system-wide shift propagates.
+}
+
+For \strong{symmetric (undirected) networks}, symmetrize the shock after
+building it: \code{S = S + t(S)}.
 }
 \examples{
 # Unit edge shock: activate edge from node 1 to node 2

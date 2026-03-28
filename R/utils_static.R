@@ -171,7 +171,7 @@ static_gibbs_step_tucker <- function(Y_obs, Z, M, B, s2, t2, g2) {
 	M <- M_num / (Tt + 1 / g2) + rsan(c(n_row, n_col, p)) / sqrt(Tt + 1 / g2)
 
 	# update g2 (M prior variance)
-	g2 <- 1 / rgamma(1, (1 + n_row * n_col * p) / 2, (1 + sum(M^2)) / 2)
+	g2 <- 1 / rgamma(1, (1 + n_row * n_col * p) / 2, (1 + sum(M^2, na.rm = TRUE)) / 2)
 
 	# update s2 (observation variance)
 	XB <- tprod(X_lag, B)

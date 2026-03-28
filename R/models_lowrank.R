@@ -18,7 +18,12 @@ init_lowrank <- function(Y, r) {
 	Ybar[is.na(Ybar)] <- 0
 	sv <- svd(Ybar, nu = r, nv = r)
 	U <- sv$u[, 1:r, drop = FALSE]
-	alpha <- matrix(0, r, Tt)
+
+	# scale initial alpha so max(|alpha|) < 1 for stable dynamics
+	alpha_init <- sv$d[1:r]
+	max_alpha <- max(abs(alpha_init))
+	if (max_alpha > 0.5) alpha_init <- alpha_init / (max_alpha * 2.5)
+	alpha <- matrix(alpha_init, nrow = r, ncol = Tt)
 
 	list(U = U, alpha = alpha)
 }
@@ -128,6 +133,7 @@ dbn_lowrank_accurate <- function(Y,
 	p <- dims$p
 	Tt <- dims$Tt
 	nc <- n_row * n_col
+	Y_var <- var(c(Y[!is.na(Y)]))
 
 	# bipartite networks not yet supported for low-rank
 	if (is_bipartite) {
@@ -201,7 +207,9 @@ dbn_lowrank_accurate <- function(Y,
 		lr <- init_lowrank(Y, r)
 		U <- lr$U
 		alpha <- lr$alpha
-		tau_alpha2 <- 1
+
+		# initialize variances for stable start
+		tau_alpha2 <- 0.1
 		rho_alpha <- if (ar1_alpha) 0.9 else 0
 		sigma2_proc <- 0.5
 		sigma2_obs <- FAM$init_pars$sigma2_obs %||% 1
@@ -209,7 +217,7 @@ dbn_lowrank_accurate <- function(Y,
 
 		Barray <- array(0, dim = c(n_col, n_col, Tt))
 		for (t in 1:Tt) Barray[, , t] <- diag(n_col)
-		tau_B2 <- 1
+		tau_B2 <- 0.1
 		rho_B <- if (ar1_B) 0.9 else 0
 	}
 	####
@@ -243,8 +251,8 @@ dbn_lowrank_accurate <- function(Y,
 	epsilon <- 0.005
 	accept_U <- 0
 
-	a_tau <- 10
-	b_tau <- 10
+	a_tau <- 2
+	b_tau <- 2
 
 	Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
@@ -288,26 +296,40 @@ dbn_lowrank_accurate <- function(Y,
 			mu_var <- 1 / (Tt + 1 / g2)
 			M_flat[, , j] <- mu_sum * mu_var + matrix(sqrt(mu_var) * rnorm(nc), n_row, n_col)
 		}
-		M_ss <- sum(M_flat^2)
+		M_ss <- sum(M_flat^2, na.rm = TRUE)
 		g2 <- safe_rinv_gamma(10 + length(M_flat)/2, 10 + M_ss/2)
 
-		# Theta update via FFBS
+		# Theta update via FFBS (returns Theta with M included)
 		Theta_flat <- ffbs_theta_all_relations(Z_flat, M_flat, Aarray, Barray,
 											  sigma2_proc, sigma2_obs, m, p, Tt)
 
-		# alpha update (blocked)
-		alpha <- update_alpha_batch(Theta_flat, U, Barray,
+		# center Theta by subtracting M for dynamics updates
+		Theta_centered <- Theta_flat
+		for (jj in seq_len(p)) {
+			offset_j <- (jj - 1L) * Tt
+			for (tt in seq_len(Tt)) {
+				Theta_centered[, , offset_j + tt] <- Theta_flat[, , offset_j + tt] - M_flat[, , jj]
+			}
+		}
+
+		# alpha update (blocked) -- uses centered Theta
+		alpha <- update_alpha_batch(Theta_centered, U, Barray,
 								   sigma2_proc,
 								   tau_alpha2,
 								   ar1_alpha, rho_alpha, m, p, Tt, r)
 
 		Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
-		# B update (parallelized)
-		Barray <- update_B_parallel(Theta_flat, Aarray,
+		# B update (parallelized) -- uses centered Theta
+		Barray <- update_B_parallel(Theta_centered, Aarray,
 										 sigma2_proc,
 										 tau_B2,
 										 ar1_B, rho_B, m, p, Tt)
+
+		# stabilize B spectral radius to prevent drift
+		for (tt in seq_len(Tt)) {
+			Barray[, , tt] <- stabilize_spectral_radius(Barray[, , tt], 0.99)
+		}
 
 		# update tau_alpha2
 		if (ar1_alpha) {
@@ -331,7 +353,7 @@ dbn_lowrank_accurate <- function(Y,
 		}
 
 		# U via Metropolis on the Stiefel manifold
-		u_update_freq <- max(5, floor(m / 10))
+		u_update_freq <- max(2, floor(m / 20))
 		if (g %% u_update_freq == 0) {
 			W_vec <- rnorm(m * (m - 1) / 2)
 			W <- matrix(0, m, m)
@@ -348,13 +370,13 @@ dbn_lowrank_accurate <- function(Y,
 			half_W <- epsilon * W / 2
 			U_prop <- U + 2 * half_W %*% solve(I_m - half_W %*% half_W) %*% U
 
-			# average Theta across relations for the likelihood
+			# average centered Theta across relations for the likelihood
 			if (p == 1L) {
-				Theta_avg <- Theta_flat[, , 1:Tt, drop = FALSE]
+				Theta_avg <- Theta_centered[, , 1:Tt, drop = FALSE]
 			} else {
 				idx <- as.vector(outer(seq_len(Tt), (seq_len(p) - 1L) * Tt, "+"))
-				dim_tf <- dim(Theta_flat)
-				arr <- array(Theta_flat[, , idx], c(dim_tf[1] * dim_tf[2], Tt, p))
+				dim_tf <- dim(Theta_centered)
+				arr <- array(Theta_centered[, , idx], c(dim_tf[1] * dim_tf[2], Tt, p))
 				Theta_avg <- array(rowMeans(arr, dims = 2L), c(n_row, n_col, Tt))
 			}
 
@@ -391,9 +413,14 @@ dbn_lowrank_accurate <- function(Y,
 			}
 		}
 
-		# sigma2_proc via batch C++ residuals
-		resid_ss <- compute_sigma2_lowrank_batch(Theta_flat, Aarray, Barray, m, p, Tt)
+		# sigma2_proc -- uses centered Theta
+		resid_ss <- compute_sigma2_lowrank_batch(Theta_centered, Aarray, Barray, m, p, Tt)
 		sigma2_proc <- safe_rinv_gamma(a_tau + nc * p * (Tt - 1) / 2, b_tau + resid_ss / 2)
+
+		# cap variances to prevent degenerate explosion
+		sigma2_cap <- 100 * max(1, Y_var, na.rm = TRUE)
+		if (is.na(sigma2_proc) || sigma2_proc > sigma2_cap) sigma2_proc <- sigma2_cap
+		if (is.na(tau_B2) || tau_B2 > sigma2_cap) tau_B2 <- sigma2_cap
 
 		# observation variance for gaussian
 		if (FAM$name == "gaussian") {
@@ -518,6 +545,7 @@ dbn_lowrank_accurate <- function(Y,
 			B = Bsave,
 			M = Msave,
 			sigma2_proc = sigmasave,
+			sigma2 = sigmasave,
 			tau_alpha2 = tau_alpha_save,
 			tau_B2 = tau_B_save,
 			g2 = g2save,
@@ -617,6 +645,7 @@ dbn_lowrank <- function(Y,
 	p <- dims$p
 	Tt <- dims$Tt
 	nc <- n_row * n_col
+	Y_var <- var(c(Y[!is.na(Y)]))
 
 	# bipartite networks not yet supported for low-rank
 	if (is_bipartite) {
@@ -690,7 +719,9 @@ dbn_lowrank <- function(Y,
 		lr <- init_lowrank(Y, r)
 		U <- lr$U
 		alpha <- lr$alpha
-		tau_alpha2 <- 1
+
+		# initialize variances for stable start
+		tau_alpha2 <- 0.1
 		rho_alpha <- if (ar1_alpha) 0.9 else 0
 		sigma2_proc <- 0.5
 		sigma2_obs <- FAM$init_pars$sigma2_obs %||% 1
@@ -698,7 +729,7 @@ dbn_lowrank <- function(Y,
 
 		Barray <- array(0, dim = c(n_col, n_col, Tt))
 		for (t in 1:Tt) Barray[, , t] <- diag(n_col)
-		tau_B2 <- 1
+		tau_B2 <- 0.1
 		rho_B <- if (ar1_B) 0.9 else 0
 	}
 	####
@@ -732,8 +763,8 @@ dbn_lowrank <- function(Y,
 	epsilon <- 0.005
 	accept_U <- 0
 
-	a_tau <- 10
-	b_tau <- 10
+	a_tau <- 2
+	b_tau <- 2
 
 	Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
@@ -777,26 +808,40 @@ dbn_lowrank <- function(Y,
 			mu_var <- 1 / (Tt + 1 / g2)
 			M_flat[, , j] <- mu_sum * mu_var + matrix(sqrt(mu_var) * rnorm(nc), n_row, n_col)
 		}
-		M_ss <- sum(M_flat^2)
+		M_ss <- sum(M_flat^2, na.rm = TRUE)
 		g2 <- safe_rinv_gamma(10 + length(M_flat)/2, 10 + M_ss/2)
 
-		# Theta update via blocked FFBS
+		# Theta update via blocked FFBS (returns Theta with M included)
 		Theta_flat <- ffbs_theta_blocked(Z_flat, M_flat, Aarray, Barray,
 										sigma2_proc, sigma2_obs, m, p, Tt)
 
-		# alpha update (optimized)
-		alpha <- update_alpha_optimized(Theta_flat, U, Barray,
+		# center Theta by subtracting M for dynamics updates
+		Theta_centered <- Theta_flat
+		for (jj in seq_len(p)) {
+			offset_j <- (jj - 1L) * Tt
+			for (tt in seq_len(Tt)) {
+				Theta_centered[, , offset_j + tt] <- Theta_flat[, , offset_j + tt] - M_flat[, , jj]
+			}
+		}
+
+		# alpha update (optimized) -- uses centered Theta
+		alpha <- update_alpha_optimized(Theta_centered, U, Barray,
 									   sigma2_proc,
 									   tau_alpha2,
 									   ar1_alpha, rho_alpha, m, p, Tt, r)
 
 		Aarray <- compute_all_A_lowrank(U, alpha, Tt)
 
-		# B update (parallelized)
-		Barray <- update_B_parallel(Theta_flat, Aarray,
+		# B update (parallelized) -- uses centered Theta
+		Barray <- update_B_parallel(Theta_centered, Aarray,
 									sigma2_proc,
 									tau_B2,
 									ar1_B, rho_B, m, p, Tt)
+
+		# stabilize B spectral radius to prevent drift
+		for (tt in seq_len(Tt)) {
+			Barray[, , tt] <- stabilize_spectral_radius(Barray[, , tt], 0.99)
+		}
 
 		# update tau_alpha2
 		if (ar1_alpha) {
@@ -820,7 +865,7 @@ dbn_lowrank <- function(Y,
 		}
 
 		# U via Stiefel manifold Metropolis step
-		u_update_freq <- max(5, floor(m / 10))
+		u_update_freq <- max(2, floor(m / 20))
 		if (g %% u_update_freq == 0) {
 			W <- generate_skew_proposal(m, sqrt(m) * epsilon)
 
@@ -833,14 +878,14 @@ dbn_lowrank <- function(Y,
 				U_prop <- qr.Q(qr(U_prop))
 			}
 
-			# average Theta across relations for the likelihood
+			# average centered Theta across relations for the likelihood
 			Theta_avg <- array(0, dim = c(n_row, n_col, Tt))
 			if (p == 1) {
-				Theta_avg <- Theta_flat[, , 1:Tt]
+				Theta_avg <- Theta_centered[, , 1:Tt]
 			} else {
 				for (t in 1:Tt) {
 					for (j in 1:p) {
-						Theta_avg[, , t] <- Theta_avg[, , t] + Theta_flat[, , (j-1)*Tt + t]
+						Theta_avg[, , t] <- Theta_avg[, , t] + Theta_centered[, , (j-1)*Tt + t]
 					}
 					Theta_avg[, , t] <- Theta_avg[, , t] / p
 				}
@@ -879,9 +924,14 @@ dbn_lowrank <- function(Y,
 			}
 		}
 
-		# sigma2_proc via SIMD residuals
-		resid_ss <- compute_sigma2_simd(Theta_flat, U, alpha, Barray, m, p, Tt, r)
+		# sigma2_proc -- uses centered Theta
+		resid_ss <- compute_sigma2_simd(Theta_centered, U, alpha, Barray, m, p, Tt, r)
 		sigma2_proc <- safe_rinv_gamma(a_tau + nc * p * (Tt - 1) / 2, b_tau + resid_ss / 2)
+
+		# cap variances to prevent degenerate explosion
+		sigma2_cap <- 100 * max(1, Y_var, na.rm = TRUE)
+		if (is.na(sigma2_proc) || sigma2_proc > sigma2_cap) sigma2_proc <- sigma2_cap
+		if (is.na(tau_B2) || tau_B2 > sigma2_cap) tau_B2 <- sigma2_cap
 
 		# observation variance for gaussian
 		if (FAM$name == "gaussian") {
@@ -1002,6 +1052,7 @@ dbn_lowrank <- function(Y,
 			B = Bsave,
 			M = Msave,
 			sigma2_proc = sigmasave,
+			sigma2 = sigmasave,
 			tau_alpha2 = tau_alpha_save,
 			tau_B2 = tau_B_save,
 			g2 = g2save,

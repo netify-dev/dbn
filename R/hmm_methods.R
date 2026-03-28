@@ -166,7 +166,7 @@ predict_hmm <- function(object, H = 1, draws = 100,
 		A_list <- object$A[[s]]
 		B_list <- object$B[[s]]
 		Pi <- object$Pi[[s]]
-		sigma2 <- object$sigma2[s]
+		sigma2 <- (object$sigma2 %||% object$sigma2_proc)[s]
 
 		regime <- sample(R, 1, prob = colMeans(Pi))
 		Theta_now <- array(0, c(n_row, n_col, p))

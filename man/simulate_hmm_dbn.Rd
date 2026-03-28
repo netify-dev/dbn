@@ -54,11 +54,9 @@ List containing simulated data and true parameters
 Generates data from a regime-switching HMM DBN
 }
 \examples{
-\dontrun{
-sim <- simulate_hmm_dbn(n = 20, p = 1, time = 30, R = 2,
-    transition_prob = 0.9, sigma2 = 0.1, seed = 123)
-fit <- dbn_hmm(sim$Y, R = 2, n_iter = 800, burn = 200, thin = 2)
-}
+sim <- simulate_hmm_dbn(n = 8, p = 1, time = 10, R = 2, seed = 6886)
+dim(sim$Y)
+table(sim$S)
 }
 \seealso{
 \code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data

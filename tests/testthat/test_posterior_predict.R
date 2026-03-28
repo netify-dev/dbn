@@ -3,6 +3,7 @@
 ####
 
 test_that("posterior_predict_dbn works for static model", {
+	skip_on_cran()
 	set.seed(123)
 	n = 8
 	p = 2
@@ -29,6 +30,7 @@ test_that("posterior_predict_dbn works for static model", {
 })
 
 test_that("posterior_predict_dbn works for dynamic model", {
+	skip_on_cran()
 	set.seed(456)
 	n = 6
 	p = 1
@@ -55,6 +57,7 @@ test_that("posterior_predict_dbn works for dynamic model", {
 })
 
 test_that("posterior_predict_dbn works for dynamic model with time thinning", {
+	skip_on_cran()
 	set.seed(789)
 	n = 5
 	p = 2
@@ -80,6 +83,7 @@ test_that("posterior_predict_dbn works for dynamic model with time thinning", {
 })
 
 test_that("posterior_predict_dbn works for gaussian family", {
+	skip_on_cran()
 	set.seed(111)
 	n = 5
 	p = 1
@@ -106,6 +110,7 @@ test_that("posterior_predict_dbn works for gaussian family", {
 })
 
 test_that("posterior_predict_dbn works for binary family", {
+	skip_on_cran()
 	set.seed(333)
 	n = 6
 	p = 1
@@ -129,8 +134,9 @@ test_that("posterior_predict_dbn works for binary family", {
 })
 
 test_that("posterior_predict_dbn works for lowrank model", {
+	skip_on_cran()
 	skip_if_not_installed("Matrix")
-	
+
 	set.seed(444)
 	n = 8
 	p = 1
@@ -152,6 +158,7 @@ test_that("posterior_predict_dbn works for lowrank model", {
 })
 
 test_that("posterior_predict_dbn works for hmm model", {
+	skip_on_cran()
 	set.seed(555)
 	n = 6
 	p = 1
@@ -173,6 +180,7 @@ test_that("posterior_predict_dbn works for hmm model", {
 })
 
 test_that("posterior_predict_dbn handles edge cases", {
+	skip_on_cran()
 	set.seed(666)
 	n = 4
 	p = 1
@@ -196,6 +204,7 @@ test_that("posterior_predict_dbn handles edge cases", {
 })
 
 test_that("posterior_predict_dbn works with 3D input data", {
+	skip_on_cran()
 	set.seed(888)
 	n = 5
 	Tt = 10

@@ -9,22 +9,38 @@ NULL
 ####
 #' Simulate from Static DBN Model
 #'
-#' @description Generates data from a static DBN with fixed A and B matrices
-#' @param n Number of row actors / senders
-#' @param n_col Number of column actors / receivers (default: n)
-#' @param p Number of relation types
-#' @param time Number of time points
-#' @param sigma2 Innovation variance
-#' @param tau2 Variance for A/B deviations from identity
-#' @param K Number of ordinal categories
-#' @param return_truth Return true parameters in a truth sub-list
-#' @param seed Random seed
-#' @param symmetric Logical. If TRUE, set B = A for symmetric/undirected networks. Default: FALSE.
-#' @return List containing simulated data and true parameters
-#' @seealso \code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
+#' @description Generates synthetic network data from a static DBN with fixed
+#'   A and B influence matrices. Useful for testing model recovery and
+#'   understanding the data-generating process.
+#' @param n Number of actors (senders). For bipartite networks, this is the
+#'   number of senders.
+#' @param n_col Number of receivers (default: same as `n` for unipartite)
+#' @param p Number of relation types (default: 2)
+#' @param time Number of time periods to simulate
+#' @param sigma2 Process noise variance. Larger values produce noisier networks.
+#' @param tau2 Prior variance for A and B deviations from the identity matrix.
+#'   Larger values produce stronger cross-actor influence.
+#' @param K Number of ordinal categories for the observed data (default: 5).
+#'   The continuous latent values are discretized into 1 through K.
+#' @param return_truth If TRUE (default), include the true parameters
+#'   in a `$truth` sub-list for validation.
+#' @param seed Random seed for reproducibility
+#' @param symmetric If TRUE, set B = A for symmetric/undirected networks.
+#' @return A list containing:
+#'   \item{Y}{Observed ordinal data array `[n_row, n_col, p, time]`}
+#'   \item{Z}{Continuous latent values (use with `family = "gaussian"`)}
+#'   \item{Theta}{True latent network state at each time point}
+#'   \item{A}{True sender influence matrix}
+#'   \item{B}{True receiver influence matrix}
+#'   \item{M}{True baseline mean array `[n_row, n_col, p]`}
+#'   \item{sigma2, tau2, K}{True parameter values used in simulation}
+#' @seealso [dbn()] for model fitting, [simulate_dynamic_dbn()] for
+#'   time-varying version, [simulate_test_data()] for quick test data
 #' @examples
 #' sim <- simulate_static_dbn(n = 8, time = 5, seed = 42)
-#' str(sim$Y)
+#' dim(sim$Y)    # observed ordinal data
+#' dim(sim$Z)    # continuous latent (for gaussian family)
+#' dim(sim$A)    # true sender influence matrix
 #' @export
 simulate_static_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 								sigma2 = 0.5, tau2 = 0.1, K = 5,
@@ -119,26 +135,41 @@ simulate_static_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 ####
 #' Simulate from Dynamic DBN Model
 #'
-#' @description Generates data from a dynamic DBN with time-varying A and B
-#' @param n Number of row actors / senders
-#' @param n_col Number of column actors / receivers (default: n)
-#' @param p Number of relation types
-#' @param time Number of time points
-#' @param sigma2 Innovation variance
-#' @param tauA2 Variance for A innovations
-#' @param tauB2 Variance for B innovations
-#' @param ar1 Use AR(1) dynamics instead of random walk
-#' @param rhoA AR coefficient for A
-#' @param rhoB AR coefficient for B
-#' @param K Number of ordinal categories
-#' @param return_truth Return true parameters in a truth sub-list
-#' @param seed Random seed
-#' @param symmetric Logical. If TRUE, set B = A at each time point. Default: FALSE.
-#' @return List containing simulated data and true parameters
-#' @seealso \code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
+#' @description Generates synthetic network data from a dynamic DBN with
+#'   time-varying A and B influence matrices. Each period's influence
+#'   structure evolves from the previous period's via a random walk
+#'   (default) or AR(1) process.
+#' @param n Number of actors (senders)
+#' @param n_col Number of receivers (default: same as `n`)
+#' @param p Number of relation types (default: 2)
+#' @param time Number of time periods to simulate
+#' @param sigma2 Process noise variance
+#' @param tauA2 Innovation variance for A (how fast sender influence changes).
+#'   Larger values produce more volatile influence dynamics.
+#' @param tauB2 Innovation variance for B (how fast receiver influence changes)
+#' @param ar1 If TRUE, use AR(1) dynamics (smooth evolution). If FALSE (default),
+#'   use random walk (less smooth).
+#' @param rhoA AR(1) persistence parameter for A (only used if `ar1 = TRUE`).
+#'   Values near 1 produce slowly changing influence.
+#' @param rhoB AR(1) persistence parameter for B
+#' @param K Number of ordinal categories for observed data (default: 5)
+#' @param return_truth If TRUE (default), include true parameters in output
+#' @param seed Random seed for reproducibility
+#' @param symmetric If TRUE, set B = A at each time point.
+#' @return A list containing:
+#'   \item{Y}{Observed ordinal data array `[n_row, n_col, p, time]`}
+#'   \item{Z}{Continuous latent values (use with `family = "gaussian"`)}
+#'   \item{Theta}{True latent network state at each time point}
+#'   \item{A}{True time-varying sender influence `[n_row, n_row, time]`}
+#'   \item{B}{True time-varying receiver influence `[n_col, n_col, time]`}
+#'   \item{M}{True baseline mean array}
+#'   \item{sigma2, tauA2, tauB2, rhoA, rhoB}{True parameter values}
+#' @seealso [dbn()] for model fitting, [simulate_static_dbn()] for
+#'   fixed-influence version
 #' @examples
-#' sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 42)
-#' str(sim$Y)
+#' sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 42)
+#' dim(sim$Y)    # observed ordinal data
+#' dim(sim$A)    # true A matrices [n, n, time]
 #' @export
 simulate_dynamic_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 								 sigma2 = 0.5, tauA2 = 0.05, tauB2 = 0.05,
@@ -254,23 +285,30 @@ simulate_dynamic_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 #' @param n_col Number of receiver actors (default: n)
 #' @param p Number of relation types
 #' @param time Number of time points
-#' @param r Rank
-#' @param sigma2 Innovation variance
-#' @param tau_alpha2 Variance for alpha innovations
+#' @param r Rank of the factorization
+#' @param sigma2 Process noise variance
+#' @param tau_alpha2 Variance for alpha factor innovations
 #' @param tauB2 Variance for B innovations
-#' @param ar1_alpha Use AR(1) for alpha dynamics
-#' @param rho_alpha AR coefficient for alpha
-#' @param seed Random seed
-#' @param return_truth Return true latent factors and parameters
-#' @return List containing simulated data and true parameters
+#' @param ar1_alpha Use AR(1) for alpha dynamics (default TRUE)
+#' @param rho_alpha AR(1) persistence for alpha (default 0.9)
+#' @param seed Random seed for reproducibility
+#' @param return_truth If TRUE (default), include true parameters in output
+#' @return A list containing:
+#'   \item{Y}{Observed ordinal data array `[n, n, p, time]`}
+#'   \item{Z}{Continuous latent values (use with `family = "gaussian"`)}
+#'   \item{Theta}{True latent network state at each time point}
+#'   \item{U}{True orthogonal factor matrix `[n, r]`}
+#'   \item{alpha}{True factor trajectories `[r, time]`}
+#'   \item{A}{True time-varying sender influence `[n, n, time]` (reconstructed from U and alpha)}
+#'   \item{B}{True time-varying receiver influence `[n_col, n_col, time]`}
+#'   \item{M}{True baseline mean array `[n, n_col, p]`}
+#'   \item{sigma2, tau_alpha2, tauB2, r}{True parameter values used in simulation}
 #' @seealso \code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
 #' @export
 #' @examples
-#' \dontrun{
-#' sim <- simulate_lowrank_dbn(n = 25, p = 1, time = 12, r = 1,
-#'     sigma2 = 0.2, tau_alpha2 = 0.02, seed = 42)
-#' fit <- dbn_lowrank(sim$Y, r = 1, n_iter = 600, burn = 200, thin = 2)
-#' }
+#' sim <- simulate_lowrank_dbn(n = 8, p = 1, time = 5, r = 2, seed = 6886)
+#' dim(sim$Y)
+#' dim(sim$alpha)
 simulate_lowrank_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 								 r = 3, sigma2 = 0.5, tau_alpha2 = 0.1,
 								 tauB2 = 0.05, ar1_alpha = TRUE,
@@ -396,11 +434,9 @@ simulate_lowrank_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 #' @seealso \code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
 #' @export
 #' @examples
-#' \dontrun{
-#' sim <- simulate_hmm_dbn(n = 20, p = 1, time = 30, R = 2,
-#'     transition_prob = 0.9, sigma2 = 0.1, seed = 123)
-#' fit <- dbn_hmm(sim$Y, R = 2, n_iter = 800, burn = 200, thin = 2)
-#' }
+#' sim <- simulate_hmm_dbn(n = 8, p = 1, time = 10, R = 2, seed = 6886)
+#' dim(sim$Y)
+#' table(sim$S)
 simulate_hmm_dbn <- function(n = 30, n_col = n, p = 2, time = 50,
 							 R = 3, sigma2 = 0.5, tau_A2 = 0.2,
 							 tau_B2 = 0.2, transition_prob = 0.8,

@@ -300,8 +300,11 @@ summary_piecewise <- function(object, ...) {
 #' @param ... additional arguments
 #' @return list with simulated values
 #' @keywords internal
-simulate_piecewise <- function(object, H = 10, ndraws = 100, seed = NULL, ...) {
+simulate_piecewise <- function(object, H = 10, ndraws = 100, S = NULL,
+							   summary = c("mean", "none"), seed = NULL, ...) {
 	if (!is.null(seed)) set.seed(seed)
+	if (!is.null(S)) ndraws <- S
+	summary <- match.arg(summary)
 
 	n_row <- object$dims$n_row
 	n_col <- object$dims$n_col
@@ -324,8 +327,16 @@ simulate_piecewise <- function(object, H = 10, ndraws = 100, seed = NULL, ...) {
 		M <- object$draws$misc$M[[s]]
 		s2 <- object$draws$pars$s2[s]
 
-		# get last Theta
-		Theta_prev <- object$draws$theta[, , , Tt, s]
+		# get last Theta from stored draws
+		if (!is.null(object$draws$misc$Theta) && length(object$draws$misc$Theta) >= s) {
+			Theta_prev <- object$draws$misc$Theta[[s]][, , , Tt, drop = FALSE]
+			dim(Theta_prev) <- c(n_row, n_col, p)
+		} else {
+			cli::cli_abort(c(
+				"Theta draws not available for forecasting.",
+				"i" = "Refit with {.code store_theta = TRUE} to enable forecasting."
+			))
+		}
 
 		for (h in 1:H) {
 			# forecast Theta
@@ -341,12 +352,10 @@ simulate_piecewise <- function(object, H = 10, ndraws = 100, seed = NULL, ...) {
 		}
 	}
 
-	list(
-		Y_sim = Y_sim,
-		H = H,
-		ndraws = length(draw_idx),
-		model = "piecewise"
-	)
+	if (summary == "mean") {
+		return(apply(Y_sim, 1:4, mean))
+	}
+	Y_sim
 }
 ####
 
@@ -429,14 +438,27 @@ compare_blocks <- function(fit, blocks = NULL, parameter = "A", threshold = 0.1)
 		)
 	}
 
+	# attach class so print method controls output
+	class(results) <- "dbn_block_comparison"
+	attr(results, "parameter") <- parameter
+
 	# print summary
-	cli::cli_h3("Block Comparison Results ({parameter})")
-	for (nm in names(results)) {
-		r <- results[[nm]]
-		cli::cli_alert_info("{r$block_names[1]} vs {r$block_names[2]}: ||\u0394{parameter}|| = {round(r$mean_diff, 3)} [{round(r$ci[1], 3)}, {round(r$ci[2], 3)}]")
-		cli::cli_alert("  P(||\u0394{parameter}|| > {threshold}) = {round(r$prob_above_threshold, 3)}")
-	}
+	print(results)
 
 	invisible(results)
+}
+####
+
+####
+#' @export
+print.dbn_block_comparison <- function(x, ...) {
+	parameter <- attr(x, "parameter") %||% "A"
+	cli::cli_h3("Block Comparison Results ({parameter})")
+	for (nm in names(x)) {
+		r <- x[[nm]]
+		cli::cli_alert_info("{r$block_names[1]} vs {r$block_names[2]}: ||\u0394{parameter}|| = {round(r$mean_diff, 3)} [{round(r$ci[1], 3)}, {round(r$ci[2], 3)}]")
+		cli::cli_alert("  P(||\u0394{parameter}|| > {r$threshold}) = {round(r$prob_above_threshold, 3)}")
+	}
+	invisible(x)
 }
 ####

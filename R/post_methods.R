@@ -487,9 +487,25 @@ summary_dynamic <- function(object, digits = 3, ...) {
 ####
 #' Check MCMC Convergence
 #'
-#' @description Provides convergence diagnostics for MCMC chains
-#' @param results Output from dbn()
-#' @return Invisible NULL (diagnostics are printed and plotted)
+#' @description Prints effective sample sizes (ESS) and Geweke diagnostics
+#'   for the scalar variance parameters in a fitted DBN model. Always run
+#'   this before interpreting results to verify the MCMC sampler has
+#'   converged.
+#'
+#' @details
+#' **Effective sample size (ESS):** The number of effectively independent
+#' posterior draws. Values above 200-400 are generally adequate. Low ESS
+#' means the chain is highly autocorrelated and you should increase
+#' `nscan` or `odens`.
+#'
+#' **Geweke diagnostic:** Tests whether the first and last portions of
+#' the chain come from the same distribution. Absolute values above 2
+#' suggest the chain has not converged and you should increase `burn`.
+#'
+#' For visual diagnostics, use [plot_trace()] to inspect trace plots.
+#'
+#' @param results Output from [dbn()]
+#' @return Invisible NULL (diagnostics are printed to console)
 #' @seealso \code{\link{dbn}}, \code{\link{compare_dbn}},
 #'   \code{\link{param_summary}}
 #' @examples
@@ -548,14 +564,32 @@ check_convergence <- function(results) {
 		params_mcmc <- coda::mcmc(params_df)
 	}
 
+	# drop columns with zero variance (fixed parameters, e.g. ordinal s2)
+	col_var <- apply(as.matrix(params_mcmc), 2, var, na.rm = TRUE)
+	fixed_cols <- names(col_var)[!is.na(col_var) & col_var < .Machine$double.eps]
+	varying_mcmc <- params_mcmc
+	if (length(fixed_cols) > 0) {
+		cli::cli_alert_info("Fixed parameters (not sampled): {.val {fixed_cols}}")
+		keep <- setdiff(colnames(params_mcmc), fixed_cols)
+		if (length(keep) > 0) {
+			varying_mcmc <- coda::mcmc(as.matrix(params_mcmc)[, keep, drop = FALSE])
+		} else {
+			cli::cli_alert_warning("All parameters are fixed; no convergence diagnostics to compute.")
+			return(invisible(NULL))
+		}
+	}
+
 	cli::cli_h3("Effective Sample Sizes")
-	print(coda::effectiveSize(params_mcmc))
+	print(coda::effectiveSize(varying_mcmc))
 
 	cli::cli_h3("Geweke Diagnostic")
-	print(coda::geweke.diag(params_mcmc))
+	print(coda::geweke.diag(varying_mcmc))
 
-	par(mfrow = c(2, 2))
-	coda::autocorr.plot(params_mcmc, auto.layout = FALSE)
+	n_pars <- ncol(as.matrix(varying_mcmc))
+	if (n_pars > 0) {
+		par(mfrow = c(min(n_pars, 2), min(n_pars, 2)))
+		coda::autocorr.plot(varying_mcmc, auto.layout = FALSE)
+	}
 
 	invisible(NULL)
 }
@@ -564,9 +598,14 @@ check_convergence <- function(results) {
 ####
 #' Compare Multiple DBN Models
 #'
-#' @description Creates comparative plots for multiple DBN results using ggplot2
-#' @param ... Multiple dbn objects to compare
-#' @return A ggplot2 object or list of plots
+#' @description Creates side-by-side trace plots of scalar variance parameters
+#'   from two or more fitted DBN models. Useful for comparing convergence
+#'   behavior across different model specifications (e.g., static vs. dynamic,
+#'   different ranks, different families).
+#' @param ... Two or more fitted `dbn` objects to compare. Objects are
+#'   labeled "Model 1", "Model 2", etc. in the plot legend.
+#' @return A ggplot2 object showing overlaid trace plots, faceted by
+#'   parameter.
 #' @seealso \code{\link{dbn}}, \code{\link{check_convergence}},
 #'   \code{\link{param_summary}}
 #' @examples
@@ -1151,15 +1190,11 @@ tidy_dbn <- function(fit, what = c("A", "B", "Theta"), time_subset = NULL) {
 #'   \code{\link{compare_group_influence}}, \code{\link{dbn}}
 #' @export
 #' @examples
-#' \dontrun{
-#' # Plot sender influence for actors 1, 3, 5
+#' \donttest{
+#' sim <- simulate_dynamic_dbn(n = 10, time = 10, seed = 6886)
+#' fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+#'     nscan = 200, burn = 100, verbose = FALSE)
 #' plot_group_influence(fit, group = c(1, 3, 5), type = "sender")
-#'
-#' # Plot target influence using L2 norm
-#' plot_group_influence(fit,
-#'     group = c(1, 3, 5), type = "target",
-#'     fun = "sum", measure = "l2", cred = 0.8
-#' )
 #' }
 plot_group_influence <- function(fit,
 								 group,
@@ -1268,15 +1303,11 @@ plot_group_influence <- function(fit,
 #'   \code{\link{compare_group_influence}}, \code{\link{dbn}}
 #' @export
 #' @examples
-#' \dontrun{
-#' # Get influence trajectory data
+#' \donttest{
+#' sim <- simulate_dynamic_dbn(n = 10, time = 10, seed = 6886)
+#' fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+#'     nscan = 200, burn = 100, verbose = FALSE)
 #' inf_data <- get_group_influence(fit, group = c(1, 3, 5), type = "sender")
-#'
-#' # Custom quantiles
-#' inf_data <- get_group_influence(fit,
-#'     group = c(1, 3, 5),
-#'     probs = c(0.1, 0.25, 0.5, 0.75, 0.9)
-#' )
 #' }
 get_group_influence <- function(fit,
 								group,
@@ -1373,12 +1404,13 @@ get_group_influence <- function(fit,
 #'   \code{\link{get_group_influence}}, \code{\link{dbn}}
 #' @export
 #' @examples
-#' \dontrun{
-#' # Compare two groups
+#' \donttest{
+#' sim <- simulate_dynamic_dbn(n = 10, time = 10, seed = 6886)
+#' fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+#'     nscan = 200, burn = 100, verbose = FALSE)
 #' compare_group_influence(fit,
 #'     groups = list(c(1, 3, 5), c(2, 4, 6)),
-#'     group_names = c("Group A", "Group B")
-#' )
+#'     group_names = c("Group A", "Group B"))
 #' }
 compare_group_influence <- function(fit,
 									groups,

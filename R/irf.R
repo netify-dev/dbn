@@ -1,14 +1,40 @@
 ####
 #' Build Shock Matrix for IRF Analysis
 #'
-#' @description Creates shock matrices for different types of network interventions
-#' @param m Number of sender nodes
-#' @param type Type of shock: "unit_edge", "node_out", "node_in", or "density"
-#' @param i Source node index
-#' @param j Target node index (for unit_edge)
-#' @param magnitude Shock magnitude
-#' @param n_col Number of receiver nodes (default: m)
-#' @return n_row x n_col shock matrix
+#' @description Creates structured perturbation matrices for impulse response
+#'   analysis. The shock matrix S is added to the latent network at a single
+#'   time point, and [compute_irf()] tracks how the perturbation propagates.
+#'
+#' @details
+#' **When to use each shock type:**
+#' - `"unit_edge"`: Shock a single bilateral tie (e.g., "what if USA-Russia
+#'   relations improve?"). Use when you care about a specific dyad.
+#' - `"node_out"`: Shock all outgoing ties from one actor (e.g., "what if
+#'   China engages all partners at once?"). Use when you care about one
+#'   actor's overall engagement.
+#' - `"node_in"`: Shock all incoming ties to one actor.
+#' - `"density"`: Apply a uniform shock to all edges. Use to study how
+#'   a system-wide shift propagates.
+#'
+#' For **symmetric (undirected) networks**, symmetrize the shock after
+#' building it: `S = S + t(S)`.
+#'
+#' @param m Number of actors (senders). This should match the fitted model's
+#'   network size.
+#' @param type Type of shock:
+#'   \itemize{
+#'     \item `"unit_edge"`: perturb a single directed edge (i -> j)
+#'     \item `"node_out"`: perturb all outgoing edges from actor i
+#'     \item `"node_in"`: perturb all incoming edges to actor i
+#'     \item `"density"`: uniform perturbation to all edges
+#'   }
+#' @param i Source actor index (sender)
+#' @param j Target actor index (receiver), used only for `"unit_edge"`
+#' @param magnitude Size of the perturbation. Scale relative to your data:
+#'   e.g., if data ranges from -1 to 1, a magnitude of 0.5 is a large shock.
+#' @param n_col Number of receiver nodes (default: same as `m`)
+#' @return An `m x n_col` matrix of zeros with the specified entries set to
+#'   `magnitude`. Pass this to [compute_irf()] as the `shock` argument.
 #' @seealso \code{\link{compute_irf}}, \code{\link{plot.dbn_irf}}
 #' @examples
 #' # Unit edge shock: activate edge from node 1 to node 2
@@ -90,7 +116,10 @@ stat_density <- function(X) {
 
 #' Network Statistic: In-Degree
 #'
-#' @description Column sums of network matrix
+#' @description Column sums of network matrix.  Includes the diagonal entry
+#'   for each node.  In typical DBN usage the diagonal is `NA` or zero, so
+#'   the result matches the conventional in-degree.  If your matrix has
+#'   non-zero diagonal entries, subtract them manually.
 #' @param X Network matrix
 #' @return Vector of in-degrees
 #' @seealso \code{\link{compute_irf}}, \code{\link{build_shock}},
@@ -105,7 +134,10 @@ stat_in_degree <- function(X) {
 
 #' Network Statistic: Out-Degree
 #'
-#' @description Row sums of network matrix
+#' @description Row sums of network matrix.  Includes the diagonal entry
+#'   for each node.  In typical DBN usage the diagonal is `NA` or zero, so
+#'   the result matches the conventional out-degree.  If your matrix has
+#'   non-zero diagonal entries, subtract them manually.
 #' @param X Network matrix
 #' @return Vector of out-degrees
 #' @seealso \code{\link{compute_irf}}, \code{\link{build_shock}},

@@ -76,11 +76,14 @@ shared_preprocess <- function(Y, family = "ordinal") {
 		Z <- Y
 		if (family == "gaussian") {
 			Z[!is.finite(Z)] <- 0
+		} else if (family == "binary") {
+			Z[is.na(Z)] <- 0
 		}
 	}
 
-	# initial mean M
+	# initial mean M (NaN arises from all-NA diagonals in unipartite networks)
 	M <- array(apply(Z, c(1, 2, 3), mean, na.rm = TRUE), dim = c(n_row, n_col, dims$p))
+	M[is.nan(M)] <- 0
 
 	# initial Theta (centered residual + noise)
 	Theta <- sweep(Z, c(1, 2, 3), M, "-") + rsan(dim(Z))

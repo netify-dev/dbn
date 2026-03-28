@@ -19,6 +19,7 @@ make_binary_data = function(n = 8, p = 1, time = 10, seed = 100) {
 #### static
 
 test_that("static x ordinal works", {
+	skip_on_cran()
 	sim = simulate_static_dbn(n = 8, p = 1, time = 8, seed = 10)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
 		nscan = 50, burn = 20, verbose = FALSE)
@@ -28,6 +29,7 @@ test_that("static x ordinal works", {
 })
 
 test_that("static x gaussian works", {
+	skip_on_cran()
 	Y = make_gaussian_data(n = 8, time = 8, seed = 20)
 	fit = dbn(Y, model = "static", family = "gaussian",
 		nscan = 50, burn = 20, verbose = FALSE)
@@ -36,6 +38,7 @@ test_that("static x gaussian works", {
 })
 
 test_that("static x binary works", {
+	skip_on_cran()
 	Y = make_binary_data(n = 8, time = 8, seed = 30)
 	fit = dbn(Y, model = "static", family = "binary",
 		nscan = 50, burn = 20, verbose = FALSE)
@@ -46,6 +49,7 @@ test_that("static x binary works", {
 #### dynamic
 
 test_that("dynamic x ordinal works", {
+	skip_on_cran()
 	sim = simulate_dynamic_dbn(n = 6, p = 1, time = 5, seed = 40)
 	fit = dbn(sim$Y, model = "dynamic", family = "ordinal",
 		nscan = 50, burn = 20, verbose = FALSE)
@@ -55,6 +59,7 @@ test_that("dynamic x ordinal works", {
 })
 
 test_that("dynamic x gaussian works", {
+	skip_on_cran()
 	Y = make_gaussian_data(n = 6, time = 5, seed = 50)
 	fit = dbn(Y, model = "dynamic", family = "gaussian",
 		nscan = 50, burn = 20, verbose = FALSE)
@@ -63,6 +68,7 @@ test_that("dynamic x gaussian works", {
 })
 
 test_that("dynamic x binary works", {
+	skip_on_cran()
 	Y = make_binary_data(n = 6, time = 5, seed = 60)
 	fit = dbn(Y, model = "dynamic", family = "binary",
 		nscan = 50, burn = 20, verbose = FALSE)
@@ -73,6 +79,7 @@ test_that("dynamic x binary works", {
 #### lowrank
 
 test_that("lowrank x ordinal works", {
+	skip_on_cran()
 	sim = simulate_lowrank_dbn(n = 8, p = 1, time = 8, r = 2, seed = 70)
 	fit = dbn(sim$Y, model = "lowrank", family = "ordinal",
 		nscan = 50, burn = 20, verbose = FALSE, r = 2)
@@ -81,6 +88,7 @@ test_that("lowrank x ordinal works", {
 })
 
 test_that("lowrank x gaussian works", {
+	skip_on_cran()
 	Y = make_gaussian_data(n = 8, time = 8, seed = 80)
 	fit = dbn(Y, model = "lowrank", family = "gaussian",
 		nscan = 50, burn = 20, verbose = FALSE, r = 2)
@@ -88,6 +96,7 @@ test_that("lowrank x gaussian works", {
 })
 
 test_that("lowrank x binary works", {
+	skip_on_cran()
 	Y = make_binary_data(n = 8, time = 8, seed = 90)
 	fit = dbn(Y, model = "lowrank", family = "binary",
 		nscan = 50, burn = 20, verbose = FALSE, r = 2)
@@ -97,6 +106,7 @@ test_that("lowrank x binary works", {
 #### HMM
 
 test_that("hmm x ordinal works", {
+	skip_on_cran()
 	sim = simulate_hmm_dbn(n = 8, p = 1, time = 10, R = 2, seed = 100)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
 		nscan = 50, burn = 20, verbose = FALSE, R = 2)
@@ -105,6 +115,7 @@ test_that("hmm x ordinal works", {
 })
 
 test_that("hmm x gaussian works", {
+	skip_on_cran()
 	Y = make_gaussian_data(n = 8, time = 10, seed = 110)
 	fit = dbn(Y, model = "hmm", family = "gaussian",
 		nscan = 50, burn = 20, verbose = FALSE, R = 2)
@@ -112,6 +123,7 @@ test_that("hmm x gaussian works", {
 })
 
 test_that("hmm x binary works", {
+	skip_on_cran()
 	Y = make_binary_data(n = 8, time = 10, seed = 120)
 	fit = dbn(Y, model = "hmm", family = "binary",
 		nscan = 50, burn = 20, verbose = FALSE, R = 2)

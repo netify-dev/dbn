@@ -200,7 +200,7 @@ dbn_piecewise <- function(Y,
 		M <- M_sum / (Tt + 1 / g2) + rsan(c(n_row, n_col, p)) / sqrt(Tt + 1 / g2)
 
 		# update g2 (M prior variance)
-		g2 <- 1 / rgamma(1, (1 + nc * p) / 2, (1 + sum(M^2)) / 2)
+		g2 <- 1 / rgamma(1, (1 + nc * p) / 2, (1 + sum(M^2, na.rm = TRUE)) / 2)
 		####
 
 		# update each block: Theta, A_k, B_k

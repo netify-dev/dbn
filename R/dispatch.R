@@ -16,6 +16,34 @@
 #' }
 NULL
 
+#' Plot Diagnostics for a Fitted DBN Model
+#'
+#' @description Creates model-specific diagnostic plots for a fitted DBN
+#'   object. The type of plot depends on the model variant:
+#'   \itemize{
+#'     \item **Static**: trace plots, posterior histograms, and a network
+#'       summary of the estimated B matrix.
+#'     \item **Dynamic**: trace plots for variance parameters and, if
+#'       available, time-varying A/B summaries.
+#'     \item **Lowrank**: trace plots, estimated factor trajectories
+#'       (\eqn{\alpha_t}), and the posterior mean node-loading matrix U.
+#'     \item **HMM**: regime probabilities over time, the estimated
+#'       transition matrix, and MCMC trace plots.
+#'     \item **Piecewise**: trace plots for each regime block.
+#'   }
+#'
+#' @param x A fitted `dbn` object returned by [dbn()].
+#' @param ... Additional arguments passed to model-specific plot functions
+#'   (e.g., `alpha` for edge significance in the static model).
+#' @return A ggplot2 object (or arranged multi-panel plot) is printed and
+#'   returned invisibly.
+#' @seealso [dbn()], [plot_trace()], [check_convergence()], [summary_dbn()]
+#' @examples
+#' \donttest{
+#' sim <- simulate_static_dbn(n = 8, time = 10, seed = 6886)
+#' fit <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
+#' plot(fit)
+#' }
 #' @export
 #' @method plot dbn
 plot.dbn <- function(x, ...) {
@@ -32,6 +60,23 @@ plot.dbn <- function(x, ...) {
 	do.call(plot_fun, list(x, ...))
 }
 
+#' Summarize a Fitted DBN Model
+#'
+#' @description Prints a structured summary of a fitted DBN model including
+#'   data dimensions, posterior means and 95\% credible intervals for scalar
+#'   parameters, and model-specific details (e.g., transition matrix for HMM,
+#'   block structure for piecewise, DIC for Gaussian models).
+#'
+#' @param object A fitted `dbn` object returned by [dbn()].
+#' @param ... Additional arguments (currently unused).
+#' @return Invisibly returns `object`. The summary is printed to the console.
+#' @seealso [dbn()], [param_summary()], [check_convergence()], [plot_dbn()]
+#' @examples
+#' \donttest{
+#' sim <- simulate_static_dbn(n = 8, time = 10, seed = 6886)
+#' fit <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
+#' summary(fit)
+#' }
 #' @export
 #' @method summary dbn
 summary.dbn <- function(object, ...) {
@@ -48,6 +93,57 @@ summary.dbn <- function(object, ...) {
 	do.call(summary_fun, list(object, ...))
 }
 
+#' Predict from a Fitted DBN Model
+#'
+#' @description Generates predictions from a fitted DBN model. With no
+#'   arguments (or PPD-only arguments), returns posterior predictive
+#'   replications of the observed data for model checking. With forecasting
+#'   arguments (`H`, `S`, `summary`), propagates the estimated dynamics
+#'   forward to produce multi-step-ahead forecasts.
+#'
+#' @details
+#' **Posterior predictive distribution (default):** Simulates new datasets
+#' from the fitted model to compare against the observed data. Use
+#' [plot_ppc_ecdf()] or [plot_ppc_density()] for visual checks.
+#'
+#' **Forecasting:** Pass `H` (horizon), `S` or `draws` (number of
+#' simulations), and optionally `summary = "mean"` to average across draws.
+#' The forecast propagates \eqn{A_t}, \eqn{B_t}, and process noise forward
+#' from the final observed time point.
+#'
+#' @param object A fitted `dbn` object returned by [dbn()].
+#' @param ... Model-specific arguments:
+#'   \describe{
+#'     \item{H}{Forecast horizon (number of steps ahead). Triggers
+#'       forecasting mode.}
+#'     \item{S, draws}{Number of posterior draws to use for forecasting.}
+#'     \item{summary}{If `"mean"`, return the pointwise mean across draws.
+#'       If `NULL` (default), return the full array of simulated
+#'       trajectories.}
+#'     \item{ndraws}{Number of draws for posterior predictive checks
+#'       (default: 100).}
+#'     \item{seed}{Random seed for reproducibility.}
+#'   }
+#' @return For forecasting (`H` specified): an array of dimensions
+#'   `[n_row, n_col, p, H]` (if `summary = "mean"`) or
+#'   `[n_row, n_col, p, H, draws]`.
+#'   For posterior predictive checks: a list of class `"dbn_ppd"` containing
+#'   replicated datasets.
+#' @seealso [dbn()], [posterior_predict_dbn()], [plot_ppc_ecdf()],
+#'   [plot_ppc_density()]
+#' @examples
+#' \donttest{
+#' sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 6886)
+#' fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+#'            nscan = 200, burn = 100, verbose = FALSE)
+#'
+#' # forecasting: 5 steps ahead
+#' fc <- predict(fit, H = 5, S = 50, summary = "mean")
+#' dim(fc)
+#'
+#' # posterior predictive check
+#' ppd <- predict(fit, ndraws = 10)
+#' }
 #' @export
 #' @method predict dbn
 predict.dbn <- function(object, ...) {

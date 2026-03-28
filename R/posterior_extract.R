@@ -253,12 +253,20 @@ theta_summary <- function(fit, fun = mean,
 ####
 
 ####
-#' Summarize scalar parameters
+#' Summarize Scalar Parameters
 #'
-#' @description Compute quantiles for scalar parameter traces
-#' @param fit A dbn model fit object
-#' @param probs Probability levels for quantiles
-#' @return Data frame with parameter summaries
+#' @description Returns posterior mean, standard deviation, and quantiles
+#'   for the scalar variance parameters estimated by the model. These
+#'   typically include:
+#'   - `sigma2` or `s2`: process noise variance
+#'   - `tau_A2` / `tau_B2` or `t2`: innovation variance for A/B
+#'   - `g2`: latent variance
+#'   - `rhoA` / `rhoB`: AR(1) persistence (dynamic model with `ar1 = TRUE`)
+#'   - `sigma2_obs`: observation variance (gaussian family)
+#' @param fit A dbn model fit object (output from [dbn()])
+#' @param probs Quantile probabilities (default: 5th, 50th, 95th percentiles)
+#' @return Data frame with columns: `parameter`, `mean`, `sd`, and one
+#'   column per requested quantile
 #' @seealso \code{\link{theta_summary}}, \code{\link{plot_trace}}, \code{\link{derive_draws}}
 #' @examples
 #' \donttest{
@@ -267,7 +275,7 @@ theta_summary <- function(fit, fun = mean,
 #' ps <- param_summary(fit)
 #' }
 #' @export
-param_summary <- function(fit, probs = c(0.05, 0.5, 0.95)) {
+param_summary <- function(fit, probs = c(0.025, 0.5, 0.975)) {
 	if (!is.null(fit$draws$pars)) {
 		pars <- fit$draws$pars
 	} else {
@@ -310,15 +318,24 @@ param_summary <- function(fit, probs = c(0.05, 0.5, 0.95)) {
 ####
 
 ####
-#' Summarize latent means (M arrays)
+#' Summarize Baseline Mean M
 #'
-#' @description Compute summaries for latent mean arrays M
-#' @param fit A dbn model fit object
-#' @param fun Summary function
-#' @param draws Draw indices
-#' @param rel Relation indices (optional)
-#' @param chunk Chunk size for processing
-#' @return Data frame with M summaries
+#' @description Computes posterior summaries of the baseline mean matrix M,
+#'   which captures persistent dyad-specific tendencies (e.g., stable
+#'   alliances or rivalries) that do not change over time. Returns a
+#'   data frame with one row per dyad, suitable for plotting or comparison
+#'   against known ground truth in simulation studies.
+#' @param fit A fitted `dbn` object returned by [dbn()].
+#' @param fun Summary function applied across posterior draws (default:
+#'   [mean]). Use [median] for a robust alternative, or a custom function.
+#' @param draws Integer vector of posterior draw indices to use. If `NULL`
+#'   (default), all available draws are used.
+#' @param rel Integer vector of relation indices to summarize. If `NULL`
+#'   (default), all relations are included.
+#' @param chunk Integer controlling memory-efficient processing. Draws are
+#'   processed in blocks of this size. Only relevant for very large fits.
+#' @return Data frame with columns `i` (sender), `j` (receiver), `rel`,
+#'   and `value` (the summary statistic).
 #' @seealso \code{\link{param_summary}}, \code{\link{theta_summary}}, \code{\link{derive_draws}}
 #' @examples
 #' \donttest{

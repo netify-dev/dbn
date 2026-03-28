@@ -22,44 +22,59 @@ simulate_dynamic_dbn(
 )
 }
 \arguments{
-\item{n}{Number of row actors / senders}
+\item{n}{Number of actors (senders)}
 
-\item{n_col}{Number of column actors / receivers (default: n)}
+\item{n_col}{Number of receivers (default: same as \code{n})}
 
-\item{p}{Number of relation types}
+\item{p}{Number of relation types (default: 2)}
 
-\item{time}{Number of time points}
+\item{time}{Number of time periods to simulate}
 
-\item{sigma2}{Innovation variance}
+\item{sigma2}{Process noise variance}
 
-\item{tauA2}{Variance for A innovations}
+\item{tauA2}{Innovation variance for A (how fast sender influence changes).
+Larger values produce more volatile influence dynamics.}
 
-\item{tauB2}{Variance for B innovations}
+\item{tauB2}{Innovation variance for B (how fast receiver influence changes)}
 
-\item{ar1}{Use AR(1) dynamics instead of random walk}
+\item{ar1}{If TRUE, use AR(1) dynamics (smooth evolution). If FALSE (default),
+use random walk (less smooth).}
 
-\item{rhoA}{AR coefficient for A}
+\item{rhoA}{AR(1) persistence parameter for A (only used if \code{ar1 = TRUE}).
+Values near 1 produce slowly changing influence.}
 
-\item{rhoB}{AR coefficient for B}
+\item{rhoB}{AR(1) persistence parameter for B}
 
-\item{K}{Number of ordinal categories}
+\item{K}{Number of ordinal categories for observed data (default: 5)}
 
-\item{return_truth}{Return true parameters in a truth sub-list}
+\item{return_truth}{If TRUE (default), include true parameters in output}
 
-\item{seed}{Random seed}
+\item{seed}{Random seed for reproducibility}
 
-\item{symmetric}{Logical. If TRUE, set B = A at each time point. Default: FALSE.}
+\item{symmetric}{If TRUE, set B = A at each time point.}
 }
 \value{
-List containing simulated data and true parameters
+A list containing:
+\item{Y}{Observed ordinal data array \verb{[n_row, n_col, p, time]}}
+\item{Z}{Continuous latent values (use with \code{family = "gaussian"})}
+\item{Theta}{True latent network state at each time point}
+\item{A}{True time-varying sender influence \verb{[n_row, n_row, time]}}
+\item{B}{True time-varying receiver influence \verb{[n_col, n_col, time]}}
+\item{M}{True baseline mean array}
+\item{sigma2, tauA2, tauB2, rhoA, rhoB}{True parameter values}
 }
 \description{
-Generates data from a dynamic DBN with time-varying A and B
+Generates synthetic network data from a dynamic DBN with
+time-varying A and B influence matrices. Each period's influence
+structure evolves from the previous period's via a random walk
+(default) or AR(1) process.
 }
 \examples{
-sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 42)
-str(sim$Y)
+sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 42)
+dim(sim$Y)    # observed ordinal data
+dim(sim$A)    # true A matrices [n, n, time]
 }
 \seealso{
-\code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
+\code{\link[=dbn]{dbn()}} for model fitting, \code{\link[=simulate_static_dbn]{simulate_static_dbn()}} for
+fixed-influence version
 }

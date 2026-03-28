@@ -18,36 +18,52 @@ simulate_static_dbn(
 )
 }
 \arguments{
-\item{n}{Number of row actors / senders}
+\item{n}{Number of actors (senders). For bipartite networks, this is the
+number of senders.}
 
-\item{n_col}{Number of column actors / receivers (default: n)}
+\item{n_col}{Number of receivers (default: same as \code{n} for unipartite)}
 
-\item{p}{Number of relation types}
+\item{p}{Number of relation types (default: 2)}
 
-\item{time}{Number of time points}
+\item{time}{Number of time periods to simulate}
 
-\item{sigma2}{Innovation variance}
+\item{sigma2}{Process noise variance. Larger values produce noisier networks.}
 
-\item{tau2}{Variance for A/B deviations from identity}
+\item{tau2}{Prior variance for A and B deviations from the identity matrix.
+Larger values produce stronger cross-actor influence.}
 
-\item{K}{Number of ordinal categories}
+\item{K}{Number of ordinal categories for the observed data (default: 5).
+The continuous latent values are discretized into 1 through K.}
 
-\item{return_truth}{Return true parameters in a truth sub-list}
+\item{return_truth}{If TRUE (default), include the true parameters
+in a \verb{$truth} sub-list for validation.}
 
-\item{seed}{Random seed}
+\item{seed}{Random seed for reproducibility}
 
-\item{symmetric}{Logical. If TRUE, set B = A for symmetric/undirected networks. Default: FALSE.}
+\item{symmetric}{If TRUE, set B = A for symmetric/undirected networks.}
 }
 \value{
-List containing simulated data and true parameters
+A list containing:
+\item{Y}{Observed ordinal data array \verb{[n_row, n_col, p, time]}}
+\item{Z}{Continuous latent values (use with \code{family = "gaussian"})}
+\item{Theta}{True latent network state at each time point}
+\item{A}{True sender influence matrix}
+\item{B}{True receiver influence matrix}
+\item{M}{True baseline mean array \verb{[n_row, n_col, p]}}
+\item{sigma2, tau2, K}{True parameter values used in simulation}
 }
 \description{
-Generates data from a static DBN with fixed A and B matrices
+Generates synthetic network data from a static DBN with fixed
+A and B influence matrices. Useful for testing model recovery and
+understanding the data-generating process.
 }
 \examples{
 sim <- simulate_static_dbn(n = 8, time = 5, seed = 42)
-str(sim$Y)
+dim(sim$Y)    # observed ordinal data
+dim(sim$Z)    # continuous latent (for gaussian family)
+dim(sim$A)    # true sender influence matrix
 }
 \seealso{
-\code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
+\code{\link[=dbn]{dbn()}} for model fitting, \code{\link[=simulate_dynamic_dbn]{simulate_dynamic_dbn()}} for
+time-varying version, \code{\link[=simulate_test_data]{simulate_test_data()}} for quick test data
 }

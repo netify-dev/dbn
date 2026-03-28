@@ -49,6 +49,7 @@ test_that("simulate functions error when symmetric + bipartite", {
 ####
 
 test_that("dbn static + symmetric + ordinal runs and stores flag", {
+	skip_on_cran()
 	sim = simulate_static_dbn(n = 8, p = 1, time = 5,
 		symmetric = TRUE, seed = 110)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -58,6 +59,7 @@ test_that("dbn static + symmetric + ordinal runs and stores flag", {
 })
 
 test_that("dbn dynamic + symmetric + ordinal enforces A == B in output", {
+	skip_on_cran()
 	sim = simulate_dynamic_dbn(n = 8, p = 1, time = 10,
 		symmetric = TRUE, seed = 111)
 	fit = dbn(sim$Y, model = "dynamic", family = "ordinal",
@@ -71,6 +73,7 @@ test_that("dbn dynamic + symmetric + ordinal enforces A == B in output", {
 })
 
 test_that("dbn dynamic + symmetric + gaussian works", {
+	skip_on_cran()
 	set.seed(112)
 	Y = array(rnorm(8 * 8 * 1 * 10), dim = c(8, 8, 1, 10))
 	for (t in 1:10) diag(Y[, , 1, t]) = NA
@@ -83,6 +86,7 @@ test_that("dbn dynamic + symmetric + gaussian works", {
 })
 
 test_that("dbn dynamic + symmetric + binary works", {
+	skip_on_cran()
 	skip_if_not_installed("truncnorm")
 	set.seed(113)
 	Y = array(rbinom(8 * 8 * 1 * 10, 1, 0.3), dim = c(8, 8, 1, 10))
@@ -96,6 +100,7 @@ test_that("dbn dynamic + symmetric + binary works", {
 })
 
 test_that("dbn hmm + symmetric enforces A == B per regime", {
+	skip_on_cran()
 	sim = simulate_hmm_dbn(n = 8, p = 1, time = 10, R = 2,
 		symmetric = TRUE, seed = 114)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -132,6 +137,7 @@ test_that("symmetric + lowrank errors in dbn()", {
 })
 
 test_that("symmetric tau_A2 == tau_B2 in dynamic model", {
+	skip_on_cran()
 	sim = simulate_dynamic_dbn(n = 8, p = 1, time = 10,
 		symmetric = TRUE, seed = 130)
 	fit = dbn(sim$Y, model = "dynamic", family = "ordinal",

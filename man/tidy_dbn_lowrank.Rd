@@ -2,18 +2,31 @@
 % Please edit documentation in R/lowrank_methods.R
 \name{tidy_dbn_lowrank}
 \alias{tidy_dbn_lowrank}
-\title{Tidy Extractor for Low-Rank Factor Paths}
+\title{Tidy Extractor for Low-Rank Factor Trajectories}
 \usage{
 tidy_dbn_lowrank(fit, factors = NULL)
 }
 \arguments{
-\item{fit}{A dbn object with model="lowrank"}
+\item{fit}{A fitted \code{dbn} object with \code{model = "lowrank"}.}
 
-\item{factors}{Which factors to extract (default: all)}
+\item{factors}{Integer vector specifying which factors to extract
+(default: all \code{r} factors). For example, \code{factors = 1:2} extracts the
+first two factors.}
 }
 \value{
-Data frame with columns: time, mean, lo, hi, factor
+Data frame with columns: \code{time}, \code{mean} (posterior mean of
+\eqn{\alpha_k(t)}), \code{lo} (2.5th percentile), \code{hi} (97.5th
+percentile), and \code{factor} (factor index).
 }
 \description{
-Extracts factor trajectories in tidy data-frame format
+Extracts the time-varying factor strengths \eqn{\alpha_t}
+from a fitted low-rank model in tidy data-frame format, ready for
+plotting with ggplot2. Each factor captures how strongly one latent
+dimension of the influence structure drives the dynamics at each time
+point. The returned data frame includes posterior means and 95\\%
+credible intervals.
+}
+\seealso{
+\code{\link[=dbn]{dbn()}} with \code{model = "lowrank"}, \code{\link[=plot_dbn]{plot_dbn()}} for built-in
+diagnostic plots
 }

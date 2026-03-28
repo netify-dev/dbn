@@ -252,7 +252,8 @@ dbn_hmm <- function(Y,
 
 		# initial variance parameters
 		tau_A2 <- tau_B2 <- 1
-		sigma2_proc <- max(0.01, Y_scale^2 / 100)
+		# for ordinal/binary: fix sigma2_proc = 1 (scale not identified)
+		sigma2_proc <- if (FAM$name == "gaussian") max(0.01, Y_scale^2 / 100) else 1
 		sigma2_obs <- FAM$init_pars$sigma2_obs %||% 1
 		g2 <- 1
 	}
@@ -401,15 +402,19 @@ dbn_hmm <- function(Y,
 		if (symmetric) tau_B2 <- tau_A2
 
 		# sigma2_proc
-
-		shape0_proc <- 10 + nc
-		if (large_scale) {
-			resid <- compute_bilinear_residuals_fast(pre$Theta, Aarray, Barray, n_row, p, Tt)
-		} else {
-			Theta_flat <- array(pre$Theta, dim = c(n_row, n_col, p * Tt))
-			resid <- compute_bilinear_residuals(Theta_flat, Aarray, Barray, n_row, p, Tt)
+		# for ordinal/binary: fix sigma2_proc = 1 because the rank likelihood
+		# does not identify the latent scale. estimating it produces arbitrarily
+		# large values that prevent regime discrimination in the forward algorithm.
+		if (FAM$name == "gaussian") {
+			shape0_proc <- 10 + nc
+			if (large_scale) {
+				resid <- compute_bilinear_residuals_fast(pre$Theta, Aarray, Barray, n_row, p, Tt)
+			} else {
+				Theta_flat <- array(pre$Theta, dim = c(n_row, n_col, p * Tt))
+				resid <- compute_bilinear_residuals(Theta_flat, Aarray, Barray, n_row, p, Tt)
+			}
+			sigma2_proc <- safe_rinv_gamma(shape0_proc + nc * p * (Tt - 1) / 2, rate0 + resid / 2)
 		}
-		sigma2_proc <- safe_rinv_gamma(shape0_proc + nc * p * (Tt - 1) / 2, rate0 + resid / 2)
 
 		# sigma2_obs for gaussian family
 		if (FAM$name == "gaussian") {
@@ -419,7 +424,7 @@ dbn_hmm <- function(Y,
 
 		# g2
 
-		g2 <- safe_rinv_gamma(10 + nc + prod(dim(pre$M)) / 2, (rate0 + sum(pre$M^2)) / 2)
+		g2 <- safe_rinv_gamma(10 + nc + prod(dim(pre$M)) / 2, (rate0 + sum(pre$M^2, na.rm = TRUE)) / 2)
 
 		# store this iteration
 

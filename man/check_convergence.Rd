@@ -7,13 +7,28 @@
 check_convergence(results)
 }
 \arguments{
-\item{results}{Output from dbn()}
+\item{results}{Output from \code{\link[=dbn]{dbn()}}}
 }
 \value{
-Invisible NULL (diagnostics are printed and plotted)
+Invisible NULL (diagnostics are printed to console)
 }
 \description{
-Provides convergence diagnostics for MCMC chains
+Prints effective sample sizes (ESS) and Geweke diagnostics
+for the scalar variance parameters in a fitted DBN model. Always run
+this before interpreting results to verify the MCMC sampler has
+converged.
+}
+\details{
+\strong{Effective sample size (ESS):} The number of effectively independent
+posterior draws. Values above 200-400 are generally adequate. Low ESS
+means the chain is highly autocorrelated and you should increase
+\code{nscan} or \code{odens}.
+
+\strong{Geweke diagnostic:} Tests whether the first and last portions of
+the chain come from the same distribution. Absolute values above 2
+suggest the chain has not converged and you should increase \code{burn}.
+
+For visual diagnostics, use \code{\link[=plot_trace]{plot_trace()}} to inspect trace plots.
 }
 \examples{
 \donttest{

@@ -2,24 +2,29 @@
 % Please edit documentation in R/posterior_predict.R
 \name{posterior_predict_dbn}
 \alias{posterior_predict_dbn}
-\title{Generate posterior predictive samples}
+\title{Generate Posterior Predictive Samples}
 \usage{
 posterior_predict_dbn(fit, ndraws = 100, seed = NULL, draws = NULL)
 }
 \arguments{
-\item{fit}{A dbn model fit object}
+\item{fit}{A dbn model fit object (output from \code{\link[=dbn]{dbn()}})}
 
-\item{ndraws}{Number of posterior draws to use (default: 100)}
+\item{ndraws}{Number of replicated datasets to generate (default: 100)}
 
 \item{seed}{Random seed for reproducibility}
 
-\item{draws}{Specific draw indices to use (overrides ndraws)}
+\item{draws}{Specific posterior draw indices to use (overrides \code{ndraws})}
 }
 \value{
-List of predicted observations with class "dbn_ppd"
+A list of \code{ndraws} replicated data arrays, each with the same
+dimensions as the original data. Has class \code{"dbn_ppd"}.
 }
 \description{
-Generate new observations from the posterior predictive distribution
+Simulates new datasets from the fitted model. For each
+posterior draw of the model parameters, generates a complete replicated
+dataset. These replications can be compared to the observed data using
+\code{\link[=plot_ppc_ecdf]{plot_ppc_ecdf()}} or \code{\link[=plot_ppc_density]{plot_ppc_density()}} to check whether the model
+captures the key features of the data (a "posterior predictive check").
 }
 \examples{
 \donttest{

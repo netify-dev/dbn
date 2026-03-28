@@ -2,26 +2,35 @@
 % Please edit documentation in R/posterior_extract.R
 \name{latent_summary}
 \alias{latent_summary}
-\title{Summarize latent means (M arrays)}
+\title{Summarize Baseline Mean M}
 \usage{
 latent_summary(fit, fun = mean, draws = NULL, rel = NULL, chunk = 20)
 }
 \arguments{
-\item{fit}{A dbn model fit object}
+\item{fit}{A fitted \code{dbn} object returned by \code{\link[=dbn]{dbn()}}.}
 
-\item{fun}{Summary function}
+\item{fun}{Summary function applied across posterior draws (default:
+\link{mean}). Use \link{median} for a robust alternative, or a custom function.}
 
-\item{draws}{Draw indices}
+\item{draws}{Integer vector of posterior draw indices to use. If \code{NULL}
+(default), all available draws are used.}
 
-\item{rel}{Relation indices (optional)}
+\item{rel}{Integer vector of relation indices to summarize. If \code{NULL}
+(default), all relations are included.}
 
-\item{chunk}{Chunk size for processing}
+\item{chunk}{Integer controlling memory-efficient processing. Draws are
+processed in blocks of this size. Only relevant for very large fits.}
 }
 \value{
-Data frame with M summaries
+Data frame with columns \code{i} (sender), \code{j} (receiver), \code{rel},
+and \code{value} (the summary statistic).
 }
 \description{
-Compute summaries for latent mean arrays M
+Computes posterior summaries of the baseline mean matrix M,
+which captures persistent dyad-specific tendencies (e.g., stable
+alliances or rivalries) that do not change over time. Returns a
+data frame with one row per dyad, suitable for plotting or comparison
+against known ground truth in simulation studies.
 }
 \examples{
 \donttest{

@@ -36,12 +36,13 @@ A ggplot2 object
 Compares influence trajectories of multiple groups
 }
 \examples{
-\dontrun{
-# Compare two groups
+\donttest{
+sim <- simulate_dynamic_dbn(n = 10, time = 10, seed = 6886)
+fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+    nscan = 200, burn = 100, verbose = FALSE)
 compare_group_influence(fit,
     groups = list(c(1, 3, 5), c(2, 4, 6)),
-    group_names = c("Group A", "Group B")
-)
+    group_names = c("Group A", "Group B"))
 }
 }
 \seealso{

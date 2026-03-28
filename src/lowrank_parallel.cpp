@@ -255,8 +255,8 @@ arma::mat update_alpha_batch(const arma::cube& Theta,
             arma::mat Theta_prev = Theta.slice(prev_idx);
             arma::mat Theta_curr = Theta.slice(curr_idx);
             
-            // B * Theta'
-            arma::mat BTheta = B_t.t() * Theta_prev;
+            // Theta_{t-1} * B_t' (model: A_t * Theta_{t-1} * B_t')
+            arma::mat BTheta = Theta_prev * B_t.t();
             
             // fill design matrix
             int base_row = ((t-1) * p + rel) * m * m;

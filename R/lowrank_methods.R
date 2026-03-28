@@ -43,7 +43,7 @@ plot_lowrank <- function(x,
 	}))
 
 	p_trace <- ggplot2::ggplot(trace_long, ggplot2::aes(iter, val)) +
-		ggplot2::geom_line(colour = "steelblue") +
+		ggplot2::geom_line() +
 		ggplot2::facet_wrap(~par, scales = "free_y", ncol = 1) +
 		ggplot2::labs(title = "MCMC traces", x = "Iteration", y = NULL) +
 		ggplot2::theme_bw() +
@@ -77,7 +77,7 @@ plot_lowrank <- function(x,
 
 	p_alpha <- ggplot2::ggplot(alpha_df, ggplot2::aes(time, med)) +
 		ggplot2::geom_ribbon(ggplot2::aes(ymin = lo, ymax = hi), fill = "grey80") +
-		ggplot2::geom_line(colour = "firebrick") +
+		ggplot2::geom_line() +
 		ggplot2::facet_wrap(~k, scales = "free_y", ncol = 1,
 			labeller = ggplot2::label_bquote(alpha[.(k)])) +
 		ggplot2::labs(title = "Latent factor trajectories", x = "Time", y = expression(alpha)) +
@@ -175,7 +175,7 @@ predict_lowrank <- function(object, H = 1, draws = 100,
 		s <- pick[d]
 		sigma2 <- object$sigma2[s]
 		U <- object$U[[s]]
-		B_now <- object$B[[s]][, , ncol(object$B[[s]])]
+		B_now <- object$B[[s]][, , dim(object$B[[s]])[3]]
 		alpha_path <- object$alpha[[s]]
 
 		for (h in seq_len(H)) {
@@ -196,12 +196,23 @@ predict_lowrank <- function(object, H = 1, draws = 100,
 ####
 
 ####
-#' Tidy Extractor for Low-Rank Factor Paths
+#' Tidy Extractor for Low-Rank Factor Trajectories
 #'
-#' @description Extracts factor trajectories in tidy data-frame format
-#' @param fit A dbn object with model="lowrank"
-#' @param factors Which factors to extract (default: all)
-#' @return Data frame with columns: time, mean, lo, hi, factor
+#' @description Extracts the time-varying factor strengths \eqn{\alpha_t}
+#'   from a fitted low-rank model in tidy data-frame format, ready for
+#'   plotting with ggplot2. Each factor captures how strongly one latent
+#'   dimension of the influence structure drives the dynamics at each time
+#'   point. The returned data frame includes posterior means and 95\%
+#'   credible intervals.
+#' @param fit A fitted `dbn` object with `model = "lowrank"`.
+#' @param factors Integer vector specifying which factors to extract
+#'   (default: all `r` factors). For example, `factors = 1:2` extracts the
+#'   first two factors.
+#' @return Data frame with columns: `time`, `mean` (posterior mean of
+#'   \eqn{\alpha_k(t)}), `lo` (2.5th percentile), `hi` (97.5th
+#'   percentile), and `factor` (factor index).
+#' @seealso [dbn()] with `model = "lowrank"`, [plot_dbn()] for built-in
+#'   diagnostic plots
 #' @export
 tidy_dbn_lowrank <- function(fit, factors = NULL) {
 	if (is.null(factors)) factors <- 1:fit$settings$r
@@ -216,12 +227,13 @@ tidy_dbn_lowrank <- function(fit, factors = NULL) {
 	}
 
 	out <- lapply(factors, function(k) {
-		mat <- sapply(fit$alpha, `[`, k, )
+		mat <- sapply(fit$alpha, function(a) a[k, ])
+		if (!is.matrix(mat)) mat <- matrix(mat, nrow = Tt_, ncol = S)
 		data.frame(
 			time = time_vals,
-			mean = colMeans(mat),
-			lo = apply(mat, 2, quantile, .025),
-			hi = apply(mat, 2, quantile, .975),
+			mean = rowMeans(mat),
+			lo = apply(mat, 1, quantile, .025),
+			hi = apply(mat, 1, quantile, .975),
 			factor = k
 		)
 	})

@@ -17,31 +17,37 @@ dbn(
 )
 }
 \arguments{
-\item{data}{Data array or path to .RData file containing Y array.
-Array should be 3-dimensional (actors x actors x time) for single relation
-or 4-dimensional (actors x actors x relations x time) for multiple relations}
+\item{data}{Numeric array of network data, or a file path to an \code{.RData}
+file that contains an object named \code{Y}.  The array should be
+3-dimensional \verb{[actors, actors, time]} for a single relation type, or
+4-dimensional \verb{[actors, actors, relations, time]} for multiple relation
+types.  Diagonal entries (self-ties) should be \code{NA} for unipartite
+networks.  For bipartite networks, pass a rectangular array where the
+first dimension (senders) differs from the second (receivers).}
 
-\item{family}{Character string specifying the data family/distribution:
+\item{family}{Character string specifying the outcome distribution.
+See \strong{Details} for guidance on choosing:
 \itemize{
-\item "ordinal": For ordinal/ranked data (e.g., ratings 1-5). Data should be positive integers.
-\item "gaussian": For continuous data. Data can be any real numbers.
-\item "binary": For binary data. Data should be 0/1 or logical values.
+\item \code{"ordinal"}: For ordinal/ranked data (positive integers)
+\item \code{"gaussian"}: For continuous data (any real numbers)
+\item \code{"binary"}: For binary data (0/1 or logical)
 }}
 
-\item{model}{Character string specifying model type:
+\item{model}{Character string specifying the model type.
+See \strong{Details} for guidance on choosing:
 \itemize{
-\item "static": Fixed sender/receiver effects across time
-\item "dynamic": Time-varying sender/receiver effects
-\item "lowrank": Low-rank factorization of sender effects
-\item "hmm": Regime-switching model with hidden Markov states
-\item "piecewise": Block-constant influence matrices for structural change
+\item \code{"static"}: Fixed sender/receiver effects across time
+\item \code{"dynamic"}: Time-varying sender/receiver effects
+\item \code{"lowrank"}: Low-rank factorization of sender effects (large networks)
+\item \code{"hmm"}: Regime-switching with data-driven regime discovery
+\item \code{"piecewise"}: Block-constant influence with known break points
 }}
 
-\item{nscan}{Number of iterations of the Markov chain (beyond burn-in)}
+\item{nscan}{Number of posterior samples to draw after burn-in}
 
-\item{burn}{Burn-in for the Markov chain}
+\item{burn}{Number of initial MCMC samples to discard (warm-up period)}
 
-\item{odens}{Output density for the Markov chain (save every odens-th iteration)}
+\item{odens}{Thinning interval: save every odens-th sample (reduces autocorrelation and memory)}
 
 \item{verbose}{Logical or numeric. If TRUE, show progress. If numeric, print detailed info every n iterations (default: TRUE)}
 
@@ -70,54 +76,84 @@ and \code{posterior_predict_dbn()} with uncertainty propagation.}
 }}
 }
 \value{
-A list of class "dbn" containing:
-\item{B}{List of posterior samples for B matrices (static model)}
-\item{A}{List of posterior samples for time-varying A matrices (dynamic model)}
-\item{params}{Matrix of parameter traces (static model)}
-\item{sigma2}{Vector of sigma^2 samples (dynamic model)}
-\item{model}{Character string indicating which model was run}
-\item{dims}{List containing data dimensions}
-\item{settings}{List of model settings used}
+A list of class \code{"dbn"} with model-specific contents. Common elements:
+\item{model}{Character string indicating which model was fit}
+\item{family}{Character string indicating the outcome family}
+\item{dims}{List of data dimensions (n_row, n_col, p, Tt)}
+\item{settings}{List of MCMC settings used}
+\item{Y}{Original data array}
+\item{M}{Posterior draws for baseline mean M}
+\item{Theta}{Posterior draws for latent network state}
+
+Model-specific elements include:
+\item{A}{Posterior draws for sender influence matrices}
+\item{B}{Posterior draws for receiver influence matrices}
+\item{sigma2, tau_A2, tau_B2, g2}{Posterior draws for variance parameters}
+\item{rhoA, rhoB}{AR(1) persistence parameters (dynamic model with ar1=TRUE)}
+\item{A_blocks}{List of regime-specific posterior mean A matrices (piecewise)}
+\item{time_kept}{Which time indices are stored (dynamic/lowrank/HMM)}
+
+Use \code{\link[=summary]{summary()}}, \code{\link[=plot]{plot()}}, \code{\link[=param_summary]{param_summary()}}, and \code{\link[=check_convergence]{check_convergence()}}
+to inspect results. See model-specific vignettes for full workflows.
 }
 \description{
-Main wrapper function for Dynamic Bilinear Network (DBN) analysis. This is the primary
-interface for fitting DBN models to network data. DBN models capture complex dependencies
-in network data through bilinear interactions between latent sender and receiver effects.
+Main entry point for fitting Dynamic Bilinear Network (DBN) models. These
+models estimate how past network interactions predict future interactions,
+recovering time-varying influence structures from temporal relational data.
+
+The core model is: \eqn{\Theta_t = A_t \Theta_{t-1} B_t' + M + \varepsilon_t},
+where \eqn{A_t} captures sender influence, \eqn{B_t} captures receiver
+influence, and \eqn{M} captures stable dyad-specific tendencies.
+}
+\details{
+\strong{Choosing a family:}
+\itemize{
+\item \code{"gaussian"}: Use when your relational data are continuous measurements
+(e.g., trade volumes, similarity scores). This is the simplest family and
+converges fastest.
+\item \code{"ordinal"}: Use when your data are ordered categories or counts (e.g.,
+conflict severity 1-5, event counts) and you trust the ordering but not
+the exact values. Uses a rank likelihood.
+\item \code{"binary"}: Use for presence/absence data (0/1), e.g., whether a tie
+exists. Uses a probit link with data augmentation.
+}
+
+\strong{Choosing a model:}
+\itemize{
+\item \code{"static"}: Simplest. Influence structure is fixed over time. Good
+starting point and for short time series.
+\item \code{"dynamic"}: Influence structure changes over time. Use when you expect
+shifting alliances, evolving trade patterns, etc.
+\item \code{"piecewise"}: Influence is constant within known regimes but differs
+across them. Use when you know when structural breaks occurred (e.g.,
+before/after a crisis).
+\item \code{"hmm"}: Like piecewise but discovers regimes from data. Use when breaks
+are unknown.
+\item \code{"lowrank"}: Like dynamic but with dimensionality reduction for large
+networks (50+ actors).
+}
+
+\strong{MCMC settings:}
+The sampler draws \code{nscan} posterior samples after discarding the first
+\code{burn} as warm-up. Setting \code{odens > 1} thins the output by saving every
+k-th sample. For initial exploration, \verb{nscan = 5000, burn = 2000, odens = 5}
+is a reasonable starting point. For publication, use longer chains
+(\verb{nscan = 10000+}) and verify convergence with \code{\link[=check_convergence]{check_convergence()}}.
 }
 \examples{
-\dontrun{
-# Load example data
-data(example_data)
+\donttest{
+sim <- simulate_static_dbn(n = 8, time = 10, seed = 6886)
 
-# Run static model with default settings
-results <- dbn(example_data, model = "static")
+# static model with gaussian family
+fit <- dbn(sim$Z, model = "static", family = "gaussian",
+    nscan = 200, burn = 100, verbose = FALSE)
 
-# Run dynamic model with custom MCMC settings
-results <- dbn(example_data,
-    model = "dynamic",
-    nscan = 5000, burn = 1000, odens = 10
-)
+# dynamic model
+fit_dyn <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+    nscan = 200, burn = 100, verbose = FALSE)
 
-# Run HMM model with 3 regimes
-results <- dbn(example_data, model = "hmm", R = 3)
-
-# Run low-rank model with rank 2
-results <- dbn(example_data, model = "lowrank", r = 2)
-
-# Run quietly without progress output
-results <- dbn(example_data, model = "static", verbose = FALSE)
-
-# Run with detailed output every 100 iterations
-results <- dbn(example_data, model = "dynamic", verbose = 100)
-
-# Run piecewise model with 4 blocks
-results <- dbn(example_data, model = "piecewise", blocks = 4)
-
-# Run piecewise model with specific block boundaries
-results <- dbn(example_data, model = "piecewise",
-    blocks = c(pre = 25, crisis = 50, post = 100))
-
-# Run piecewise model with automatic block selection
-results <- dbn(example_data, model = "piecewise", blocks = "auto")
+# piecewise model with 2 blocks
+fit_pw <- dbn(sim$Y, model = "piecewise", blocks = 2,
+    nscan = 200, burn = 100, verbose = FALSE)
 }
 }

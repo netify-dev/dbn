@@ -22,6 +22,7 @@ test_that("simulate_hmm_dbn works with multiple relations", {
 })
 
 test_that("dbn_hmm fits ordinal data and returns expected object", {
+	skip_on_cran()
 	sim = simulate_hmm_dbn(n = 8, p = 1, time = 10, R = 2, seed = 44)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
 						 nscan = 100, burn = 50, verbose = FALSE, R = 2)
@@ -36,6 +37,7 @@ test_that("dbn_hmm fits ordinal data and returns expected object", {
 })
 
 test_that("dbn_hmm fits gaussian data", {
+	skip_on_cran()
 	set.seed(45)
 	Y = array(rnorm(8 * 8 * 1 * 10), dim = c(8, 8, 1, 10))
 	for (t in 1:10) diag(Y[,,1,t]) = NA
@@ -46,6 +48,7 @@ test_that("dbn_hmm fits gaussian data", {
 })
 
 test_that("dbn_hmm fits binary data", {
+	skip_on_cran()
 	set.seed(46)
 	Y = array(rbinom(8 * 8 * 1 * 10, 1, 0.3), dim = c(8, 8, 1, 10))
 	for (t in 1:10) diag(Y[,,1,t]) = NA
@@ -55,6 +58,7 @@ test_that("dbn_hmm fits binary data", {
 })
 
 test_that("posterior_predict works for HMM model", {
+	skip_on_cran()
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 47)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
 						 nscan = 80, burn = 40, verbose = FALSE, R = 2)
@@ -64,6 +68,7 @@ test_that("posterior_predict works for HMM model", {
 })
 
 test_that("summary and print work for HMM model", {
+	skip_on_cran()
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 48)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
 						 nscan = 80, burn = 40, verbose = FALSE, R = 2)
@@ -73,6 +78,7 @@ test_that("summary and print work for HMM model", {
 })
 
 test_that("HMM regime probabilities are valid", {
+	skip_on_cran()
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 10, R = 2, seed = 49)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
 						 nscan = 100, burn = 50, verbose = FALSE, R = 2)
@@ -86,6 +92,7 @@ test_that("HMM regime probabilities are valid", {
 })
 
 test_that("predict_hmm returns forecasts", {
+	skip_on_cran()
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 55)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
 						 nscan = 80, burn = 40, verbose = FALSE, R = 2)
@@ -94,6 +101,7 @@ test_that("predict_hmm returns forecasts", {
 })
 
 test_that("HMM rejects T < 2", {
+	skip_on_cran()
 	set.seed(50)
 	Y = array(rnorm(8 * 8 * 1 * 1), dim = c(8, 8, 1, 1))
 	expect_error(dbn(Y, model = "hmm", family = "ordinal", R = 2),

@@ -226,6 +226,7 @@ test_that("predict_ordinal converts correctly", {
 #### posterior extraction and summaries
 
 test_that("theta_slice extracts correct values from HMM model", {
+	skip_on_cran()
 	set.seed(101)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 101)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -246,6 +247,7 @@ test_that("theta_slice extracts correct values from HMM model", {
 })
 
 test_that("theta_summary computes summaries from HMM model", {
+	skip_on_cran()
 	set.seed(102)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 102)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -261,6 +263,7 @@ test_that("theta_summary computes summaries from HMM model", {
 })
 
 test_that("theta_slice returns NULL for static model (no theta draws)", {
+	skip_on_cran()
 	set.seed(103)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 103)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -271,6 +274,7 @@ test_that("theta_slice returns NULL for static model (no theta draws)", {
 })
 
 test_that("param_summary computes parameter quantiles for static model", {
+	skip_on_cran()
 	set.seed(104)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 104)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -285,6 +289,7 @@ test_that("param_summary computes parameter quantiles for static model", {
 })
 
 test_that("param_summary works for dynamic model", {
+	skip_on_cran()
 	set.seed(105)
 	sim = simulate_dynamic_dbn(n = 6, p = 1, time = 8, seed = 105)
 	fit = dbn(sim$Y, model = "dynamic", family = "ordinal",
@@ -296,6 +301,7 @@ test_that("param_summary works for dynamic model", {
 })
 
 test_that("latent_summary extracts M summaries", {
+	skip_on_cran()
 	set.seed(106)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 106)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -308,6 +314,7 @@ test_that("latent_summary extracts M summaries", {
 })
 
 test_that("latent_summary with relation filter", {
+	skip_on_cran()
 	set.seed(107)
 	sim = simulate_static_dbn(n = 6, p = 2, time = 5, seed = 107)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -323,6 +330,7 @@ test_that("latent_summary with relation filter", {
 })
 
 test_that("regime_probs works for HMM models", {
+	skip_on_cran()
 	set.seed(108)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 108)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -336,6 +344,7 @@ test_that("regime_probs works for HMM models", {
 })
 
 test_that("regime_probs returns NULL for non-HMM", {
+	skip_on_cran()
 	set.seed(109)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 109)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -345,6 +354,7 @@ test_that("regime_probs returns NULL for non-HMM", {
 })
 
 test_that("derive_draws computes derived quantities", {
+	skip_on_cran()
 	set.seed(110)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 110)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -359,6 +369,7 @@ test_that("derive_draws computes derived quantities", {
 })
 
 test_that("theta_credible returns correct structure", {
+	skip_on_cran()
 	set.seed(113)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 113)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -373,6 +384,7 @@ test_that("theta_credible returns correct structure", {
 })
 
 test_that("theta_credible returns NULL for static model", {
+	skip_on_cran()
 	set.seed(114)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 114)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -382,6 +394,7 @@ test_that("theta_credible returns NULL for static model", {
 })
 
 test_that("network_summary computes all stat types", {
+	skip_on_cran()
 	set.seed(115)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 115)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -397,6 +410,7 @@ test_that("network_summary computes all stat types", {
 })
 
 test_that("edge_prob returns correct matrix", {
+	skip_on_cran()
 	set.seed(116)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 116)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -415,6 +429,7 @@ test_that("estimate_memory scales with network size", {
 })
 
 test_that("predict works for HMM model", {
+	skip_on_cran()
 	set.seed(120)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 120)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -425,6 +440,7 @@ test_that("predict works for HMM model", {
 })
 
 test_that("predict works for lowrank model", {
+	skip_on_cran()
 	set.seed(121)
 	sim = simulate_lowrank_dbn(n = 8, p = 1, time = 8, r = 3, seed = 121)
 	fit = dbn(sim$Y, model = "lowrank", family = "ordinal",
@@ -437,6 +453,7 @@ test_that("predict works for lowrank model", {
 #### visualization
 
 test_that("plot_theta produces ggplot object for HMM model", {
+	skip_on_cran()
 	set.seed(111)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 111)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -447,6 +464,7 @@ test_that("plot_theta produces ggplot object for HMM model", {
 })
 
 test_that("plot_trace produces ggplot object", {
+	skip_on_cran()
 	set.seed(112)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 112)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -457,6 +475,7 @@ test_that("plot_trace produces ggplot object", {
 })
 
 test_that("plot_ppc_ecdf works for static model", {
+	skip_on_cran()
 	set.seed(117)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 117)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -468,6 +487,7 @@ test_that("plot_ppc_ecdf works for static model", {
 })
 
 test_that("plot_ppc_density works for static model", {
+	skip_on_cran()
 	set.seed(118)
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 118)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
@@ -479,6 +499,7 @@ test_that("plot_ppc_density works for static model", {
 })
 
 test_that("plot_regime_probs works for HMM model", {
+	skip_on_cran()
 	set.seed(119)
 	sim = simulate_hmm_dbn(n = 6, p = 1, time = 8, R = 2, seed = 119)
 	fit = dbn(sim$Y, model = "hmm", family = "ordinal",
@@ -486,4 +507,20 @@ test_that("plot_regime_probs works for HMM model", {
 
 	p = plot_regime_probs(fit)
 	expect_s3_class(p, "ggplot")
+})
+
+#### param_summary output structure
+
+test_that("param_summary default returns 95% credible interval columns", {
+	skip_on_cran()
+	sim = simulate_static_dbn(n = 6, time = 5, seed = 6886)
+	fit = dbn(sim$Y, model = "static", nscan = 100, burn = 50, verbose = FALSE)
+	ps = param_summary(fit)
+	expect_true(is.data.frame(ps))
+	expect_true("q2.5" %in% names(ps))
+	expect_true("q50" %in% names(ps))
+	expect_true("q97.5" %in% names(ps))
+	expect_true("mean" %in% names(ps))
+	expect_true("sd" %in% names(ps))
+	expect_true("parameter" %in% names(ps))
 })

@@ -3,7 +3,8 @@
 ####
 
 test_that("models handle missing data", {
-	
+	skip_on_cran()
+
 	# data with missing values
 	set.seed(6886)
 	Y = array(sample(1:5, 5*5*2*10, replace = TRUE), dim = c(5, 5, 2, 10))

@@ -8,14 +8,19 @@ NULL
 ####
 
 ####
-#' Generate posterior predictive samples
+#' Generate Posterior Predictive Samples
 #'
-#' @description Generate new observations from the posterior predictive distribution
-#' @param fit A dbn model fit object
-#' @param ndraws Number of posterior draws to use (default: 100)
+#' @description Simulates new datasets from the fitted model. For each
+#'   posterior draw of the model parameters, generates a complete replicated
+#'   dataset. These replications can be compared to the observed data using
+#'   [plot_ppc_ecdf()] or [plot_ppc_density()] to check whether the model
+#'   captures the key features of the data (a "posterior predictive check").
+#' @param fit A dbn model fit object (output from [dbn()])
+#' @param ndraws Number of replicated datasets to generate (default: 100)
 #' @param seed Random seed for reproducibility
-#' @param draws Specific draw indices to use (overrides ndraws)
-#' @return List of predicted observations with class "dbn_ppd"
+#' @param draws Specific posterior draw indices to use (overrides `ndraws`)
+#' @return A list of `ndraws` replicated data arrays, each with the same
+#'   dimensions as the original data. Has class `"dbn_ppd"`.
 #' @seealso \code{\link{plot_ppc_ecdf}}, \code{\link{plot_ppc_density}}, \code{\link{param_summary}}
 #' @examples
 #' \donttest{

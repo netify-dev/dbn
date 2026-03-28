@@ -13,7 +13,10 @@ stat_in_degree(X)
 Vector of in-degrees
 }
 \description{
-Column sums of network matrix
+Column sums of network matrix.  Includes the diagonal entry
+for each node.  In typical DBN usage the diagonal is \code{NA} or zero, so
+the result matches the conventional in-degree.  If your matrix has
+non-zero diagonal entries, subtract them manually.
 }
 \examples{
 X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)

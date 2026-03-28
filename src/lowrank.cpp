@@ -592,7 +592,7 @@ arma::mat update_alpha_optimized(const arma::cube& Theta,
             
             arma::mat Theta_prev = Theta.slice(prev_idx);
             arma::mat Theta_curr = Theta.slice(curr_idx);
-            arma::mat BTheta = B_t.t() * Theta_prev;
+            arma::mat BTheta = Theta_prev * B_t.t();
             
             // fill observations
             y_t.subvec(base_idx, base_idx + m*m - 1) = vectorise(Theta_curr);

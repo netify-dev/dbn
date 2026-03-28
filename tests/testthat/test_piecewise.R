@@ -39,6 +39,7 @@ test_that("simulate_piecewise_dbn with boundary vector", {
 })
 
 test_that("dbn piecewise model runs with integer blocks", {
+	skip_on_cran()
 	sim <- simulate_piecewise_dbn(n = 8, time = 30, blocks = 3, seed = 789)
 	fit <- dbn(sim$Y, model = "piecewise", blocks = 3,
 			   nscan = 50, burn = 25, verbose = FALSE)
@@ -49,6 +50,7 @@ test_that("dbn piecewise model runs with integer blocks", {
 })
 
 test_that("dbn piecewise model runs with boundary vector", {
+	skip_on_cran()
 	sim <- simulate_piecewise_dbn(n = 8, time = 40, blocks = c(15, 30, 40), seed = 111)
 	fit <- dbn(sim$Y, model = "piecewise", blocks = c(15, 30, 40),
 			   nscan = 50, burn = 25, verbose = FALSE)
@@ -67,6 +69,7 @@ test_that("piecewise model requires sufficient time points", {
 })
 
 test_that("piecewise summary works", {
+	skip_on_cran()
 	sim <- simulate_piecewise_dbn(n = 6, time = 24, blocks = 3, seed = 333)
 	fit <- dbn(sim$Y, model = "piecewise", blocks = 3,
 			   nscan = 50, burn = 25, verbose = FALSE)
@@ -76,22 +79,33 @@ test_that("piecewise summary works", {
 })
 
 test_that("compare_blocks works", {
-	sim <- simulate_piecewise_dbn(n = 6, time = 24, blocks = 3, seed = 444)
+	skip_on_cran()
+	sim <- simulate_piecewise_dbn(n = 6, time = 24, blocks = 3, seed = 6886)
 	fit <- dbn(sim$Y, model = "piecewise", blocks = 3,
 			   nscan = 50, burn = 25, verbose = FALSE)
 
 	result <- compare_blocks(fit)
 	expect_true(is.list(result))
-	expect_equal(length(result), 2)  # 2 adjacent pairs for 3 blocks
+	expect_equal(length(result), 2)
+
+	# verify s3 class and clean print output
+	expect_s3_class(result, "dbn_block_comparison")
+	out <- capture.output(print(result), type = "message")
+	expect_false(any(grepl("diff_norms", out)))
+
+	# underlying data still accessible
+	expect_true(length(result[[1]]$diff_norms) > 0)
 })
 
 test_that("compare_blocks requires piecewise model", {
+	skip_on_cran()
 	Y <- array(rnorm(64 * 10), dim = c(8, 8, 1, 10))
 	fit_static <- dbn(Y, model = "static", nscan = 30, burn = 15, verbose = FALSE)
 	expect_error(compare_blocks(fit_static), "piecewise")
 })
 
 test_that("piecewise print shows block info", {
+	skip_on_cran()
 	sim <- simulate_piecewise_dbn(n = 6, time = 24, blocks = 3, seed = 555)
 	fit <- dbn(sim$Y, model = "piecewise", blocks = 3,
 			   nscan = 50, burn = 25, verbose = FALSE)
@@ -102,6 +116,7 @@ test_that("piecewise print shows block info", {
 })
 
 test_that("piecewise model with gaussian family", {
+	skip_on_cran()
 	sim <- simulate_piecewise_dbn(n = 6, time = 24, blocks = 2, seed = 666)
 	fit <- dbn(sim$Y_continuous, model = "piecewise", blocks = 2,
 			   family = "gaussian", nscan = 50, burn = 25, verbose = FALSE)
@@ -111,6 +126,7 @@ test_that("piecewise model with gaussian family", {
 })
 
 test_that("piecewise model stores block-specific A and B", {
+	skip_on_cran()
 	sim <- simulate_piecewise_dbn(n = 6, time = 20, blocks = 2, seed = 777)
 	fit <- dbn(sim$Y, model = "piecewise", blocks = 2,
 			   nscan = 50, burn = 25, verbose = FALSE)
@@ -121,6 +137,7 @@ test_that("piecewise model stores block-specific A and B", {
 })
 
 test_that("piecewise draws have correct structure", {
+	skip_on_cran()
 	sim <- simulate_piecewise_dbn(n = 6, time = 20, blocks = 2, seed = 888)
 	fit <- dbn(sim$Y, model = "piecewise", blocks = 2,
 			   nscan = 60, burn = 30, odens = 2, verbose = FALSE)
@@ -131,6 +148,7 @@ test_that("piecewise draws have correct structure", {
 })
 
 test_that("piecewise stores Theta draws by default for actor position inference", {
+	skip_on_cran()
 	n <- 6
 	Tt <- 20
 	sim <- simulate_piecewise_dbn(n = n, time = Tt, blocks = 2, seed = 999)
@@ -151,6 +169,7 @@ test_that("piecewise stores Theta draws by default for actor position inference"
 })
 
 test_that("piecewise store_theta=FALSE reduces memory", {
+	skip_on_cran()
 	sim <- simulate_piecewise_dbn(n = 8, time = 30, blocks = 3, seed = 1001)
 
 	# with Theta storage (default)

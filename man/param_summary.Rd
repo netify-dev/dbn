@@ -2,20 +2,30 @@
 % Please edit documentation in R/posterior_extract.R
 \name{param_summary}
 \alias{param_summary}
-\title{Summarize scalar parameters}
+\title{Summarize Scalar Parameters}
 \usage{
-param_summary(fit, probs = c(0.05, 0.5, 0.95))
+param_summary(fit, probs = c(0.025, 0.5, 0.975))
 }
 \arguments{
-\item{fit}{A dbn model fit object}
+\item{fit}{A dbn model fit object (output from \code{\link[=dbn]{dbn()}})}
 
-\item{probs}{Probability levels for quantiles}
+\item{probs}{Quantile probabilities (default: 5th, 50th, 95th percentiles)}
 }
 \value{
-Data frame with parameter summaries
+Data frame with columns: \code{parameter}, \code{mean}, \code{sd}, and one
+column per requested quantile
 }
 \description{
-Compute quantiles for scalar parameter traces
+Returns posterior mean, standard deviation, and quantiles
+for the scalar variance parameters estimated by the model. These
+typically include:
+\itemize{
+\item \code{sigma2} or \code{s2}: process noise variance
+\item \code{tau_A2} / \code{tau_B2} or \code{t2}: innovation variance for A/B
+\item \code{g2}: latent variance
+\item \code{rhoA} / \code{rhoB}: AR(1) persistence (dynamic model with \code{ar1 = TRUE})
+\item \code{sigma2_obs}: observation variance (gaussian family)
+}
 }
 \examples{
 \donttest{
