@@ -5,7 +5,15 @@ generates forecasts or simulations from piecewise model
 ## Usage
 
 ``` r
-simulate_piecewise(object, H = 10, ndraws = 100, seed = NULL, ...)
+simulate_piecewise(
+  object,
+  H = 10,
+  ndraws = 100,
+  S = NULL,
+  summary = c("mean", "none"),
+  seed = NULL,
+  ...
+)
 ```
 
 ## Arguments

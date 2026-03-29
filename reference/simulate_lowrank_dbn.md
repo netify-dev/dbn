@@ -41,15 +41,15 @@ simulate_lowrank_dbn(
 
 - r:
 
-  Rank
+  Rank of the factorization
 
 - sigma2:
 
-  Innovation variance
+  Process noise variance
 
 - tau_alpha2:
 
-  Variance for alpha innovations
+  Variance for alpha factor innovations
 
 - tauB2:
 
@@ -57,23 +57,60 @@ simulate_lowrank_dbn(
 
 - ar1_alpha:
 
-  Use AR(1) for alpha dynamics
+  Use AR(1) for alpha dynamics (default TRUE)
 
 - rho_alpha:
 
-  AR coefficient for alpha
+  AR(1) persistence for alpha (default 0.9)
 
 - seed:
 
-  Random seed
+  Random seed for reproducibility
 
 - return_truth:
 
-  Return true latent factors and parameters
+  If TRUE (default), include true parameters in output
 
 ## Value
 
-List containing simulated data and true parameters
+A list containing:
+
+- Y:
+
+  Observed ordinal data array `[n, n, p, time]`
+
+- Z:
+
+  Continuous latent values (use with `family = "gaussian"`)
+
+- Theta:
+
+  True latent network state at each time point
+
+- U:
+
+  True orthogonal factor matrix `[n, r]`
+
+- alpha:
+
+  True factor trajectories `[r, time]`
+
+- A:
+
+  True time-varying sender influence `[n, n, time]` (reconstructed from
+  U and alpha)
+
+- B:
+
+  True time-varying receiver influence `[n_col, n_col, time]`
+
+- M:
+
+  True baseline mean array `[n, n_col, p]`
+
+- sigma2, tau_alpha2, tauB2, r:
+
+  True parameter values used in simulation
 
 ## See also
 
@@ -85,9 +122,9 @@ for quick test data
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
-sim <- simulate_lowrank_dbn(n = 25, p = 1, time = 12, r = 1,
-    sigma2 = 0.2, tau_alpha2 = 0.02, seed = 42)
-fit <- dbn_lowrank(sim$Y, r = 1, n_iter = 600, burn = 200, thin = 2)
-} # }
+sim <- simulate_lowrank_dbn(n = 8, p = 1, time = 5, r = 2, seed = 6886)
+dim(sim$Y)
+#> [1] 8 8 1 5
+dim(sim$alpha)
+#> [1] 2 5
 ```

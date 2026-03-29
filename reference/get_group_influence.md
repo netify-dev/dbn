@@ -54,14 +54,10 @@ Data frame with time, posterior quantiles, and mean
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
-# Get influence trajectory data
+# \donttest{
+sim <- simulate_dynamic_dbn(n = 10, time = 10, seed = 6886)
+fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+    nscan = 200, burn = 100, verbose = FALSE)
 inf_data <- get_group_influence(fit, group = c(1, 3, 5), type = "sender")
-
-# Custom quantiles
-inf_data <- get_group_influence(fit,
-    group = c(1, 3, 5),
-    probs = c(0.1, 0.25, 0.5, 0.75, 0.9)
-)
-} # }
+# }
 ```

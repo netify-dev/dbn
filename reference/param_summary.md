@@ -1,26 +1,39 @@
-# Summarize scalar parameters
+# Summarize Scalar Parameters
 
-Compute quantiles for scalar parameter traces
+Returns posterior mean, standard deviation, and quantiles for the scalar
+variance parameters estimated by the model. These typically include:
+
+- `sigma2` or `s2`: process noise variance
+
+- `tau_A2` / `tau_B2` or `t2`: innovation variance for A/B
+
+- `g2`: latent variance
+
+- `rhoA` / `rhoB`: AR(1) persistence (dynamic model with `ar1 = TRUE`)
+
+- `sigma2_obs`: observation variance (gaussian family)
 
 ## Usage
 
 ``` r
-param_summary(fit, probs = c(0.05, 0.5, 0.95))
+param_summary(fit, probs = c(0.025, 0.5, 0.975))
 ```
 
 ## Arguments
 
 - fit:
 
-  A dbn model fit object
+  A dbn model fit object (output from
+  [`dbn()`](https://netify-dev.github.io/dbn/reference/dbn.md))
 
 - probs:
 
-  Probability levels for quantiles
+  Quantile probabilities (default: 5th, 50th, 95th percentiles)
 
 ## Value
 
-Data frame with parameter summaries
+Data frame with columns: `parameter`, `mean`, `sd`, and one column per
+requested quantile
 
 ## See also
 

@@ -86,15 +86,15 @@
 
 
 <dt id="arg-r">r<a class="anchor" aria-label="anchor" href="#arg-r"></a></dt>
-<dd><p>Rank</p></dd>
+<dd><p>Rank of the factorization</p></dd>
 
 
 <dt id="arg-sigma-">sigma2<a class="anchor" aria-label="anchor" href="#arg-sigma-"></a></dt>
-<dd><p>Innovation variance</p></dd>
+<dd><p>Process noise variance</p></dd>
 
 
 <dt id="arg-tau-alpha-">tau_alpha2<a class="anchor" aria-label="anchor" href="#arg-tau-alpha-"></a></dt>
-<dd><p>Variance for alpha innovations</p></dd>
+<dd><p>Variance for alpha factor innovations</p></dd>
 
 
 <dt id="arg-taub-">tauB2<a class="anchor" aria-label="anchor" href="#arg-taub-"></a></dt>
@@ -102,25 +102,52 @@
 
 
 <dt id="arg-ar-alpha">ar1_alpha<a class="anchor" aria-label="anchor" href="#arg-ar-alpha"></a></dt>
-<dd><p>Use AR(1) for alpha dynamics</p></dd>
+<dd><p>Use AR(1) for alpha dynamics (default TRUE)</p></dd>
 
 
 <dt id="arg-rho-alpha">rho_alpha<a class="anchor" aria-label="anchor" href="#arg-rho-alpha"></a></dt>
-<dd><p>AR coefficient for alpha</p></dd>
+<dd><p>AR(1) persistence for alpha (default 0.9)</p></dd>
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Random seed</p></dd>
+<dd><p>Random seed for reproducibility</p></dd>
 
 
 <dt id="arg-return-truth">return_truth<a class="anchor" aria-label="anchor" href="#arg-return-truth"></a></dt>
-<dd><p>Return true latent factors and parameters</p></dd>
+<dd><p>If TRUE (default), include true parameters in output</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>List containing simulated data and true parameters</p>
-    </div>
+    <p>A list containing:</p>
+<dl><dt>Y</dt>
+<dd><p>Observed ordinal data array <code>[n, n, p, time]</code></p></dd>
+
+<dt>Z</dt>
+<dd><p>Continuous latent values (use with <code>family = "gaussian"</code>)</p></dd>
+
+<dt>Theta</dt>
+<dd><p>True latent network state at each time point</p></dd>
+
+<dt>U</dt>
+<dd><p>True orthogonal factor matrix <code>[n, r]</code></p></dd>
+
+<dt>alpha</dt>
+<dd><p>True factor trajectories <code>[r, time]</code></p></dd>
+
+<dt>A</dt>
+<dd><p>True time-varying sender influence <code>[n, n, time]</code> (reconstructed from U and alpha)</p></dd>
+
+<dt>B</dt>
+<dd><p>True time-varying receiver influence <code>[n_col, n_col, time]</code></p></dd>
+
+<dt>M</dt>
+<dd><p>True baseline mean array <code>[n, n_col, p]</code></p></dd>
+
+<dt>sigma2, tau_alpha2, tauB2, r</dt>
+<dd><p>True parameter values used in simulation</p></dd>
+
+</dl></div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
     <div class="dont-index"><p><code><a href="dbn.html">dbn</a></code> for model fitting, <code><a href="simulate_test_data.html">simulate_test_data</a></code> for quick test data</p></div>
@@ -128,11 +155,11 @@
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu">simulate_lowrank_dbn</span><span class="op">(</span>n <span class="op">=</span> <span class="fl">25</span>, p <span class="op">=</span> <span class="fl">1</span>, time <span class="op">=</span> <span class="fl">12</span>, r <span class="op">=</span> <span class="fl">1</span>,</span></span>
-<span class="r-in"><span>    sigma2 <span class="op">=</span> <span class="fl">0.2</span>, tau_alpha2 <span class="op">=</span> <span class="fl">0.02</span>, seed <span class="op">=</span> <span class="fl">42</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbn_lowrank.html">dbn_lowrank</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Y</span>, r <span class="op">=</span> <span class="fl">1</span>, n_iter <span class="op">=</span> <span class="fl">600</span>, burn <span class="op">=</span> <span class="fl">200</span>, thin <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">sim</span> <span class="op">&lt;-</span> <span class="fu">simulate_lowrank_dbn</span><span class="op">(</span>n <span class="op">=</span> <span class="fl">8</span>, p <span class="op">=</span> <span class="fl">1</span>, time <span class="op">=</span> <span class="fl">5</span>, r <span class="op">=</span> <span class="fl">2</span>, seed <span class="op">=</span> <span class="fl">6886</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Y</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 8 8 1 5</span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">alpha</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 5</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

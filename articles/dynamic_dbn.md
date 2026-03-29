@@ -2,308 +2,313 @@
 
 ## 1 The model
 
-The dynamic bilinear model estimates how past network interactions
-predict future interactions, and how that predictive mapping itself
-changes over time. The core equation is:
+The dynamic bilinear model allows the influence matrices $A_{t}$ and
+$B_{t}$ to change over time, capturing settings where the rules
+governing network evolution are themselves evolving:
 
 $$\Theta_{t} = A_{t}\,\Theta_{t - 1}\, B_{t}^{\top} + M + \varepsilon_{t}$$
 
-where $\Theta_{t}$ is the latent interaction state at time $t$ (an
-$n \times n$ matrix), $A_{t}$ and $B_{t}$ are the time-varying sender
-and receiver influence matrices, and $M$ is a baseline mean capturing
-persistent dyad-specific tendencies.
+Entry $a_{i,i\prime,t}$ of the sender influence matrix $A_{t}$ measures
+how strongly actor $i\prime$’s past sending behavior predicts actor
+$i$’s current sending at time $t$. The receiver matrix $B_{t}$ captures
+the analogous pattern on the targeting side. The baseline mean $M$
+absorbs stable dyad-specific tendencies that persist regardless of the
+dynamics.
 
-**What each parameter tells you:**
+Two additional parameters govern how rapidly the influence structure
+reorganizes. The innovation variances $\tau_{A}^{2}$ and $\tau_{B}^{2}$
+control step-to-step variation in $A_{t}$ and $B_{t}$: values near zero
+indicate a nearly static structure, while larger values allow rapid
+reorganization. When `ar1 = TRUE`, the model adds persistence parameters
+$\rho_{A}$ and $\rho_{B}$ that measure mean reversion. Values of $\rho$
+near 1 indicate that the influence structure is highly persistent;
+values near 0 indicate rapid reversion to the prior mean.
 
-- **$A_{t}$ (sender influence):** An $n \times n$ matrix where entry
-  $a_{i,i\prime,t}$ measures how strongly actor $i\prime$’s past
-  behavior as a sender predicts actor $i$’s current sending behavior.
-  Large positive values indicate that $i$ follows or echoes $i\prime$;
-  negative values indicate opposing patterns.
-- **$B_{t}$ (receiver influence):** Entry $b_{j,j\prime,t}$ captures how
-  past targeting of actor $j\prime$ predicts current targeting of $j$.
-  This reveals shifting alliances and targeting patterns.
-- **$M$ (baseline mean):** Captures stable, time-invariant dyad-specific
-  tendencies. A large $M_{ij}$ indicates a persistent tendency for actor
-  $i$ to interact with actor $j$, regardless of dynamics.
-- **$\sigma^{2}$ (process variance):** How much unexplained variation
-  remains in the latent network after accounting for the bilinear
-  dynamics.
-- **$\tau_{A}^{2}$, $\tau_{B}^{2}$ (innovation variances):** How rapidly
-  the influence matrices change from one period to the next. Large
-  values mean the influence structure is reorganizing quickly; small
-  values mean it is relatively stable. If $\tau_{A}^{2}$ is near zero,
-  the data favor a static influence structure.
-- **$\rho_{A}$, $\rho_{B}$ (AR(1) coefficients, optional):** How
-  persistent the influence matrices are. Values near 1 indicate strong
-  persistence; values near 0 indicate rapid mean reversion.
+## 2 Simulate data
 
-See the [methodology
-page](https://netify-dev.github.io/dbn/articles/methodology.md) and the
-[working
-paper](https://netify-dev.github.io/dbn/salau_minhas_when_shocks_cascade.pdf)
-for the full mathematical treatment.
-
-## 2 Simulate a dynamic data set
-
-We generate a small network with 12 actors observed over 20 time
-periods. The simulation creates time-varying sender and receiver
-influence matrices.
+We generate a Gaussian network with time-varying influence matrices.
+Setting `ar1 = TRUE` gives the influence matrices AR(1) dynamics, so
+each period’s influence structure is a noisy version of the previous
+period’s rather than an uncorrelated random walk. The high persistence
+($\rho = 0.9$) and small innovation variance ($\tau^{2} = 0.04$) create
+smoothly evolving dynamics that are easier to recover from limited data.
 
 ``` r
-set.seed(6886)
-sim = simulate_dynamic_dbn(n = 12,   # network size: 12 actors
-                           p   =  1,
-                           time  = 20)   # total time periods: 20
-Y = sim$Y
+sim = simulate_dynamic_dbn(
+  n      = 8,
+  p      = 1,
+  time   = 15,
+  sigma2 = 0.3,
+  tauA2  = 0.04,
+  tauB2  = 0.04,
+  ar1    = TRUE,
+  rhoA   = 0.9,
+  rhoB   = 0.9,
+  seed   = 6886
+)
+
+Y = sim$Z
 dim(Y)
-#> [1] 12 12  1 20
+#> [1]  8  8  1 15
 ```
 
-## 3 Fit the dynamic model
+## 3 Fit the model
 
-We fit the model with `ar1 = TRUE` to allow autoregressive persistence
-in the influence matrices, and `update_rho = TRUE` so the AR(1)
-coefficients are estimated from the data. The `time_thin` argument
-controls how many time points are stored in the output; set it to 1 to
-keep all of them.
+We set `ar1 = TRUE` so the model uses AR(1) dynamics for $A_{t}$ and
+$B_{t}$, and `update_rho = TRUE` so the persistence parameters are
+estimated from the data rather than fixed at a default value.
 
 ``` r
-fit_dyn = dbn(Y,
-               family = "ordinal",  # ordinal data via rank likelihood
-               model = 'dynamic',   # time-varying A_t, B_t
-               nscan = 800,
-               burn = 400,
-               odens = 4,           # save every 4th iteration
-               time_thin = 1,       # save every time period
-               ar1 = TRUE,          # enable autoregressive dynamics
-               update_rho = TRUE,
-               verbose = TRUE)
+fit = dbn(
+  Y,
+  family     = "gaussian",
+  model      = "dynamic",
+  nscan      = 1000,
+  burn       = 500,
+  odens      = 2,
+  ar1        = TRUE,
+  update_rho = TRUE,
+  verbose    = FALSE
+)
 ```
 
 ## 4 Convergence diagnostics
 
-Always check convergence before interpreting results. The trace plots
-show the MCMC chains for each scalar parameter:
-
-- **sigma2**: process variance — should stabilize, indicating the
-  sampler has found the right noise level
-- **tau_A2 / tau_B2**: innovation variances — these tell you how much
-  the influence matrices change between periods
-- **rho_A / rho_B**: AR(1) persistence — values near 1 indicate strong
-  temporal persistence in the influence structure
+The trace plots should show stationary chains with no drift. For the
+dynamic model, the key parameters are $\sigma^{2}$ (process noise),
+$\tau_{A}^{2}$ and $\tau_{B}^{2}$ (innovation variances), and $\rho_{A}$
+and $\rho_{B}$ (persistence).
 
 ``` r
-check_convergence(fit_dyn)
+check_convergence(fit)
 #>    sigma2    tau_A2    tau_B2        g2 
-#>  2.066464 61.515167 36.456775 51.913459
+#> 498.11527  77.69979  65.80980 392.33129
 #> 
 #> Fraction in 1st window = 0.1
 #> Fraction in 2nd window = 0.5 
 #> 
 #>  sigma2  tau_A2  tau_B2      g2 
-#> -8.2616 -0.2645 -2.5402 -3.6347
+#> -2.1739  0.5757 -1.2306 -0.6350
 ```
 
-![](dynamic_dbn_files/figure-html/conv-dyn-1.png)
+![](dynamic_dbn_files/figure-html/convergence-1.png)
 
 ``` r
-plot_trace(fit_dyn, pars = c("sigma2", "tau_A2", "tau_B2", "rho_A", "rho_B"))
+plot_trace(fit, pars = c("sigma2", "tau_A2", "tau_B2", "rho_A", "rho_B"))
 ```
 
-![](dynamic_dbn_files/figure-html/conv-dyn-2.png)
+![](dynamic_dbn_files/figure-html/trace-1.png)
 
-## 5 Forecasting
+## 5 Parameter recovery
 
-Generate forecasts 6 time steps ahead. The model propagates the
-estimated dynamics forward:
+### Scalar parameters
 
 ``` r
-Theta_forecast = predict(fit_dyn, H = 6, S = 200, summary = "mean")
-dim(Theta_forecast)   # n_row x n_col x p x H
-#> [1] 12 12  1  6
+param_summary(fit)
+#>    parameter       mean         sd       q2.5       q50     q97.5
+#> 1     sigma2 5.94737738 0.72658796 4.70775216 5.9317598 7.4606929
+#> 2     tau_A2 0.12091809 0.01561779 0.09610393 0.1194444 0.1556927
+#> 3     tau_B2 0.16572224 0.02368038 0.12372206 0.1642472 0.2142344
+#> 4         g2 0.09200445 0.02070456 0.05860016 0.0891350 0.1392518
+#> 5       rhoA 0.78392539 0.03691866 0.70602944 0.7861769 0.8479822
+#> 6       rhoB 0.74915741 0.04180474 0.66540326 0.7519273 0.8301224
+#> 7 sigma2_obs 0.91885799 0.05993262 0.80695241 0.9171687 1.0322075
 ```
 
-## 6 Dyad trajectory
+The model estimates variance parameters that govern the dynamics. The
+internal parameterization may differ in scale from the simulation
+inputs, so direct comparison of scalar values is not always meaningful.
+The most informative validation is whether the model recovers the latent
+network trajectories.
 
-Visualize how a specific bilateral relationship evolves over time. The
-ribbon shows the posterior credible interval — wider ribbons indicate
-more uncertainty about that dyad’s trajectory:
+### Latent network recovery
+
+The model’s primary output is the latent network state $\Theta_{t}$. We
+compare the posterior mean of $\Theta_{t} + M$ to the true values across
+all dyads and time points. Strong correlation along the diagonal
+indicates that the model is capturing both the cross-sectional structure
+and the temporal dynamics.
 
 ``` r
-dyad_path(fit_dyn, i = 2, j = 7)
+Theta_mean = apply(fit$Theta, 1:4, mean)
+M_mean = apply(fit$M, 1:3, mean)
+
+n_act = dim(sim$Theta)[1]
+Tt = dim(sim$Theta)[4]
+
+true_vals = numeric(0)
+est_vals  = numeric(0)
+
+for (t in seq_len(Tt)) {
+  true_mat = sim$Theta[, , 1, t]
+  est_mat  = Theta_mean[, , 1, t] + M_mean[, , 1]
+  mask = !is.na(true_mat)
+  true_vals = c(true_vals, true_mat[mask])
+  est_vals  = c(est_vals, est_mat[mask])
+}
+
+df_theta = data.frame(truth = true_vals, estimate = est_vals)
+r_sq = round(cor(df_theta$truth, df_theta$estimate)^2, 3)
+
+ggplot(df_theta, aes(x = truth, y = estimate)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  geom_point(alpha = 0.1, size = 0.8) +
+  labs(
+    title    = "Recovery of Latent Network State",
+    subtitle = paste0("R-Squared = ", r_sq, " (All Dyads x Time Points)"),
+    x = expression("True " * Theta[t]),
+    y = expression("Posterior Mean " * Theta[t] + M)
+  ) +
+  theme_bw() +
+  theme(panel.border = element_blank())
+```
+
+![](dynamic_dbn_files/figure-html/theta-recovery-1.png)
+
+Each point represents one off-diagonal dyad at one time point. Some
+scatter is expected due to posterior shrinkage and estimation
+uncertainty, but the bulk of points should cluster along the diagonal.
+
+## 6 Dyad trajectories
+
+The
+[`dyad_path()`](https://netify-dev.github.io/dbn/reference/dyad_path.md)
+function tracks how a specific bilateral relationship evolves over time,
+with a ribbon showing the posterior credible interval. Wider ribbons
+indicate greater uncertainty about the trajectory of that particular
+relationship.
+
+``` r
+dyad_path(fit, i = 1, j = 2)
 ```
 
 ![](dynamic_dbn_files/figure-html/dyad-path-1.png)
 
-## 7 Group-level influence
+## 7 Forecasting
 
-Track how a group of senders’ aggregate influence changes through time.
-This is useful for identifying when a coalition of actors becomes more
-or less structurally important in the network:
+We generate forecasts 5 steps ahead by propagating the estimated
+dynamics forward. Each of the 200 posterior draws produces a different
+forecast trajectory (reflecting uncertainty in $A$, $B$, and
+$\sigma^{2}$), and `summary = "mean"` averages across them.
 
 ``` r
-plot_group_influence(fit_dyn,
-                     group = c(1, 3, 5),
-                     type  = "sender",
-                     measure = "rowsum",
-                     cred = 0.9)
+fc = predict(fit, H = 5, S = 200, summary = "mean")
+dim(fc)
+#> [1] 8 8 1 5
 ```
 
-![](dynamic_dbn_files/figure-html/group-influence-1.png)
+The resulting array has dimensions
+`[actors, actors, relations, horizon]`. These forecasts assume the
+final-period dynamics continue unchanged, so they are most informative
+over short horizons.
 
-## 8 Parameter summaries
+## 8 Network statistics over time
 
-[`param_summary()`](https://netify-dev.github.io/dbn/reference/param_summary.md)
-returns posterior means and credible intervals for all scalar parameters
-in a tidy data frame.
-
-``` r
-param_summary(fit_dyn)
-#>   parameter         mean           sd           q5          q50          q95
-#> 1    sigma2 3.805361e+03 1.305657e+03 1.870896e+03 3.817688e+03 6.043277e+03
-#> 2    tau_A2 7.416453e-02 5.577535e-03 6.387336e-02 7.464214e-02 8.341511e-02
-#> 3    tau_B2 9.957576e-02 1.053630e-02 8.458207e-02 9.884585e-02 1.197036e-01
-#> 4        g2 1.252089e-01 3.077106e-02 8.612315e-02 1.185952e-01 1.854716e-01
-#> 5      rhoA 7.907962e-01 2.107282e-02 7.570238e-01 7.909403e-01 8.268467e-01
-#> 6      rhoB 7.608620e-01 2.727771e-02 7.125525e-01 7.623608e-01 8.050317e-01
-```
-
-## 9 Credible intervals and network statistics
-
-Compute dyad-level credible intervals over time. This gives you, for
-each dyad at each time point, the posterior mean and credible interval
-for the latent interaction intensity:
+The
+[`network_summary()`](https://netify-dev.github.io/dbn/reference/network_summary.md)
+function tracks a network-level statistic across time with posterior
+credible intervals, providing a macro-level view of how the network
+evolves.
 
 ``` r
-tc = theta_credible(fit_dyn, i = 1:6, j = 1:6, time = 1:20)
-head(tc)
-#>   i j rel time        mean     lower      median     upper
-#> 1 1 1   1    1   2.0504579 -22.18684   3.3534039  21.58073
-#> 2 2 1   1    1  29.1609381  14.82135  28.6266136  42.72343
-#> 3 3 1   1    1 -34.1252481 -51.40412 -33.0155181 -24.89329
-#> 4 4 1   1    1  36.4255985  14.29147  37.6021427  53.06615
-#> 5 5 1   1    1  -0.6984207 -17.40425  -0.6098354  12.21810
-#> 6 6 1   1    1 -60.2127657 -75.67646 -59.7203886 -44.05003
-```
-
-You can use this output to flag dyads whose credible intervals exclude
-zero at a given time point, indicating a reliably non-zero relationship.
-
-Track network-level statistics over time. Network density summarizes how
-active the overall network is at each time point, with posterior
-uncertainty:
-
-``` r
-ns = network_summary(fit_dyn, stat = "density")
+ns = network_summary(fit, stat = "density")
 head(ns)
 #>   time      mean     lower     upper
-#> 1    1 0.4722727 0.4469697 0.5000000
-#> 2    2 0.5009470 0.4696970 0.5303030
-#> 3    3 0.5054545 0.4768939 0.5378788
-#> 4    4 0.4954924 0.4621212 0.5303030
-#> 5    5 0.5085227 0.4545455 0.5609848
-#> 6    6 0.4986364 0.4621212 0.5303030
+#> 1    1 0.4633571 0.3750000 0.5535714
+#> 2    2 0.4594286 0.3928571 0.5357143
+#> 3    3 0.4991071 0.4285714 0.5714286
+#> 4    4 0.4861786 0.4107143 0.5714286
+#> 5    5 0.4926786 0.4107143 0.5714286
+#> 6    6 0.4603929 0.3750000 0.5357143
 ```
 
-Look for time points where the credible interval is narrow versus wide –
-narrow intervals mean the model is confident about the overall level of
-activity at that point.
-
-Compute the posterior probability that each edge is positive at a given
-time. Values near 1 indicate edges that are consistently positive across
-posterior draws; values near 0.5 indicate high uncertainty:
+The
+[`edge_prob()`](https://netify-dev.github.io/dbn/reference/edge_prob.md)
+function computes the posterior probability that each edge is positive
+at a given time point. Values near 1 indicate reliably positive edges;
+values near 0.5 indicate substantial uncertainty about the sign.
 
 ``` r
-ep = edge_prob(fit_dyn, rel = 1, time = 20)
-ep[1:5, 1:5]
-#>      [,1] [,2]  [,3]  [,4]  [,5]
-#> [1,]   NA 0.00 1.000 1.000 0.000
-#> [2,]    1   NA 1.000 0.025 0.000
-#> [3,]    0 0.02    NA 1.000 0.995
-#> [4,]    1 0.00 1.000    NA 0.025
-#> [5,]    1 1.00 0.015 1.000    NA
+ep = edge_prob(fit, rel = 1, time = dim(Y)[4])
+round(ep[1:5, 1:5], 2)
+#>      [,1] [,2] [,3] [,4] [,5]
+#> [1,]   NA 0.99 0.83 0.75 0.72
+#> [2,] 0.53   NA 0.38 0.23 0.80
+#> [3,] 0.36 0.25   NA 0.14 0.06
+#> [4,] 0.04 0.40 0.27   NA 0.92
+#> [5,] 0.51 0.86 0.96 0.22   NA
 ```
 
-You can threshold these probabilities (e.g., \> 0.95) to construct a
-binary network of edges that are reliably positive at a given time
-point.
+## 9 Bipartite networks
 
-## 10 Bipartite (rectangular) networks
-
-The package automatically detects bipartite networks when senders and
-receivers differ. Simply pass a rectangular array:
+The package automatically detects bipartite networks when the sender and
+receiver dimensions differ. Passing a rectangular array causes the model
+to estimate $A$ as `n_row x n_row` (sender dynamics) and $B$ as
+`n_col x n_col` (receiver dynamics).
 
 ``` r
-sim_bp = simulate_dynamic_dbn(n = 10, n_col = 8, p = 1, time = 15, seed = 77)
-dim(sim_bp$Y)   # 10 senders x 8 receivers x 1 relation x 15 time points
-#> [1] 10  8  1 15
+sim_bp = simulate_dynamic_dbn(
+  n = 8, n_col = 6, p = 1, time = 12, seed = 6886
+)
 
-fit_bp = dbn(sim_bp$Y, model = "dynamic", family = "ordinal",
-              nscan = 400, burn = 200, odens = 2, verbose = FALSE)
+fit_bp = dbn(
+  sim_bp$Z,
+  model   = "dynamic",
+  family  = "gaussian",
+  nscan   = 1000,
+  burn    = 500,
+  odens   = 2,
+  verbose = FALSE
+)
 summary(fit_bp)
 ```
 
-When `n_row != n_col`, $A$ is `n_row x n_row` (sender dynamics) and $B$
-is `n_col x n_col` (receiver dynamics). Self-loops are retained since
-senders and receivers are distinct.
+## 10 Parallel computation
 
-## 11 Parallel computation
-
-The dynamic model parallelizes the row-wise A and B FFBS updates using
-OpenMP. Set the number of threads before fitting:
+The dynamic model parallelizes row-wise FFBS updates via OpenMP. For
+networks with 15 or more actors, multi-threading produces meaningful
+speedups (typically 2-4x with 4-8 cores).
 
 ``` r
-# use physical cores (not logical/hyperthreaded)
 set_dbn_threads(parallel::detectCores(logical = FALSE))
-get_dbn_threads()
-#> [1] 4
 ```
 
-Parallelization benefits scale with network size: for networks with 15+
-actors, expect 2–4x speedup with 4–8 cores. For small networks (n \<
-10), the overhead of thread management may exceed the benefit, so
-single-threaded execution is fine.
+## 11 Scaling guidance
 
-OpenMP is available by default on Linux and Windows. On macOS, install
-it via `brew install libomp` (see the README for details). If OpenMP is
-not available, the package falls back to single-threaded execution
-automatically.
-
-To reset to single-threaded:
-
-``` r
-set_dbn_threads(1)
-```
-
-## 12 Scaling to larger networks
-
-The dynamic model can handle networks with many actors. The main
-constraint is RAM, not computation. Use
+For larger networks, the main constraint is RAM. Use
 [`estimate_memory()`](https://netify-dev.github.io/dbn/reference/estimate_memory.md)
-to check requirements before fitting, and adjust `time_thin` and `odens`
-to manage memory:
+before fitting, and adjust `time_thin` and `odens` to manage memory.
 
 ``` r
-# a 50-actor network
-estimate_memory(n_row = 50, n_col = 50, p = 1, Tt = 30,
-                nscan = 5000, burn = 1000, odens = 5,
-                time_thin = 2, family = "ordinal")
+estimate_memory(
+  n_row = 50, n_col = 50, p = 1, Tt = 30,
+  nscan = 1000, burn = 500, odens = 2,
+  time_thin = 2, family = "gaussian"
+)
 #> Dynamic DBN memory estimate:
 #>   Network:   50 x 50, 1 relation(s), 30 time points
-#>   MCMC:      1000 draws (nscan=5000, odens=5)
+#>   MCMC:      500 draws (nscan=1000, odens=2)
 #>   Time thin: 2 (keeping 15 of 30 time points)
 #>   --------------------------------
-#>   Theta:    0.28 GB
-#>   Z:        0.28 GB
-#>   A:        0.28 GB
-#>   B:        0.28 GB
-#>   M:        0.02 GB
+#>   Theta:    0.14 GB
+#>   A:        0.14 GB
+#>   B:        0.14 GB
+#>   M:        0.01 GB
 #>   --------------------------------
-#>   TOTAL:    1.14 GB
+#>   TOTAL:    0.43 GB
 ```
 
-For networks with 100+ actors, you may need 16–32 GB of RAM depending on
-the number of time points and MCMC settings. Increasing `time_thin`
-(save every $k$-th time point) and `odens` (save every $k$-th MCMC draw)
-are the most effective ways to reduce memory usage.
+For 100+ actors, expect to need 16-32 GB depending on settings.
+Increasing `time_thin` and `odens` are the most effective ways to reduce
+memory usage.
+
+## 12 Next steps
+
+For impulse response analysis that traces how shocks propagate through
+the estimated dynamics, see
+[`vignette("impulse_response")`](https://netify-dev.github.io/dbn/articles/impulse_response.md).
+For models with known structural breaks where the influence structure
+shifts at discrete time points, see
+[`vignette("piecewise_dbn")`](https://netify-dev.github.io/dbn/articles/piecewise_dbn.md).
+For large networks (50+ actors), see
+[`vignette("lowrank_dbn")`](https://netify-dev.github.io/dbn/articles/lowrank_dbn.md).

@@ -45,7 +45,7 @@ Generate synthetic network data
 Posterior prediction, draws, and forecasting
 
 - [`posterior_predict_dbn()`](https://netify-dev.github.io/dbn/reference/posterior_predict_dbn.md)
-  : Generate posterior predictive samples
+  : Generate Posterior Predictive Samples
 - [`derive_draws()`](https://netify-dev.github.io/dbn/reference/derive_draws.md)
   : Derive new quantities from posterior draws
 - [`regime_probs()`](https://netify-dev.github.io/dbn/reference/regime_probs.md)
@@ -79,11 +79,11 @@ Summarize and analyze network structure
 - [`theta_credible()`](https://netify-dev.github.io/dbn/reference/theta_credible.md)
   : Posterior credible intervals for Theta
 - [`param_summary()`](https://netify-dev.github.io/dbn/reference/param_summary.md)
-  : Summarize scalar parameters
+  : Summarize Scalar Parameters
 - [`latent_summary()`](https://netify-dev.github.io/dbn/reference/latent_summary.md)
-  : Summarize latent means (M arrays)
+  : Summarize Baseline Mean M
 - [`tidy_dbn_lowrank()`](https://netify-dev.github.io/dbn/reference/tidy_dbn_lowrank.md)
-  : Tidy Extractor for Low-Rank Factor Paths
+  : Tidy Extractor for Low-Rank Factor Trajectories
 - [`theta_slice()`](https://netify-dev.github.io/dbn/reference/theta_slice.md)
   : Extract Theta slices from posterior draws
 - [`net_snapshot()`](https://netify-dev.github.io/dbn/reference/net_snapshot.md)
@@ -137,8 +137,14 @@ S3 methods for dbn objects
   : Print IRF
 - [`print(`*`<dbn_ppd>`*`)`](https://netify-dev.github.io/dbn/reference/print.dbn_ppd.md)
   : Print method for posterior predictive distribution
+- [`summary(`*`<dbn>`*`)`](https://netify-dev.github.io/dbn/reference/summary.dbn.md)
+  : Summarize a Fitted DBN Model
 - [`summary_dbn()`](https://netify-dev.github.io/dbn/reference/summary_dbn.md)
   : Summary method for DBN objects
+- [`predict(`*`<dbn>`*`)`](https://netify-dev.github.io/dbn/reference/predict.dbn.md)
+  : Predict from a Fitted DBN Model
+- [`plot(`*`<dbn>`*`)`](https://netify-dev.github.io/dbn/reference/plot.dbn.md)
+  : Plot Diagnostics for a Fitted DBN Model
 - [`plot(`*`<dbn_irf>`*`)`](https://netify-dev.github.io/dbn/reference/plot.dbn_irf.md)
   : Plot IRF
 - [`plot_dbn()`](https://netify-dev.github.io/dbn/reference/plot_dbn.md)

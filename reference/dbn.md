@@ -1,9 +1,14 @@
 # Dynamic Bilinear Network Analysis
 
-Main wrapper function for Dynamic Bilinear Network (DBN) analysis. This
-is the primary interface for fitting DBN models to network data. DBN
-models capture complex dependencies in network data through bilinear
-interactions between latent sender and receiver effects.
+Main entry point for fitting Dynamic Bilinear Network (DBN) models.
+These models estimate how past network interactions predict future
+interactions, recovering time-varying influence structures from temporal
+relational data.
+
+The core model is: \\\Theta_t = A_t \Theta\_{t-1} B_t' + M +
+\varepsilon_t\\, where \\A_t\\ captures sender influence, \\B_t\\
+captures receiver influence, and \\M\\ captures stable dyad-specific
+tendencies.
 
 ## Usage
 
@@ -25,47 +30,53 @@ dbn(
 
 - data:
 
-  Data array or path to .RData file containing Y array. Array should be
-  3-dimensional (actors x actors x time) for single relation or
-  4-dimensional (actors x actors x relations x time) for multiple
-  relations
+  Numeric array of network data, or a file path to an `.RData` file that
+  contains an object named `Y`. The array should be 3-dimensional
+  `[actors, actors, time]` for a single relation type, or 4-dimensional
+  `[actors, actors, relations, time]` for multiple relation types.
+  Diagonal entries (self-ties) should be `NA` for unipartite networks.
+  For bipartite networks, pass a rectangular array where the first
+  dimension (senders) differs from the second (receivers).
 
 - family:
 
-  Character string specifying the data family/distribution:
+  Character string specifying the outcome distribution. See **Details**
+  for guidance on choosing:
 
-  - "ordinal": For ordinal/ranked data (e.g., ratings 1-5). Data should
-    be positive integers.
+  - `"ordinal"`: For ordinal/ranked data (positive integers)
 
-  - "gaussian": For continuous data. Data can be any real numbers.
+  - `"gaussian"`: For continuous data (any real numbers)
 
-  - "binary": For binary data. Data should be 0/1 or logical values.
+  - `"binary"`: For binary data (0/1 or logical)
 
 - model:
 
-  Character string specifying model type:
+  Character string specifying the model type. See **Details** for
+  guidance on choosing:
 
-  - "static": Fixed sender/receiver effects across time
+  - `"static"`: Fixed sender/receiver effects across time
 
-  - "dynamic": Time-varying sender/receiver effects
+  - `"dynamic"`: Time-varying sender/receiver effects
 
-  - "lowrank": Low-rank factorization of sender effects
+  - `"lowrank"`: Low-rank factorization of sender effects (large
+    networks)
 
-  - "hmm": Regime-switching model with hidden Markov states
+  - `"hmm"`: Regime-switching with data-driven regime discovery
 
-  - "piecewise": Block-constant influence matrices for structural change
+  - `"piecewise"`: Block-constant influence with known break points
 
 - nscan:
 
-  Number of iterations of the Markov chain (beyond burn-in)
+  Number of posterior samples to draw after burn-in
 
 - burn:
 
-  Burn-in for the Markov chain
+  Number of initial MCMC samples to discard (warm-up period)
 
 - odens:
 
-  Output density for the Markov chain (save every odens-th iteration)
+  Thinning interval: save every odens-th sample (reduces autocorrelation
+  and memory)
 
 - verbose:
 
@@ -141,72 +152,126 @@ dbn(
 
 ## Value
 
-A list of class "dbn" containing:
-
-- B:
-
-  List of posterior samples for B matrices (static model)
-
-- A:
-
-  List of posterior samples for time-varying A matrices (dynamic model)
-
-- params:
-
-  Matrix of parameter traces (static model)
-
-- sigma2:
-
-  Vector of sigma^2 samples (dynamic model)
+A list of class `"dbn"` with model-specific contents. Common elements:
 
 - model:
 
-  Character string indicating which model was run
+  Character string indicating which model was fit
+
+- family:
+
+  Character string indicating the outcome family
 
 - dims:
 
-  List containing data dimensions
+  List of data dimensions (n_row, n_col, p, Tt)
 
 - settings:
 
-  List of model settings used
+  List of MCMC settings used
+
+- Y:
+
+  Original data array
+
+- M:
+
+  Posterior draws for baseline mean M
+
+- Theta:
+
+  Posterior draws for latent network state
+
+Model-specific elements include:
+
+- A:
+
+  Posterior draws for sender influence matrices
+
+- B:
+
+  Posterior draws for receiver influence matrices
+
+- sigma2, tau_A2, tau_B2, g2:
+
+  Posterior draws for variance parameters
+
+- rhoA, rhoB:
+
+  AR(1) persistence parameters (dynamic model with ar1=TRUE)
+
+- A_blocks:
+
+  List of regime-specific posterior mean A matrices (piecewise)
+
+- time_kept:
+
+  Which time indices are stored (dynamic/lowrank/HMM)
+
+Use [`summary()`](https://rdrr.io/r/base/summary.html),
+[`plot()`](https://rdrr.io/r/graphics/plot.default.html),
+[`param_summary()`](https://netify-dev.github.io/dbn/reference/param_summary.md),
+and
+[`check_convergence()`](https://netify-dev.github.io/dbn/reference/check_convergence.md)
+to inspect results. See model-specific vignettes for full workflows.
+
+## Details
+
+**Choosing a family:**
+
+- `"gaussian"`: Use when your relational data are continuous
+  measurements (e.g., trade volumes, similarity scores). This is the
+  simplest family and converges fastest.
+
+- `"ordinal"`: Use when your data are ordered categories or counts
+  (e.g., conflict severity 1-5, event counts) and you trust the ordering
+  but not the exact values. Uses a rank likelihood.
+
+- `"binary"`: Use for presence/absence data (0/1), e.g., whether a tie
+  exists. Uses a probit link with data augmentation.
+
+**Choosing a model:**
+
+- `"static"`: Simplest. Influence structure is fixed over time. Good
+  starting point and for short time series.
+
+- `"dynamic"`: Influence structure changes over time. Use when you
+  expect shifting alliances, evolving trade patterns, etc.
+
+- `"piecewise"`: Influence is constant within known regimes but differs
+  across them. Use when you know when structural breaks occurred (e.g.,
+  before/after a crisis).
+
+- `"hmm"`: Like piecewise but discovers regimes from data. Use when
+  breaks are unknown.
+
+- `"lowrank"`: Like dynamic but with dimensionality reduction for large
+  networks (50+ actors).
+
+**MCMC settings:** The sampler draws `nscan` posterior samples after
+discarding the first `burn` as warm-up. Setting `odens > 1` thins the
+output by saving every k-th sample. For initial exploration,
+`nscan = 5000, burn = 2000, odens = 5` is a reasonable starting point.
+For publication, use longer chains (`nscan = 10000+`) and verify
+convergence with
+[`check_convergence()`](https://netify-dev.github.io/dbn/reference/check_convergence.md).
 
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
-# Load example data
-data(example_data)
+# \donttest{
+sim <- simulate_static_dbn(n = 8, time = 10, seed = 6886)
 
-# Run static model with default settings
-results <- dbn(example_data, model = "static")
+# static model with gaussian family
+fit <- dbn(sim$Z, model = "static", family = "gaussian",
+    nscan = 200, burn = 100, verbose = FALSE)
 
-# Run dynamic model with custom MCMC settings
-results <- dbn(example_data,
-    model = "dynamic",
-    nscan = 5000, burn = 1000, odens = 10
-)
+# dynamic model
+fit_dyn <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+    nscan = 200, burn = 100, verbose = FALSE)
 
-# Run HMM model with 3 regimes
-results <- dbn(example_data, model = "hmm", R = 3)
-
-# Run low-rank model with rank 2
-results <- dbn(example_data, model = "lowrank", r = 2)
-
-# Run quietly without progress output
-results <- dbn(example_data, model = "static", verbose = FALSE)
-
-# Run with detailed output every 100 iterations
-results <- dbn(example_data, model = "dynamic", verbose = 100)
-
-# Run piecewise model with 4 blocks
-results <- dbn(example_data, model = "piecewise", blocks = 4)
-
-# Run piecewise model with specific block boundaries
-results <- dbn(example_data, model = "piecewise",
-    blocks = c(pre = 25, crisis = 50, post = 100))
-
-# Run piecewise model with automatic block selection
-results <- dbn(example_data, model = "piecewise", blocks = "auto")
-} # }
+# piecewise model with 2 blocks
+fit_pw <- dbn(sim$Y, model = "piecewise", blocks = 2,
+    nscan = 200, burn = 100, verbose = FALSE)
+# }
 ```

@@ -1,6 +1,10 @@
 # Build Shock Matrix for IRF Analysis
 
-Creates shock matrices for different types of network interventions
+Creates structured perturbation matrices for impulse response analysis.
+The shock matrix S is added to the latent network at a single time
+point, and
+[`compute_irf()`](https://netify-dev.github.io/dbn/reference/compute_irf.md)
+tracks how the perturbation propagates.
 
 ## Usage
 
@@ -19,31 +23,63 @@ build_shock(
 
 - m:
 
-  Number of sender nodes
+  Number of actors (senders). This should match the fitted model's
+  network size.
 
 - type:
 
-  Type of shock: "unit_edge", "node_out", "node_in", or "density"
+  Type of shock:
+
+  - `"unit_edge"`: perturb a single directed edge (i -\> j)
+
+  - `"node_out"`: perturb all outgoing edges from actor i
+
+  - `"node_in"`: perturb all incoming edges to actor i
+
+  - `"density"`: uniform perturbation to all edges
 
 - i:
 
-  Source node index
+  Source actor index (sender)
 
 - j:
 
-  Target node index (for unit_edge)
+  Target actor index (receiver), used only for `"unit_edge"`
 
 - magnitude:
 
-  Shock magnitude
+  Size of the perturbation. Scale relative to your data: e.g., if data
+  ranges from -1 to 1, a magnitude of 0.5 is a large shock.
 
 - n_col:
 
-  Number of receiver nodes (default: m)
+  Number of receiver nodes (default: same as `m`)
 
 ## Value
 
-n_row x n_col shock matrix
+An `m x n_col` matrix of zeros with the specified entries set to
+`magnitude`. Pass this to
+[`compute_irf()`](https://netify-dev.github.io/dbn/reference/compute_irf.md)
+as the `shock` argument.
+
+## Details
+
+**When to use each shock type:**
+
+- `"unit_edge"`: Shock a single bilateral tie (e.g., "what if USA-Russia
+  relations improve?"). Use when you care about a specific dyad.
+
+- `"node_out"`: Shock all outgoing ties from one actor (e.g., "what if
+  China engages all partners at once?"). Use when you care about one
+  actor's overall engagement.
+
+- `"node_in"`: Shock all incoming ties to one actor.
+
+- `"density"`: Apply a uniform shock to all edges. Use to study how a
+  system-wide shift propagates.
+
+For **symmetric (undirected) networks**, symmetrize the shock after
+building it: `S = S + t(S)`.
 
 ## See also
 

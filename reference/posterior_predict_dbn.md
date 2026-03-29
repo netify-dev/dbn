@@ -1,6 +1,13 @@
-# Generate posterior predictive samples
+# Generate Posterior Predictive Samples
 
-Generate new observations from the posterior predictive distribution
+Simulates new datasets from the fitted model. For each posterior draw of
+the model parameters, generates a complete replicated dataset. These
+replications can be compared to the observed data using
+[`plot_ppc_ecdf()`](https://netify-dev.github.io/dbn/reference/plot_ppc_ecdf.md)
+or
+[`plot_ppc_density()`](https://netify-dev.github.io/dbn/reference/plot_ppc_density.md)
+to check whether the model captures the key features of the data (a
+"posterior predictive check").
 
 ## Usage
 
@@ -12,11 +19,12 @@ posterior_predict_dbn(fit, ndraws = 100, seed = NULL, draws = NULL)
 
 - fit:
 
-  A dbn model fit object
+  A dbn model fit object (output from
+  [`dbn()`](https://netify-dev.github.io/dbn/reference/dbn.md))
 
 - ndraws:
 
-  Number of posterior draws to use (default: 100)
+  Number of replicated datasets to generate (default: 100)
 
 - seed:
 
@@ -24,11 +32,12 @@ posterior_predict_dbn(fit, ndraws = 100, seed = NULL, draws = NULL)
 
 - draws:
 
-  Specific draw indices to use (overrides ndraws)
+  Specific posterior draw indices to use (overrides `ndraws`)
 
 ## Value
 
-List of predicted observations with class "dbn_ppd"
+A list of `ndraws` replicated data arrays, each with the same dimensions
+as the original data. Has class `"dbn_ppd"`.
 
 ## See also
 

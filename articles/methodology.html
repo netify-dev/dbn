@@ -66,7 +66,7 @@
                         <h4 data-toc-skip class="author">Tosin Salau
 &amp; Shahryar Minhas</h4>
             
-            <h4 data-toc-skip class="date">2026-03-25</h4>
+            <h4 data-toc-skip class="date">2026-03-29</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/netify-dev/dbn/blob/main/vignettes/methodology.Rmd" class="external-link"><code>vignettes/methodology.Rmd</code></a></small>
       <div class="d-none name"><code>methodology.Rmd</code></div>
@@ -95,31 +95,24 @@ predictive mapping itself change over time?</strong></p>
 <p>All models in the <code>dbn</code> package share a common bilinear
 autoregressive structure:</p>
 <p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Θ</mi><mi>t</mi></msub><mo>=</mo><msub><mi>A</mi><mi>t</mi></msub><mspace width="0.167em"></mspace><msub><mi>Θ</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mspace width="0.167em"></mspace><msubsup><mi>B</mi><mi>t</mi><mi>⊤</mi></msubsup><mo>+</mo><mi>M</mi><mo>+</mo><msub><mi>ε</mi><mi>t</mi></msub></mrow><annotation encoding="application/x-tex">\Theta_t = A_t \, \Theta_{t-1} \, B_t^\top + M + \varepsilon_t</annotation></semantics></math></p>
-<p>where:</p>
-<ul>
-<li>
+<p>The latent interaction state
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>Θ</mi><mi>t</mi></msub><annotation encoding="application/x-tex">\Theta_t</annotation></semantics></math>
-is the latent interaction state at time
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>t</mi><annotation encoding="application/x-tex">t</annotation></semantics></math>
-(an
+is an
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>n</mi></mrow><annotation encoding="application/x-tex">n \times n</annotation></semantics></math>
-matrix of de-noised relational intensities)</li>
-<li>
+matrix of de-noised relational intensities at time
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>t</mi><annotation encoding="application/x-tex">t</annotation></semantics></math>.
+The sender dynamics matrix
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>t</mi></msub><annotation encoding="application/x-tex">A_t</annotation></semantics></math>
-captures <strong>sender dynamics</strong> — how actors’ past behavior as
-senders influences future sending patterns</li>
-<li>
+captures how actors’ past behavior as senders influences future sending
+patterns, while the receiver dynamics matrix
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>t</mi></msub><annotation encoding="application/x-tex">B_t</annotation></semantics></math>
-captures <strong>receiver dynamics</strong> — how past targeting
-patterns influence future targets</li>
-<li>
+captures how past targeting patterns influence future targets. The
+baseline mean
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>M</mi><annotation encoding="application/x-tex">M</annotation></semantics></math>
-is a baseline mean that absorbs persistent dyad-specific tendencies
-(stable rivalries, enduring alliances, reporting differences)</li>
-<li>
+absorbs persistent dyad-specific tendencies (stable rivalries, enduring
+alliances, reporting differences), and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>ε</mi><mi>t</mi></msub><annotation encoding="application/x-tex">\varepsilon_t</annotation></semantics></math>
-is matrix-normal innovation noise</li>
-</ul>
+is matrix-normal innovation noise.</p>
 <p>The bilinear form
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>A</mi><mi>t</mi></msub><msub><mi>Θ</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><msubsup><mi>B</mi><mi>t</mi><mi>⊤</mi></msubsup></mrow><annotation encoding="application/x-tex">A_t \Theta_{t-1} B_t^\top</annotation></semantics></math>
 means that each dyad’s future state depends on the <em>entire</em> past
@@ -134,7 +127,7 @@ operators.</p>
 <div class="section level2">
 <h2 id="model-variants">Model variants<a class="anchor" aria-label="anchor" href="#model-variants"></a>
 </h2>
-<p>The package provides four model types that differ in how the
+<p>The package provides five model types that differ in how the
 influence matrices
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>
 and
@@ -144,43 +137,37 @@ expected dynamics, and the network size.</p>
 <div class="section level3">
 <h3 id="static-model-model-static">Static model (<code>model = "static"</code>)<a class="anchor" aria-label="anchor" href="#static-model-model-static"></a>
 </h3>
-<p><strong>What it does.</strong> Estimates fixed influence matrices
+<p>The static model estimates fixed influence matrices
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>
 and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>B</mi><annotation encoding="application/x-tex">B</annotation></semantics></math>
 that are constant across all time periods. The latent network
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>Θ</mi><mi>t</mi></msub><annotation encoding="application/x-tex">\Theta_t</annotation></semantics></math>
-still evolves over time, but the <em>rules governing that evolution</em>
-do not change.</p>
-<p><strong>When to use it.</strong></p>
-<ul>
-<li>You have relatively few time points or believe the influence
-structure is stable</li>
-<li>You have cross-sectional data (a single time point)</li>
-<li>You want a baseline model to compare against time-varying
-alternatives</li>
-<li>The network is small enough that you do not need dimensionality
-reduction</li>
-</ul>
-<p><strong>What you can learn.</strong> Who the influential senders and
-receivers are on average; which dyads have persistently strong or weak
-interactions after accounting for the baseline; whether the bilinear lag
-structure explains variation beyond a simple mean model.</p>
-<p><strong>Key outputs.</strong> Posterior mean of
+still evolves over time, but the rules governing that evolution do not
+change. This variant is appropriate when you have relatively few time
+points or believe the influence structure is stable, when you have
+cross-sectional data, or when you want a baseline model to compare
+against time-varying alternatives.</p>
+<p>The static model reveals who the influential senders and receivers
+are on average, which dyads have persistently strong or weak
+interactions after accounting for the baseline, and whether the bilinear
+lag structure explains variation beyond a simple mean model. Its key
+outputs include the posterior mean of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>,
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>B</mi><annotation encoding="application/x-tex">B</annotation></semantics></math>,
 and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>M</mi><annotation encoding="application/x-tex">M</annotation></semantics></math>;
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>M</mi><annotation encoding="application/x-tex">M</annotation></semantics></math>,
 scalar variance parameters
 (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>σ</mi><mn>2</mn></msup><annotation encoding="application/x-tex">\sigma^2</annotation></semantics></math>,
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msubsup><mi>τ</mi><mi>A</mi><mn>2</mn></msubsup><annotation encoding="application/x-tex">\tau_A^2</annotation></semantics></math>,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msubsup><mi>τ</mi><mi>B</mi><mn>2</mn></msubsup><annotation encoding="application/x-tex">\tau_B^2</annotation></semantics></math>);
-convergence diagnostics; parameter traces.</p>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msubsup><mi>τ</mi><mi>B</mi><mn>2</mn></msubsup><annotation encoding="application/x-tex">\tau_B^2</annotation></semantics></math>),
+and convergence diagnostics. See the <a href="static_dbn.html">static
+vignette</a> for a worked example with simulation recovery.</p>
 </div>
 <div class="section level3">
 <h3 id="dynamic-model-model-dynamic">Dynamic model (<code>model = "dynamic"</code>)<a class="anchor" aria-label="anchor" href="#dynamic-model-model-dynamic"></a>
 </h3>
-<p><strong>What it does.</strong> Allows
+<p>The dynamic model allows
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>t</mi></msub><annotation encoding="application/x-tex">A_t</annotation></semantics></math>
 and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>t</mi></msub><annotation encoding="application/x-tex">B_t</annotation></semantics></math>
@@ -194,60 +181,30 @@ can change from one period to the next, governed by innovation variances
 and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msubsup><mi>τ</mi><mi>B</mi><mn>2</mn></msubsup><annotation encoding="application/x-tex">\tau_B^2</annotation></semantics></math>
 that control how rapidly the influence structure reorganizes.</p>
-<p><strong>When to use it.</strong></p>
-<ul>
-<li>You expect the influence structure to change over time (shifting
-alliances, evolving trade patterns, reorganizing conflict dynamics)</li>
-<li>You want to identify <em>when</em> structural changes occur, not
-just <em>that</em> they occur</li>
-<li>You need time-indexed diagnostics: who is influential at each time
-point, when does influence concentrate or diffuse</li>
-<li>For very large networks (50+ actors), consider the low-rank model
-for better scalability</li>
-</ul>
-<p><strong>What you can learn.</strong></p>
-<ul>
-<li>
-<em>Influence snapshots</em>: the combined influence weight matrix
+<p>This variant is appropriate when the influence structure is expected
+to change over time and you want to identify <em>when</em> structural
+changes occur, not just <em>that</em> they occur. It supports
+time-indexed diagnostics (who is influential at each time point),
+impulse response functions for propagation analysis, multi-step-ahead
+forecasting, and dyad-level trajectories with posterior uncertainty. For
+very large networks (50+ actors), the low-rank variant offers better
+scalability.</p>
+<p>The model produces influence snapshots (the combined weight matrix
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>W</mi><mi>t</mi></msub><mo>=</mo><msub><mi>A</mi><mi>t</mi></msub><msubsup><mi>B</mi><mi>t</mi><mi>⊤</mi></msubsup></mrow><annotation encoding="application/x-tex">W_t = A_t B_t^\top</annotation></semantics></math>
-at each time point, showing which actor pairs have aligned or opposed
-structural roles</li>
-<li>
-<em>Coupling trajectories</em>: how tightly each actor’s current
-behavior is predicted by the lagged network state, tracked over
-time</li>
-<li>
-<em>Propagation profiles</em> (via impulse response functions): how
-a standardized shock to one dyad propagates through the network over
-subsequent periods, revealing which actors and dyads generate the
-broadest downstream consequences</li>
-<li>
-<em>Forecasting</em>: multi-step-ahead predictions that propagate
-the estimated dynamics forward</li>
-<li>
-<em>Dyad trajectories</em>: how specific bilateral relationships
-evolve with posterior uncertainty</li>
-</ul>
-<p><strong>Key outputs.</strong> Full time-varying
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>t</mi></msub><annotation encoding="application/x-tex">A_t</annotation></semantics></math>
+at each time point), coupling trajectories (how tightly each actor’s
+behavior is predicted by the lagged network state), and propagation
+profiles via IRFs. Optional AR(1) persistence parameters
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>ρ</mi><mi>A</mi></msub><annotation encoding="application/x-tex">\rho_A</annotation></semantics></math>
 and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>t</mi></msub><annotation encoding="application/x-tex">B_t</annotation></semantics></math>
-trajectories;
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msubsup><mi>τ</mi><mi>A</mi><mn>2</mn></msubsup><annotation encoding="application/x-tex">\tau_A^2</annotation></semantics></math>
-and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msubsup><mi>τ</mi><mi>B</mi><mn>2</mn></msubsup><annotation encoding="application/x-tex">\tau_B^2</annotation></semantics></math>
-(measuring how rapidly influence reorganizes); optional AR(1)
-persistence parameters
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>ρ</mi><mi>A</mi></msub><annotation encoding="application/x-tex">\rho_A</annotation></semantics></math>,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>ρ</mi><mi>B</mi></msub><annotation encoding="application/x-tex">\rho_B</annotation></semantics></math>;
-impulse response functions; forecasts; credible intervals for any dyad
-at any time.</p>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>ρ</mi><mi>B</mi></msub><annotation encoding="application/x-tex">\rho_B</annotation></semantics></math>
+measure mean reversion in the influence structure. See the <a href="dynamic_dbn.html">dynamic vignette</a> for simulation recovery and
+the <a href="impulse_response.html">impulse response vignette</a> for
+IRF analysis.</p>
 </div>
 <div class="section level3">
 <h3 id="piecewise-model-model-piecewise">Piecewise model (<code>model = "piecewise"</code>)<a class="anchor" aria-label="anchor" href="#piecewise-model-model-piecewise"></a>
 </h3>
-<p><strong>What it does.</strong> Estimates block-constant influence
-matrices
+<p>The piecewise model estimates block-constant influence matrices
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>k</mi></msub><annotation encoding="application/x-tex">A_k</annotation></semantics></math>
 and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>k</mi></msub><annotation encoding="application/x-tex">B_k</annotation></semantics></math>
@@ -256,60 +213,64 @@ for user-specified regimes
 Within each regime, the influence structure is fixed; across regimes, it
 can differ arbitrarily. This model sits between the static and dynamic
 extremes.</p>
-<p><strong>When to use it.</strong></p>
-<ul>
-<li>You know (or hypothesize) when structural breaks occurred</li>
-<li>You want interpretable regime-specific influence summaries</li>
-<li>You’re comparing pre/post periods around a known event (financial
-crisis, policy change, conflict onset)</li>
-<li>Memory constraints prevent storing full time-varying parameters</li>
-</ul>
-<p><strong>What you can learn.</strong> How the influence structure
-differed across regimes; which actors gained or lost influence after a
-structural break; whether the break represents a genuine shift (via
-<code><a href="../reference/compare_blocks.html">compare_blocks()</a></code>).</p>
-<p><strong>Key outputs.</strong> Regime-specific
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>k</mi></msub><annotation encoding="application/x-tex">A_k</annotation></semantics></math>
-and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>k</mi></msub><annotation encoding="application/x-tex">B_k</annotation></semantics></math>
-matrices; <code><a href="../reference/compare_blocks.html">compare_blocks()</a></code> for quantifying regime
-differences with posterior uncertainty; same convergence diagnostics as
-other models.</p>
+<p>It is appropriate when you know (or hypothesize) when structural
+breaks occurred and want interpretable regime-specific influence
+summaries. Typical applications involve comparing pre- and post-event
+periods around a known event such as a financial crisis, policy change,
+or conflict onset. The model also has memory advantages over the dynamic
+variant, since it estimates
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>K</mi><annotation encoding="application/x-tex">K</annotation></semantics></math>
+matrices instead of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>T</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">T-1</annotation></semantics></math>.
+The <code><a href="../reference/compare_blocks.html">compare_blocks()</a></code> function quantifies regime differences
+with posterior uncertainty, providing direct evidence for whether the
+influence structure genuinely changed. See the <a href="piecewise_dbn.html">piecewise vignette</a> for a worked example
+including an applied analysis of UNGA voting around the 2008 financial
+crisis.</p>
 </div>
 <div class="section level3">
-<h3 id="low-rank-model-model-lowrank-in-development">Low-rank model (<code>model = "lowrank"</code>) — <em>in
-development</em><a class="anchor" aria-label="anchor" href="#low-rank-model-model-lowrank-in-development"></a>
+<h3 id="low-rank-model-model-lowrank">Low-rank model (<code>model = "lowrank"</code>)<a class="anchor" aria-label="anchor" href="#low-rank-model-model-lowrank"></a>
 </h3>
-<p>The low-rank variant applies a factorization to the sender dynamics
-matrix
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>A</mi><mi>t</mi></msub><mo>=</mo><mi>U</mi><mspace width="0.167em"></mspace><mtext mathvariant="normal">diag</mtext><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>α</mi><mi>t</mi></msub><mo stretchy="true" form="postfix">)</mo></mrow><mspace width="0.167em"></mspace><msup><mi>U</mi><mi>⊤</mi></msup></mrow><annotation encoding="application/x-tex">A_t = U \, \text{diag}(\alpha_t) \, U^\top</annotation></semantics></math>)
-to reduce the parameter count from
+<p>The low-rank variant factorizes the sender dynamics matrix as
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>A</mi><mi>t</mi></msub><mo>=</mo><mi>U</mi><mspace width="0.167em"></mspace><mtext mathvariant="normal">diag</mtext><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>α</mi><mi>t</mi></msub><mo stretchy="true" form="postfix">)</mo></mrow><mspace width="0.167em"></mspace><msup><mi>U</mi><mi>⊤</mi></msup></mrow><annotation encoding="application/x-tex">A_t = U \, \text{diag}(\alpha_t) \, U^\top</annotation></semantics></math>,
+reducing the parameter count from
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>n</mi><mn>2</mn></msup><annotation encoding="application/x-tex">n^2</annotation></semantics></math>
 to
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>r</mi><mo>+</mo><mi>r</mi></mrow><annotation encoding="application/x-tex">n \times r + r</annotation></semantics></math>,
-making it scalable to larger networks. The receiver dynamics
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>×</mo><mi>r</mi><mo>+</mo><mi>r</mi></mrow><annotation encoding="application/x-tex">n \times r + r</annotation></semantics></math>.
+This makes it scalable to larger networks (50+ actors). The columns of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>U</mi><annotation encoding="application/x-tex">U</annotation></semantics></math>
+define latent groups of actors that share similar influence patterns,
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>α</mi><mi>t</mi></msub><annotation encoding="application/x-tex">\alpha_t</annotation></semantics></math>
+captures how strongly each factor drives the dynamics at time
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>t</mi><annotation encoding="application/x-tex">t</annotation></semantics></math>.
+The receiver dynamics
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>t</mi></msub><annotation encoding="application/x-tex">B_t</annotation></semantics></math>
-remain fully estimated. This model is implemented and functional but its
-documentation and interface are still being refined. See the <a href="lowrank_dbn.html">low-rank vignette</a> for preliminary
-examples.</p>
+remain fully estimated. See the <a href="lowrank_dbn.html">low-rank
+vignette</a> for examples with simulation recovery.</p>
 </div>
 <div class="section level3">
-<h3 id="hmm-model-model-hmm-in-development">HMM model (<code>model = "hmm"</code>) — <em>in
-development</em><a class="anchor" aria-label="anchor" href="#hmm-model-model-hmm-in-development"></a>
+<h3 id="hmm-model-model-hmm">HMM model (<code>model = "hmm"</code>)<a class="anchor" aria-label="anchor" href="#hmm-model-model-hmm"></a>
 </h3>
 <p>The HMM variant replaces smooth evolution with discrete
 regime-switching: the network alternates between a small number of
-regimes, each with its own influence matrices, governed by a Markov
-transition matrix. This model is implemented and functional but its
-documentation and interface are still being refined. See the <a href="hmm_dbn.html">HMM vignette</a> for preliminary examples.</p>
+regimes
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>R</mi><mo>=</mo><mn>2</mn></mrow><annotation encoding="application/x-tex">R = 2</annotation></semantics></math>–5),
+each with its own influence matrices, governed by a Markov transition
+matrix
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>.
+The model estimates the regime labels
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>s</mi><mi>t</mi></msub><annotation encoding="application/x-tex">s_t</annotation></semantics></math>
+alongside the dynamics, allowing data-driven discovery of structural
+breaks. See the <a href="hmm_dbn.html">HMM vignette</a> for examples
+with regime recovery.</p>
 </div>
 </div>
 <div class="section level2">
 <h2 id="choosing-a-model">Choosing a model<a class="anchor" aria-label="anchor" href="#choosing-a-model"></a>
 </h2>
-<p>For most applications, the choice is between the
-<strong>static</strong>, <strong>dynamic</strong>, and
-<strong>piecewise</strong> models:</p>
+<p>For most applications, the choice is between the static, dynamic, and
+piecewise models:</p>
 <table class="table">
 <thead><tr class="header">
 <th align="left">Consideration</th>
@@ -382,37 +343,31 @@ itself serves as an informal diagnostic: if it concentrates near zero,
 the data favor a static structure. Similarly, piecewise with
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>K</mi><mo>=</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">K=1</annotation></semantics></math>
 is equivalent to static.</p>
-<p>The <strong>low-rank</strong> and <strong>HMM</strong> variants
-extend the framework for specific use cases (large networks and
-regime-switching, respectively) and are under active development.</p>
+<p>The low-rank and HMM variants extend the framework for specific use
+cases (large networks and regime-switching, respectively).</p>
 </div>
 <div class="section level2">
 <h2 id="outcome-families">Outcome families<a class="anchor" aria-label="anchor" href="#outcome-families"></a>
 </h2>
-<p>All model variants support three outcome types:</p>
-<ul>
-<li><p><strong>Ordinal</strong> (<code>family = "ordinal"</code>): For
-ranked or ordered categorical data. Uses a rank likelihood that
-preserves the ordering without requiring specific cutpoints. This is the
-most common choice for count-based relational data (e.g., event counts)
-where the cardinal scale may not be meaningful.</p></li>
-<li><p><strong>Gaussian</strong> (<code>family = "gaussian"</code>): For
-continuous outcomes. Estimates an observation variance
+<p>All model variants support three outcome types. The
+<strong>ordinal</strong> family (<code>family = "ordinal"</code>) uses a
+rank likelihood that preserves the ordering of categorical data without
+requiring specific cutpoints. This is the most common choice for
+count-based relational data where the cardinal scale may not be
+meaningful. The <strong>Gaussian</strong> family
+(<code>family = "gaussian"</code>) is appropriate for genuinely
+continuous outcomes and estimates an observation variance
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msubsup><mi>σ</mi><mi>Y</mi><mn>2</mn></msubsup><annotation encoding="application/x-tex">\sigma_Y^2</annotation></semantics></math>
-that separates measurement noise from the latent process. Appropriate
-when the data are genuinely continuous and the scale is
-meaningful.</p></li>
-<li><p><strong>Binary</strong> (<code>family = "binary"</code>): For 0/1
-outcomes via a probit link with data augmentation. Appropriate for
-presence/absence of ties.</p></li>
-</ul>
+that separates measurement noise from the latent process. The
+<strong>binary</strong> family (<code>family = "binary"</code>) handles
+0/1 outcomes via a probit link with data augmentation.</p>
 </div>
 <div class="section level2">
 <h2 id="bipartite-and-symmetric-networks">Bipartite and symmetric networks<a class="anchor" aria-label="anchor" href="#bipartite-and-symmetric-networks"></a>
 </h2>
-<p><strong>Bipartite networks.</strong> When senders and receivers are
-distinct populations (e.g., countries sending aid to organizations),
-pass a rectangular array where <code>n_row</code>
+<p>When senders and receivers are distinct populations (such as
+countries sending aid to organizations), pass a rectangular array where
+<code>n_row</code>
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mo>≠</mo><annotation encoding="application/x-tex">\neq</annotation></semantics></math><code>n_col</code>. The package automatically detects this and estimates
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>
 as <code>n_row</code>
@@ -421,9 +376,8 @@ as <code>n_row</code>
 as <code>n_col</code>
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mo>×</mo><annotation encoding="application/x-tex">\times</annotation></semantics></math><code>n_col</code> (receiver dynamics). Self-loops are retained since
 senders and receivers are distinct.</p>
-<p><strong>Symmetric networks.</strong> For undirected networks where
-the sender–receiver distinction is not meaningful, set
-<code>symmetric = TRUE</code>. This constrains
+<p>For undirected networks where the sender-receiver distinction is not
+meaningful, set <code>symmetric = TRUE</code>. This constrains
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>B</mi><mo>=</mo><mi>A</mi></mrow><annotation encoding="application/x-tex">B = A</annotation></semantics></math>,
 halving the parameter count.</p>
 </div>
@@ -431,9 +385,9 @@ halving the parameter count.</p>
 <h2 id="impulse-response-analysis">Impulse response analysis<a class="anchor" aria-label="anchor" href="#impulse-response-analysis"></a>
 </h2>
 <p>A distinctive feature of the bilinear framework is the ability to
-compute <strong>impulse response functions (IRFs)</strong> that trace
-how a shock to the network propagates through the estimated dynamics.
-Given a perturbation matrix
+compute impulse response functions (IRFs) that trace how a shock to the
+network propagates through the estimated dynamics. Given a perturbation
+matrix
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>S</mi><annotation encoding="application/x-tex">S</annotation></semantics></math>
 applied at time
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>t</mi><mn>0</mn></msub><annotation encoding="application/x-tex">t_0</annotation></semantics></math>,
@@ -442,23 +396,20 @@ operators
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="false" form="prefix">{</mo><msub><mi>A</mi><mi>t</mi></msub><mo>,</mo><msub><mi>B</mi><mi>t</mi></msub><mo stretchy="false" form="postfix">}</mo></mrow><annotation encoding="application/x-tex">\{A_t, B_t\}</annotation></semantics></math>
 and tracks a network-level statistic (density, degree, reciprocity,
 transitivity) over subsequent horizons.</p>
-<p>This answers questions like: <em>If a specific bilateral relationship
+<p>This answers questions like: if a specific bilateral relationship
 escalates, how does overall network density respond over the next
 several periods? Which actors’ escalations generate the broadest
-downstream consequences?</em></p>
-<p>The paper introduces two key diagnostics built on this framework:</p>
-<ul>
-<li><p><strong>Coupling trajectories</strong>: How tightly each actor’s
+downstream consequences?</p>
+<p>The paper introduces two key diagnostics built on this framework.
+<strong>Coupling trajectories</strong> measure how tightly each actor’s
 current behavior is predicted by the prior network state, measured by
 the row norms of the influence matrices. Actors with high coupling are
 structurally embedded in the lag dynamics; those with low coupling
-behave more idiosyncratically.</p></li>
-<li><p><strong>Propagation profiles</strong>: How broadly a standardized
-bilateral perturbation involving a given actor transmits through the
-wider system. High-coupling actors are not necessarily high-leverage
-actors — an actor can be predictable from the lag structure without
-generating large downstream spillovers.</p></li>
-</ul>
+behave more idiosyncratically. <strong>Propagation profiles</strong>
+measure how broadly a standardized bilateral perturbation involving a
+given actor transmits through the wider system. High-coupling actors are
+not necessarily high-leverage actors: an actor can be predictable from
+the lag structure without generating large downstream spillovers.</p>
 </div>
 <div class="section level2">
 <h2 id="inference">Inference<a class="anchor" aria-label="anchor" href="#inference"></a>
@@ -466,11 +417,8 @@ generating large downstream spillovers.</p></li>
 <p>All models use fully Bayesian MCMC inference with conjugate Gibbs
 sampling. The dynamic model exploits the bilinear structure to decompose
 the high-dimensional state-space problem into efficient row-wise
-Forward-Filtering Backward-Sampling (FFBS) passes. Key computational
-features:</p>
-<ul>
-<li>
-<strong>Row-wise FFBS</strong>: Instead of filtering in the full
+Forward-Filtering Backward-Sampling (FFBS) passes. Instead of filtering
+in the full
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>n</mi><mn>2</mn></msup><annotation encoding="application/x-tex">n^2</annotation></semantics></math>-dimensional
 vectorized space, each row of
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>t</mi></msub><annotation encoding="application/x-tex">A_t</annotation></semantics></math>
@@ -481,21 +429,13 @@ is updated via an independent
 FFBS pass, reducing per-sweep cost from
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>O</mi><mrow><mo stretchy="true" form="prefix">(</mo><msup><mi>n</mi><mn>4</mn></msup><mi>T</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(n^4 T)</annotation></semantics></math>
 to
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>O</mi><mrow><mo stretchy="true" form="prefix">(</mo><msup><mi>n</mi><mn>3</mn></msup><mi>T</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(n^3 T)</annotation></semantics></math>.</li>
-<li>
-<strong>OpenMP parallelism</strong>: C++ backend with optional
-multi-threaded computation via <code><a href="../reference/set_dbn_threads.html">set_dbn_threads()</a></code>.</li>
-<li>
-<strong>Memory management</strong>: Automatic time-thinning and
-optional latent state compression for large problems; use
-<code><a href="../reference/estimate_memory.html">estimate_memory()</a></code> to check RAM requirements before
-fitting.</li>
-<li>
-<strong>Convergence diagnostics</strong>: Built-in effective sample
-size and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mover><mi>R</mi><mo accent="true">̂</mo></mover><annotation encoding="application/x-tex">\hat{R}</annotation></semantics></math>
-diagnostics via <code><a href="../reference/check_convergence.html">check_convergence()</a></code>.</li>
-</ul>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>O</mi><mrow><mo stretchy="true" form="prefix">(</mo><msup><mi>n</mi><mn>3</mn></msup><mi>T</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(n^3 T)</annotation></semantics></math>.
+The C++ backend supports optional multi-threaded computation via OpenMP
+(set with <code><a href="../reference/set_dbn_threads.html">set_dbn_threads()</a></code>), and automatic time-thinning
+and optional latent state compression manage memory for large problems.
+The <code><a href="../reference/estimate_memory.html">estimate_memory()</a></code> function checks RAM requirements
+before fitting, and <code><a href="../reference/check_convergence.html">check_convergence()</a></code> provides built-in
+effective sample size and Geweke diagnostics.</p>
 </div>
 <div class="section level2">
 <h2 id="citation">Citation<a class="anchor" aria-label="anchor" href="#citation"></a>

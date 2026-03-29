@@ -66,7 +66,7 @@
                         <h4 data-toc-skip class="author">Shahryar
 Minhas</h4>
             
-            <h4 data-toc-skip class="date">2026-03-16</h4>
+            <h4 data-toc-skip class="date">2026-03-28</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/netify-dev/dbn/blob/main/vignettes/applied_ir.Rmd" class="external-link"><code>vignettes/applied_ir.Rmd</code></a></small>
       <div class="d-none name"><code>applied_ir.Rmd</code></div>
@@ -78,36 +78,44 @@ Minhas</h4>
 <h2 id="overview">1 Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
 <p>This vignette walks through a complete <code>dbn</code> workflow on
-real data — fitting a dynamic model to foreign policy alignment among 12
+real data, fitting a dynamic model to foreign policy alignment among 12
 major powers (G7 + BRICS) and using impulse response functions (IRFs) to
 study how shocks propagate through the network.</p>
 <p>We use UNGA voting similarity scores from the
 <code>peacesciencer</code> package. The DBN model captures both the
 time-varying latent structure of the alignment network and the
-transition dynamics that govern how it evolves. IRFs then let us ask
-counterfactual questions — like “what happens to the broader network if
-USA-Russia alignment suddenly improves?” — that standard dyadic
-approaches can’t address.</p>
-<p>The results here are for methodological demonstration; substantive
-conclusions would require longer MCMC runs, model comparison, and
-domain-specific validation.</p>
+transition dynamics that govern how it evolves. IRFs then allow us to
+ask counterfactual questions that standard dyadic approaches cannot
+address, such as what happens to the broader network if USA-Russia
+alignment suddenly improves.</p>
+<p><strong>Requirements:</strong> This vignette requires the
+<code>peacesciencer</code> package and its external data. Install
+with:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"peacesciencer"</span><span class="op">)</span></span>
+<span><span class="fu">peacesciencer</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/peacesciencer/man/download_extdata.html" class="external-link">download_extdata</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>The code below is shown but not evaluated during the vignette build.
+To reproduce the results, copy the code blocks into an R session with
+<code>peacesciencer</code> installed.</p>
 </div>
 <div class="section level2">
 <h2 id="data-preparation">2 Data preparation<a class="anchor" aria-label="anchor" href="#data-preparation"></a>
 </h2>
 <p>We use the <code>kappavv</code> measure from
 <code><a href="https://rdrr.io/pkg/peacesciencer/man/add_fpsim.html" class="external-link">peacesciencer::add_fpsim()</a></code>, which captures pairwise
-agreement in UN General Assembly voting. It’s continuous and symmetric
-(<code>kappavv(i, j) = kappavv(j, i)</code>), ranging from -1
-(systematic disagreement) to +1 (perfect agreement). Because it’s
-continuous, we use the Gaussian family.</p>
-<p>Other UNGA similarity indices exist — including ideal point distances
-from Bailey, Strezhnev &amp; Voeten (2017) — and the choice of measure
-may affect substantive conclusions. But <code>kappavv</code> is a good
-fit for this tutorial because its continuous, bounded range and
-symmetric structure map directly onto the model’s assumptions.</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># G7 + BRICS: 12 actors</span></span>
+agreement in UNGA voting. It is continuous, symmetric
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>κ</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>i</mi><mo>,</mo><mi>j</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo>=</mo><mi>κ</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>j</mi><mo>,</mo><mi>i</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\kappa(i,j) = \kappa(j,i)</annotation></semantics></math>),
+and ranges from
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">-1</annotation></semantics></math>
+(systematic disagreement) to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">+1</annotation></semantics></math>
+(perfect agreement).</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://netify-dev.github.io/dbn/">dbn</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/svmiller/peacesciencer/" class="external-link">peacesciencer</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># G7 + BRICS: 12 actors</span></span>
 <span><span class="va">actor_codes</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  USA <span class="op">=</span> <span class="fl">2</span>, Canada <span class="op">=</span> <span class="fl">20</span>, UK <span class="op">=</span> <span class="fl">200</span>, France <span class="op">=</span> <span class="fl">220</span>, Germany <span class="op">=</span> <span class="fl">255</span>,</span>
 <span>  Italy <span class="op">=</span> <span class="fl">325</span>, Japan <span class="op">=</span> <span class="fl">740</span>, Brazil <span class="op">=</span> <span class="fl">140</span>, Russia <span class="op">=</span> <span class="fl">365</span>,</span>
@@ -116,38 +124,25 @@ symmetric structure map directly onto the model’s assumptions.</p>
 <span><span class="va">actor_labels</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">actor_codes</span><span class="op">)</span></span>
 <span><span class="va">n</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">actor_codes</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># convenience indices for IRF analysis later</span></span>
 <span><span class="va">usa_idx</span>    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">actor_labels</span> <span class="op">==</span> <span class="st">"USA"</span><span class="op">)</span></span>
 <span><span class="va">russia_idx</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">actor_labels</span> <span class="op">==</span> <span class="st">"Russia"</span><span class="op">)</span></span>
 <span><span class="va">china_idx</span>  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">actor_labels</span> <span class="op">==</span> <span class="st">"China"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># build dyadic panel 2005-2015 (UNGA similarity available through 2015)</span></span>
-<span><span class="va">dyads</span> <span class="op">=</span> <span class="fu">create_dyadyears</span><span class="op">(</span>subset_years <span class="op">=</span> <span class="fl">2005</span><span class="op">:</span><span class="fl">2015</span><span class="op">)</span> <span class="op">|&gt;</span></span>
-<span>  <span class="fu">add_fpsim</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="co"># build dyadic panel 2005-2015</span></span>
+<span><span class="va">dyads</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/peacesciencer/man/create_dyadyears.html" class="external-link">create_dyadyears</a></span><span class="op">(</span>subset_years <span class="op">=</span> <span class="fl">2005</span><span class="op">:</span><span class="fl">2015</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/pkg/peacesciencer/man/add_fpsim.html" class="external-link">add_fpsim</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># filter to our actors</span></span>
 <span><span class="va">dyads_sub</span> <span class="op">=</span> <span class="va">dyads</span><span class="op">[</span><span class="va">dyads</span><span class="op">$</span><span class="va">ccode1</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">actor_codes</span> <span class="op">&amp;</span></span>
 <span>                    <span class="va">dyads</span><span class="op">$</span><span class="va">ccode2</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">actor_codes</span>, <span class="op">]</span></span>
 <span></span>
 <span><span class="va">years</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">dyads_sub</span><span class="op">$</span><span class="va">year</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">Tt</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">years</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Actors:"</span>, <span class="va">n</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Actors: 12</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Time points:"</span>, <span class="va">Tt</span>, <span class="st">"("</span>, <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="va">years</span><span class="op">)</span>, <span class="st">"-"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">years</span><span class="op">)</span>, <span class="st">")\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Time points: 11 ( 2005 - 2015 )</span></span></code></pre></div>
-<p>Next, we reshape the dyadic panel into the <code>[n, n, p, T]</code>
-array that <code><a href="../reference/dbn.html">dbn()</a></code> expects. Each slice is the full alignment
-matrix at one time point, with <code>NA</code> on the diagonal to
-exclude self-ties.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># build mapping from COW code to matrix index</span></span>
+<span><span class="co"># build [n, n, 1, T] array</span></span>
 <span><span class="va">code_to_idx</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/setNames.html" class="external-link">setNames</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_along</a></span><span class="op">(</span><span class="va">actor_codes</span><span class="op">)</span>, <span class="va">actor_codes</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># initialize 4D array: [n_row, n_col, p, T]</span></span>
 <span><span class="va">Y</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="cn">NA_real_</span>, dim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">n</span>, <span class="fl">1</span>, <span class="va">Tt</span><span class="op">)</span>,</span>
-<span>           dimnames <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">actor_labels</span>, <span class="va">actor_labels</span>, <span class="st">"unga"</span>,</span>
-<span>                           <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">years</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span>          dimnames <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">actor_labels</span>, <span class="va">actor_labels</span>, <span class="st">"unga"</span>,</span>
+<span>                          <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">years</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="kw">for</span> <span class="op">(</span><span class="va">i</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">dyads_sub</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">row_i</span> <span class="op">=</span> <span class="va">code_to_idx</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">as.character</a></span><span class="op">(</span><span class="va">dyads_sub</span><span class="op">$</span><span class="va">ccode1</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span><span class="op">]</span></span>
@@ -155,111 +150,59 @@ exclude self-ties.</p>
 <span>  <span class="va">t_idx</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">years</span> <span class="op">==</span> <span class="va">dyads_sub</span><span class="op">$</span><span class="va">year</span><span class="op">[</span><span class="va">i</span><span class="op">]</span><span class="op">)</span></span>
 <span>  <span class="va">Y</span><span class="op">[</span><span class="va">row_i</span>, <span class="va">col_j</span>, <span class="fl">1</span>, <span class="va">t_idx</span><span class="op">]</span> <span class="op">=</span> <span class="va">dyads_sub</span><span class="op">$</span><span class="va">kappavv</span><span class="op">[</span><span class="va">i</span><span class="op">]</span></span>
 <span><span class="op">}</span></span>
-<span></span>
-<span><span class="co"># set diagonal to NA (no self-ties)</span></span>
-<span><span class="kw">for</span> <span class="op">(</span><span class="va">t</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">Tt</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">Y</span><span class="op">[</span>, , <span class="fl">1</span>, <span class="va">t</span><span class="op">]</span><span class="op">)</span> <span class="op">=</span> <span class="cn">NA</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Array dimensions:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span>, collapse <span class="op">=</span> <span class="st">" x "</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Array dimensions: 12 x 12 x 1 x 11</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Missing rate:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fl">100</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">Y</span><span class="op">)</span><span class="op">)</span>, <span class="fl">1</span><span class="op">)</span>, <span class="st">"%\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Missing rate: 8.3 %</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Value range:"</span>, <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/range.html" class="external-link">range</a></span><span class="op">(</span><span class="va">Y</span>, na.rm <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span>, <span class="st">"\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Value range: -0.245 1</span></span></code></pre></div>
-<p>Here’s a snapshot of the 2010 cross-section. Higher values mean more
-similar UNGA voting; negative values mean systematic disagreement.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># 2010 alignment snapshot</span></span>
-<span><span class="va">Y_2010</span> <span class="op">=</span> <span class="va">Y</span><span class="op">[</span>, , <span class="fl">1</span>, <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">years</span> <span class="op">==</span> <span class="fl">2010</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="va">Y_2010</span>, <span class="fl">2</span><span class="op">)</span></span>
-<span><span class="co">#&gt;               USA Canada    UK France Germany Italy Japan Brazil Russia India</span></span>
-<span><span class="co">#&gt; USA            NA   0.35  0.35   0.30    0.21  0.16  0.17  -0.04  -0.09 -0.11</span></span>
-<span><span class="co">#&gt; Canada       0.35     NA  0.44   0.50    0.72  0.68  0.61  -0.04   0.07 -0.20</span></span>
-<span><span class="co">#&gt; UK           0.35   0.44    NA   0.89    0.67  0.59  0.50  -0.04   0.05 -0.13</span></span>
-<span><span class="co">#&gt; France       0.30   0.50  0.89     NA    0.74  0.70  0.55  -0.04   0.12 -0.05</span></span>
-<span><span class="co">#&gt; Germany      0.21   0.72  0.67   0.74      NA  0.94  0.80  -0.02   0.17 -0.16</span></span>
-<span><span class="co">#&gt; Italy        0.16   0.68  0.59   0.70    0.94    NA  0.75  -0.03   0.22 -0.08</span></span>
-<span><span class="co">#&gt; Japan        0.17   0.61  0.50   0.55    0.80  0.75    NA  -0.06   0.04 -0.07</span></span>
-<span><span class="co">#&gt; Brazil      -0.04  -0.04 -0.04  -0.04   -0.02 -0.03 -0.06     NA   0.14  0.21</span></span>
-<span><span class="co">#&gt; Russia      -0.09   0.07  0.05   0.12    0.17  0.22  0.04   0.14     NA  0.19</span></span>
-<span><span class="co">#&gt; India       -0.11  -0.20 -0.13  -0.05   -0.16 -0.08 -0.07   0.21   0.19    NA</span></span>
-<span><span class="co">#&gt; China       -0.11  -0.14 -0.12  -0.11   -0.14 -0.15 -0.02   0.29   0.43  0.45</span></span>
-<span><span class="co">#&gt; SouthAfrica -0.07  -0.07 -0.07  -0.07   -0.06 -0.06 -0.10   0.57   0.32  0.21</span></span>
-<span><span class="co">#&gt;             China SouthAfrica</span></span>
-<span><span class="co">#&gt; USA         -0.11       -0.07</span></span>
-<span><span class="co">#&gt; Canada      -0.14       -0.07</span></span>
-<span><span class="co">#&gt; UK          -0.12       -0.07</span></span>
-<span><span class="co">#&gt; France      -0.11       -0.07</span></span>
-<span><span class="co">#&gt; Germany     -0.14       -0.06</span></span>
-<span><span class="co">#&gt; Italy       -0.15       -0.06</span></span>
-<span><span class="co">#&gt; Japan       -0.02       -0.10</span></span>
-<span><span class="co">#&gt; Brazil       0.29        0.57</span></span>
-<span><span class="co">#&gt; Russia       0.43        0.32</span></span>
-<span><span class="co">#&gt; India        0.45        0.21</span></span>
-<span><span class="co">#&gt; China          NA        0.48</span></span>
-<span><span class="co">#&gt; SouthAfrica  0.48          NA</span></span></code></pre></div>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">t</span> <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="va">Tt</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">Y</span><span class="op">[</span>, , <span class="fl">1</span>, <span class="va">t</span><span class="op">]</span><span class="op">)</span> <span class="op">=</span> <span class="cn">NA</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="fit-the-dynamic-model">3 Fit the dynamic model<a class="anchor" aria-label="anchor" href="#fit-the-dynamic-model"></a>
 </h2>
-<p>Since <code>kappavv</code> is symmetric
-(<code>Y[i,j] = Y[j,i]</code>), we set <code>symmetric = TRUE</code> to
-constrain the sender and receiver transition matrices to equality
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>B</mi><mi>t</mi></msub><mo>=</mo><msub><mi>A</mi><mi>t</mi></msub></mrow><annotation encoding="application/x-tex">B_t = A_t</annotation></semantics></math>).
-This is the correct specification for undirected data and halves the
-number of parameters.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<p>Since <code>kappavv</code> is symmetric, we set
+<code>symmetric = TRUE</code> to constrain
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>B</mi><mi>t</mi></msub><mo>=</mo><msub><mi>A</mi><mi>t</mi></msub></mrow><annotation encoding="application/x-tex">B_t = A_t</annotation></semantics></math>,
+halving the parameter count. This is appropriate because the
+sender-receiver distinction is not meaningful for undirected voting
+similarity.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span></span>
 <span>  data      <span class="op">=</span> <span class="va">Y</span>,</span>
 <span>  model     <span class="op">=</span> <span class="st">"dynamic"</span>,</span>
 <span>  family    <span class="op">=</span> <span class="st">"gaussian"</span>,</span>
 <span>  symmetric <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  nscan     <span class="op">=</span> <span class="fl">5000</span>,</span>
-<span>  burn      <span class="op">=</span> <span class="fl">2000</span>,</span>
+<span>  nscan     <span class="op">=</span> <span class="fl">10000</span>,</span>
+<span>  burn      <span class="op">=</span> <span class="fl">5000</span>,</span>
 <span>  odens     <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>  verbose   <span class="op">=</span> <span class="cn">FALSE</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span></code></pre></div>
 <div class="section level3">
-<h3 id="convergence-check">Convergence check<a class="anchor" aria-label="anchor" href="#convergence-check"></a>
+<h3 id="convergence">Convergence<a class="anchor" aria-label="anchor" href="#convergence"></a>
 </h3>
-<p>Always check convergence before interpreting results. Here are the
-trace plots for the variance parameters.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_trace.html">plot_trace</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
-<div class="figure" style="text-align: center">
-<img src="figure/convergence-1.png" alt="plot of chunk convergence"><p class="caption">
-plot of chunk convergence
-</p>
-</div>
-<p>Well-behaved traces show stationary fluctuation around a stable mean,
-with no drift or stagnation. Notice that under the symmetric constraint,
-<code>tau_A2</code> and <code>tau_B2</code> should be identical — a
-useful sanity check. If you see trending or poor mixing, increase both
-<code>burn</code> and <code>nscan</code> before proceeding.</p>
+<p>Always check convergence before interpreting results. Well-behaved
+traces show stationary fluctuation around a stable mean. Under the
+symmetric constraint, <code>tau_A2</code> and <code>tau_B2</code> should
+be identical.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/check_convergence.html">check_convergence</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/plot_trace.html">plot_trace</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
 <h2 id="posterior-alignment-scores">4 Posterior alignment scores<a class="anchor" aria-label="anchor" href="#posterior-alignment-scores"></a>
 </h2>
-<p>Let’s extract the posterior mean alignment scores. The model
-estimates a time-varying
+<p>The model estimates a time-varying
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>Θ</mi><mi>t</mi></msub><annotation encoding="application/x-tex">\Theta_t</annotation></semantics></math>
 and a static baseline
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>M</mi><annotation encoding="application/x-tex">M</annotation></semantics></math>
-— summing them gives smoothed alignment trajectories for each dyad.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># posterior mean Theta and M</span></span>
-<span><span class="va">Theta_mean</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">Theta</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">4</span>, <span class="va">mean</span><span class="op">)</span></span>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>M</mi><annotation encoding="application/x-tex">M</annotation></semantics></math>.
+Summing them gives smoothed alignment trajectories for each dyad,
+filtering out observation noise to reveal the underlying relational
+dynamics.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">Theta_mean</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">Theta</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">4</span>, <span class="va">mean</span><span class="op">)</span></span>
 <span><span class="va">M_mean</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">M</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, <span class="va">mean</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># alignment = E[Theta_t] + E[M] = E[Theta_t + M]  (by linearity)</span></span>
 <span><span class="va">alignment</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/array.html" class="external-link">array</a></span><span class="op">(</span><span class="cn">NA</span>, dim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">n</span>, <span class="fl">1</span>, <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">time_kept</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="kw">for</span> <span class="op">(</span><span class="va">t_idx</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_along</a></span><span class="op">(</span><span class="va">fit</span><span class="op">$</span><span class="va">time_kept</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">alignment</span><span class="op">[</span>, , <span class="fl">1</span>, <span class="va">t_idx</span><span class="op">]</span> <span class="op">=</span> <span class="va">Theta_mean</span><span class="op">[</span>, , <span class="fl">1</span>, <span class="va">t_idx</span><span class="op">]</span> <span class="op">+</span> <span class="va">M_mean</span><span class="op">[</span>, , <span class="fl">1</span><span class="op">]</span></span>
 <span><span class="op">}</span></span>
 <span></span>
-<span><span class="co"># key dyads to track</span></span>
 <span><span class="va">key_dyads</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  <span class="st">"USA - UK"</span>       <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"USA"</span>, <span class="st">"UK"</span><span class="op">)</span>,</span>
 <span>  <span class="st">"USA - China"</span>    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"USA"</span>, <span class="st">"China"</span><span class="op">)</span>,</span>
@@ -275,57 +218,40 @@ and a static baseline
 <span>  <span class="va">i</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">actor_labels</span> <span class="op">==</span> <span class="va">pair</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">)</span></span>
 <span>  <span class="va">j</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">actor_labels</span> <span class="op">==</span> <span class="va">pair</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>dyad <span class="op">=</span> <span class="va">nm</span>, year <span class="op">=</span> <span class="va">stored_years</span>,</span>
-<span>             alignment <span class="op">=</span> <span class="va">alignment</span><span class="op">[</span><span class="va">i</span>, <span class="va">j</span>, <span class="fl">1</span>, <span class="op">]</span>,</span>
-<span>             stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span>             alignment <span class="op">=</span> <span class="va">alignment</span><span class="op">[</span><span class="va">i</span>, <span class="va">j</span>, <span class="fl">1</span>, <span class="op">]</span><span class="op">)</span></span>
 <span><span class="op">}</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df_align</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">year</span>, y <span class="op">=</span> <span class="va">alignment</span>, colour <span class="op">=</span> <span class="va">dyad</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">geom_line</span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">geom_point</span><span class="op">(</span>size <span class="op">=</span> <span class="fl">2</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">labs</span><span class="op">(</span></span>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df_align</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">year</span>, y <span class="op">=</span> <span class="va">alignment</span>, colour <span class="op">=</span> <span class="va">dyad</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">2</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
 <span>    title <span class="op">=</span> <span class="st">"Posterior Mean Foreign Policy Alignment"</span>,</span>
-<span>    subtitle <span class="op">=</span> <span class="st">"G7 + BRICS, UNGA voting similarity (2005-2015)"</span>,</span>
+<span>    subtitle <span class="op">=</span> <span class="st">"G7 + BRICS, UNGA Voting Similarity (2005-2015)"</span>,</span>
 <span>    x <span class="op">=</span> <span class="st">"Year"</span>, y <span class="op">=</span> <span class="st">"Estimated Alignment"</span>, colour <span class="op">=</span> <span class="st">"Dyad"</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">theme_bw</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">theme</span><span class="op">(</span></span>
-<span>    panel.border <span class="op">=</span> <span class="fu">element_blank</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>    panel.border <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>    legend.position <span class="op">=</span> <span class="st">"bottom"</span></span>
 <span>  <span class="op">)</span></span></code></pre></div>
-<div class="figure" style="text-align: center">
-<img src="figure/alignment-timeseries-1.png" alt="plot of chunk alignment-timeseries"><p class="caption">
-plot of chunk alignment-timeseries
-</p>
-</div>
-<p>The model recovers patterns consistent with well-known geopolitical
-structures. China-Russia and India-China cluster at high positive
-alignment, while USA-China and USA-Russia remain persistently negative.
-The USA-UK dyad is moderately positive, as expected given the
-transatlantic alliance. These trajectories provide a reasonable
-foundation for the counterfactual exercises that follow.</p>
+<p>The model should recover patterns consistent with well-known
+geopolitical structures. China-Russia alignment is expected to be
+positive and stable, while USA-China and USA-Russia should remain
+negative, reflecting systematic disagreement on UNGA votes. Western
+allied dyads (USA-UK) should cluster at positive values.</p>
 </div>
 <div class="section level2">
 <h2 id="impulse-response-edge-shock">5 Impulse response: edge shock<a class="anchor" aria-label="anchor" href="#impulse-response-edge-shock"></a>
 </h2>
-<p>How does a bilateral shock propagate through the broader network? The
-IRF answers this by applying the estimated transition dynamics
-recursively:</p>
-<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Δ</mi><mn>0</mn></msub><mo>=</mo><mi>S</mi><mo>,</mo><mspace width="1.0em"></mspace><msub><mi>Δ</mi><mi>h</mi></msub><mo>=</mo><msub><mi>A</mi><mrow><msub><mi>t</mi><mn>0</mn></msub><mo>+</mo><mi>h</mi></mrow></msub><mspace width="0.167em"></mspace><msub><mi>Δ</mi><mrow><mi>h</mi><mo>−</mo><mn>1</mn></mrow></msub><mspace width="0.167em"></mspace><msub><mi>A</mi><mrow><msub><mi>t</mi><mn>0</mn></msub><mo>+</mo><mi>h</mi></mrow></msub><mi>′</mi></mrow><annotation encoding="application/x-tex">\Delta_0 = S, \quad \Delta_h = A_{t_0+h} \, \Delta_{h-1} \, A_{t_0+h}'</annotation></semantics></math></p>
-<p>At each horizon, we evaluate a network statistic on the perturbed
-versus baseline network. These are counterfactual exercises — not causal
-predictions — that assume the transition dynamics remain invariant to
-the shock.</p>
-<p>Let’s simulate a positive shock to USA-Russia alignment and track its
-effect on network density.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># symmetric shock: USA-Russia alignment improves by 0.5</span></span>
-<span><span class="co"># (for context, the data SD is ~0.33, so this is a ~1.5 SD shift)</span></span>
-<span><span class="va">S_edge</span> <span class="op">=</span> <span class="fu"><a href="../reference/build_shock.html">build_shock</a></span><span class="op">(</span>m <span class="op">=</span> <span class="va">n</span>, type <span class="op">=</span> <span class="st">"unit_edge"</span>,</span>
-<span>                      i <span class="op">=</span> <span class="va">usa_idx</span>, j <span class="op">=</span> <span class="va">russia_idx</span>, magnitude <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
-<span><span class="va">S_edge</span> <span class="op">=</span> <span class="va">S_edge</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">S_edge</span><span class="op">)</span>  <span class="co"># symmetric (undirected network)</span></span>
+<p>How does a bilateral shock propagate through the broader network? We
+simulate a positive shock to USA-Russia alignment and track network
+density. Because the data are symmetric, the shock matrix is symmetrized
+to maintain consistency.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">S_edge</span> <span class="op">=</span> <span class="fu"><a href="../reference/build_shock.html">build_shock</a></span><span class="op">(</span>m <span class="op">=</span> <span class="va">n</span>, type <span class="op">=</span> <span class="st">"unit_edge"</span>,</span>
+<span>                     i <span class="op">=</span> <span class="va">usa_idx</span>, j <span class="op">=</span> <span class="va">russia_idx</span>, magnitude <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
+<span><span class="va">S_edge</span> <span class="op">=</span> <span class="va">S_edge</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">S_edge</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># compute IRF: effect on network density over 5 horizons</span></span>
-<span><span class="co"># using all available posterior draws for stable credible intervals</span></span>
 <span><span class="va">irf_density</span> <span class="op">=</span> <span class="fu"><a href="../reference/compute_irf.html">compute_irf</a></span><span class="op">(</span></span>
 <span>  <span class="va">fit</span>,</span>
 <span>  shock    <span class="op">=</span> <span class="va">S_edge</span>,</span>
@@ -334,224 +260,142 @@ effect on network density.</p>
 <span>  stat_fun <span class="op">=</span> <span class="fu">dbn</span><span class="fu">::</span><span class="va"><a href="../reference/stat_density.html">stat_density</a></span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">irf_density</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Network Impulse Response Function</span></span>
-<span><span class="co">#&gt; Model: dynamic </span></span>
-<span><span class="co">#&gt; Statistic: custom_function </span></span>
-<span><span class="co">#&gt; Shock time: 3 </span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Summary:</span></span>
-<span><span class="co">#&gt;   horizon   mean median    sd   q025  q975    q10   q90</span></span>
-<span><span class="co">#&gt; 1       0  0.008  0.008 0.000  0.008 0.008  0.008 0.008</span></span>
-<span><span class="co">#&gt; 2       1 -0.001  0.000 0.015 -0.034 0.028 -0.017 0.015</span></span>
-<span><span class="co">#&gt; 3       2  0.001  0.001 0.029 -0.058 0.062 -0.028 0.032</span></span>
-<span><span class="co">#&gt; 4       3  0.000  0.000 0.064 -0.146 0.135 -0.061 0.060</span></span>
-<span><span class="co">#&gt; 5       4  0.003  0.000 0.219 -0.386 0.322 -0.126 0.141</span></span>
-<span><span class="co">#&gt; 6       5  0.008  0.002 0.395 -0.608 0.588 -0.232 0.282</span></span></code></pre></div>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">irf_density</span>, ci_level <span class="op">=</span> <span class="fl">0.90</span>,</span>
-<span>     title <span class="op">=</span> <span class="st">"USA-Russia Alignment Shock (+0.5) -&gt; Network Density"</span><span class="op">)</span></span></code></pre></div>
-<div class="figure" style="text-align: center">
-<img src="figure/plot-irf-edge-1.png" alt="plot of chunk plot-irf-edge"><p class="caption">
-plot of chunk plot-irf-edge
-</p>
-</div>
-<p>At horizon 0, the shock adds 0.5 to two off-diagonal cells in a
-12-actor network, producing a density increase of
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">irf_density</span>, ci_level <span class="op">=</span> <span class="fl">0.90</span>,</span>
+<span>     title <span class="op">=</span> <span class="st">"USA-Russia Alignment Shock (+0.5) -&gt; Network Density"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">irf_density</span><span class="op">)</span></span></code></pre></div>
+<p>At horizon 0, the effect is exact:
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>2</mn><mo>×</mo><mn>0.5</mn><mi>/</mi><mn>132</mn><mo>≈</mo><mn>0.0076</mn></mrow><annotation encoding="application/x-tex">2 \times 0.5 / 132 \approx 0.0076</annotation></semantics></math>.
-This initial effect is exact because density is a linear statistic. At
-subsequent horizons, the credible intervals widen — reflecting posterior
-uncertainty in the transition matrices. The rate of decay tells you
-about the spectral properties of
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>:
-eigenvalues near unity sustain perturbations, while values well below
-unity produce rapid decay.</p>
+At subsequent horizons, credible intervals widen reflecting posterior
+uncertainty in
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>t</mi></msub><annotation encoding="application/x-tex">A_t</annotation></semantics></math>.</p>
 </div>
 <div class="section level2">
 <h2 id="impulse-response-node-shock">6 Impulse response: node shock<a class="anchor" aria-label="anchor" href="#impulse-response-node-shock"></a>
 </h2>
-<p>What if a country shifts its alignment toward all partners at once?
-Here we shock China’s engagement with every other actor by +0.3 and
-track two statistics: overall network density and China’s own
-out-degree.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<p>What if China shifts alignment toward all partners at once? We apply
+a node-out shock and track both network density and China’s out-degree
+to see whether the effect remains localized or propagates.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">S_node</span> <span class="op">=</span> <span class="fu"><a href="../reference/build_shock.html">build_shock</a></span><span class="op">(</span>m <span class="op">=</span> <span class="va">n</span>, type <span class="op">=</span> <span class="st">"node_out"</span>,</span>
-<span>                      i <span class="op">=</span> <span class="va">china_idx</span>, magnitude <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">S_node</span><span class="op">)</span> <span class="op">=</span> <span class="fl">0</span>       <span class="co"># remove self-loop</span></span>
-<span><span class="va">S_node</span> <span class="op">=</span> <span class="va">S_node</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">S_node</span><span class="op">)</span>  <span class="co"># symmetrize for undirected network</span></span>
+<span>                     i <span class="op">=</span> <span class="va">china_idx</span>, magnitude <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">S_node</span><span class="op">)</span> <span class="op">=</span> <span class="fl">0</span></span>
+<span><span class="va">S_node</span> <span class="op">=</span> <span class="va">S_node</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">S_node</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># effect on network density</span></span>
 <span><span class="va">irf_china_dens</span> <span class="op">=</span> <span class="fu"><a href="../reference/compute_irf.html">compute_irf</a></span><span class="op">(</span></span>
 <span>  <span class="va">fit</span>, shock <span class="op">=</span> <span class="va">S_node</span>, H <span class="op">=</span> <span class="fl">5</span>, t0 <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  stat_fun <span class="op">=</span> <span class="fu">dbn</span><span class="fu">::</span><span class="va"><a href="../reference/stat_density.html">stat_density</a></span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># effect on China's out-degree (sum of its alignment scores)</span></span>
 <span><span class="va">irf_china_outdeg</span> <span class="op">=</span> <span class="fu"><a href="../reference/compute_irf.html">compute_irf</a></span><span class="op">(</span></span>
 <span>  <span class="va">fit</span>, shock <span class="op">=</span> <span class="va">S_node</span>, H <span class="op">=</span> <span class="fl">5</span>, t0 <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  stat_fun <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">X</span><span class="op">)</span> <span class="fu">dbn</span><span class="fu">::</span><span class="fu"><a href="../reference/stat_out_degree.html">stat_out_degree</a></span><span class="op">(</span><span class="va">X</span><span class="op">)</span><span class="op">[</span><span class="va">china_idx</span><span class="op">]</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">df_irfs</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">df_irfs</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">irf_china_dens</span>, stat <span class="op">=</span> <span class="st">"Network Density"</span><span class="op">)</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">irf_china_outdeg</span>, stat <span class="op">=</span> <span class="st">"China Out-Degree"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df_irfs</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">horizon</span>, y <span class="op">=</span> <span class="va">mean</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">geom_ribbon</span><span class="op">(</span><span class="fu">aes</span><span class="op">(</span>ymin <span class="op">=</span> <span class="va">q10</span>, ymax <span class="op">=</span> <span class="va">q90</span><span class="op">)</span>, alpha <span class="op">=</span> <span class="fl">0.2</span>,</span>
-<span>              fill <span class="op">=</span> <span class="st">"steelblue"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">geom_line</span><span class="op">(</span>colour <span class="op">=</span> <span class="st">"steelblue"</span>, linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">geom_hline</span><span class="op">(</span>yintercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span>, colour <span class="op">=</span> <span class="st">"grey50"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">facet_wrap</span><span class="op">(</span><span class="op">~</span> <span class="va">stat</span>, scales <span class="op">=</span> <span class="st">"free_y"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">labs</span><span class="op">(</span></span>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df_irfs</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">horizon</span>, y <span class="op">=</span> <span class="va">mean</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_ribbon.html" class="external-link">geom_ribbon</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>ymin <span class="op">=</span> <span class="va">q10</span>, ymax <span class="op">=</span> <span class="va">q90</span><span class="op">)</span>, alpha <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span>yintercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span> <span class="va">stat</span>, scales <span class="op">=</span> <span class="st">"free_y"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
 <span>    title <span class="op">=</span> <span class="st">"Node Shock: China Alignment +0.3 (All Partners)"</span>,</span>
-<span>    subtitle <span class="op">=</span> <span class="st">"Effect on network density vs. China's own out-degree"</span>,</span>
-<span>    x <span class="op">=</span> <span class="st">"Horizon (years)"</span>, y <span class="op">=</span> <span class="st">"IRF (change from baseline)"</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Horizon (Years)"</span>, y <span class="op">=</span> <span class="st">"IRF (Change From Baseline)"</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">theme_bw</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">theme</span><span class="op">(</span></span>
-<span>    panel.border <span class="op">=</span> <span class="fu">element_blank</span><span class="op">(</span><span class="op">)</span>,</span>
-<span>    strip.background <span class="op">=</span> <span class="fu">element_rect</span><span class="op">(</span>fill <span class="op">=</span> <span class="st">"black"</span>, color <span class="op">=</span> <span class="st">"black"</span><span class="op">)</span>,</span>
-<span>    strip.text.x <span class="op">=</span> <span class="fu">element_text</span><span class="op">(</span>color <span class="op">=</span> <span class="st">"white"</span>, hjust <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>    panel.border <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>    strip.background <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_rect</a></span><span class="op">(</span>fill <span class="op">=</span> <span class="st">"black"</span>, color <span class="op">=</span> <span class="st">"black"</span><span class="op">)</span>,</span>
+<span>    strip.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>color <span class="op">=</span> <span class="st">"white"</span>, hjust <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
 <span>  <span class="op">)</span></span></code></pre></div>
-<div class="figure" style="text-align: center">
-<img src="figure/plot-irf-node-1.png" alt="plot of chunk plot-irf-node"><p class="caption">
-plot of chunk plot-irf-node
-</p>
-</div>
-<p>At horizon 0, the symmetrized shock adds 0.3 to all 22 of China’s
-ties, increasing density by
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>22</mn><mo>×</mo><mn>0.3</mn><mi>/</mi><mn>132</mn><mo>=</mo><mn>0.05</mn></mrow><annotation encoding="application/x-tex">22 \times 0.3 / 132 = 0.05</annotation></semantics></math>
-and China’s out-degree by
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>11</mn><mo>×</mo><mn>0.3</mn><mo>=</mo><mn>3.3</mn></mrow><annotation encoding="application/x-tex">11 \times 0.3 = 3.3</annotation></semantics></math>.
-Notice the different y-axis scales — the node-level statistic registers
-a much larger absolute change. As the shock propagates, the two
-trajectories need not decay at the same rate, since the transition
-dynamics can redistribute alignment in ways that differentially affect
-global versus local statistics.</p>
 </div>
 <div class="section level2">
-<h2 id="impulse-response-comparing-shock-origins">7 Impulse response: comparing shock origins<a class="anchor" aria-label="anchor" href="#impulse-response-comparing-shock-origins"></a>
+<h2 id="comparative-irf-g7-node-shocks">7 Comparative IRF: G7 node shocks<a class="anchor" aria-label="anchor" href="#comparative-irf-g7-node-shocks"></a>
 </h2>
-<p>Which country’s engagement shift produces the largest ripple effect?
-Here we compute the density IRF for an identical outward shock from each
-G7 member. Since all shocks have the same magnitude, any differences at
-horizons 1+ reflect each country’s structural position in the estimated
-dynamics.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<p>Which country’s engagement shift produces the largest ripple? We
+apply identical outward shocks from each G7 member and compare the
+resulting density trajectories. All countries produce the same effect at
+horizon 0 by construction; differences at subsequent horizons reflect
+each country’s structural position in the estimated dynamics.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">g7</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"USA"</span>, <span class="st">"Canada"</span>, <span class="st">"UK"</span>, <span class="st">"France"</span>, <span class="st">"Germany"</span>, <span class="st">"Italy"</span>, <span class="st">"Japan"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">irf_list</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/setNames.html" class="external-link">setNames</a></span><span class="op">(</span><span class="va">g7</span>, <span class="va">g7</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">country</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">idx</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/which.html" class="external-link">which</a></span><span class="op">(</span><span class="va">actor_labels</span> <span class="op">==</span> <span class="va">country</span><span class="op">)</span></span>
 <span>  <span class="va">S</span> <span class="op">=</span> <span class="fu"><a href="../reference/build_shock.html">build_shock</a></span><span class="op">(</span>m <span class="op">=</span> <span class="va">n</span>, type <span class="op">=</span> <span class="st">"node_out"</span>, i <span class="op">=</span> <span class="va">idx</span>, magnitude <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/diag.html" class="external-link">diag</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span> <span class="op">=</span> <span class="fl">0</span></span>
-<span>  <span class="va">S</span> <span class="op">=</span> <span class="va">S</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span>  <span class="co"># symmetrize</span></span>
-<span>  <span class="fu"><a href="../reference/compute_irf.html">compute_irf</a></span><span class="op">(</span></span>
-<span>    <span class="va">fit</span>, shock <span class="op">=</span> <span class="va">S</span>, H <span class="op">=</span> <span class="fl">5</span>, t0 <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>    stat_fun <span class="op">=</span> <span class="fu">dbn</span><span class="fu">::</span><span class="va"><a href="../reference/stat_density.html">stat_density</a></span></span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">}</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">df_compare</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">irf_list</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">nm</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">S</span> <span class="op">=</span> <span class="va">S</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">S</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="../reference/compute_irf.html">compute_irf</a></span><span class="op">(</span><span class="va">fit</span>, shock <span class="op">=</span> <span class="va">S</span>, H <span class="op">=</span> <span class="fl">5</span>, t0 <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>              stat_fun <span class="op">=</span> <span class="fu">dbn</span><span class="fu">::</span><span class="va"><a href="../reference/stat_density.html">stat_density</a></span><span class="op">)</span></span>
+<span><span class="op">}</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">df_compare</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">irf_list</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">nm</span><span class="op">)</span> <span class="op">{</span></span>
 <span>  <span class="va">d</span> <span class="op">=</span> <span class="va">irf_list</span><span class="op">[[</span><span class="va">nm</span><span class="op">]</span><span class="op">]</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>horizon <span class="op">=</span> <span class="va">d</span><span class="op">$</span><span class="va">horizon</span>, mean <span class="op">=</span> <span class="va">d</span><span class="op">$</span><span class="va">mean</span>,</span>
-<span>             q10 <span class="op">=</span> <span class="va">d</span><span class="op">$</span><span class="va">q10</span>, q90 <span class="op">=</span> <span class="va">d</span><span class="op">$</span><span class="va">q90</span>,</span>
-<span>             country <span class="op">=</span> <span class="va">nm</span>, stringsAsFactors <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span>             q10 <span class="op">=</span> <span class="va">d</span><span class="op">$</span><span class="va">q10</span>, q90 <span class="op">=</span> <span class="va">d</span><span class="op">$</span><span class="va">q90</span>, country <span class="op">=</span> <span class="va">nm</span><span class="op">)</span></span>
 <span><span class="op">}</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df_compare</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">horizon</span>, y <span class="op">=</span> <span class="va">mean</span>, colour <span class="op">=</span> <span class="va">country</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">geom_line</span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">geom_point</span><span class="op">(</span>size <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">geom_hline</span><span class="op">(</span>yintercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span>, colour <span class="op">=</span> <span class="st">"grey50"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">labs</span><span class="op">(</span></span>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df_compare</span>, <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">horizon</span>, y <span class="op">=</span> <span class="va">mean</span>, colour <span class="op">=</span> <span class="va">country</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span>linewidth <span class="op">=</span> <span class="fl">1</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span>yintercept <span class="op">=</span> <span class="fl">0</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
 <span>    title <span class="op">=</span> <span class="st">"Comparative IRF: G7 Node Shocks"</span>,</span>
-<span>    subtitle <span class="op">=</span> <span class="st">"Same shock magnitude; differences reflect structural position"</span>,</span>
-<span>    x <span class="op">=</span> <span class="st">"Horizon (years)"</span>, y <span class="op">=</span> <span class="st">"Change in network density"</span>,</span>
+<span>    subtitle <span class="op">=</span> <span class="st">"Same Magnitude; Differences Reflect Structural Position"</span>,</span>
+<span>    x <span class="op">=</span> <span class="st">"Horizon (Years)"</span>, y <span class="op">=</span> <span class="st">"Change in Network Density"</span>,</span>
 <span>    colour <span class="op">=</span> <span class="st">"Shock Origin"</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">theme_bw</span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu">theme</span><span class="op">(</span></span>
-<span>    panel.border <span class="op">=</span> <span class="fu">element_blank</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>    panel.border <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>    legend.position <span class="op">=</span> <span class="st">"bottom"</span></span>
 <span>  <span class="op">)</span></span></code></pre></div>
-<div class="figure" style="text-align: center">
-<img src="figure/plot-irf-compare-1.png" alt="plot of chunk plot-irf-compare"><p class="caption">
-plot of chunk plot-irf-compare
-</p>
-</div>
-<p>All countries produce the same effect at horizon 0, as expected.
-Differences emerge at subsequent horizons as each perturbation
-propagates differently through the estimated
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>t</mi></msub><annotation encoding="application/x-tex">A_t</annotation></semantics></math>
-dynamics. That said, the posterior uncertainty (omitted for visual
-clarity) is large relative to the between-country differences — so the
-ranking isn’t statistically distinguishable with this chain length.
-Think of this as illustrating the method’s capacity rather than as
-definitive influence estimates.</p>
+<p>Posterior uncertainty (omitted for visual clarity) is typically large
+relative to between-country differences, so these comparisons should be
+interpreted as suggestive rather than definitive without longer
+chains.</p>
 </div>
 <div class="section level2">
 <h2 id="reciprocity-analysis">8 Reciprocity analysis<a class="anchor" aria-label="anchor" href="#reciprocity-analysis"></a>
 </h2>
-<p>So far we’ve used linear statistics (density, degree). Let’s try a
-nonlinear one — network reciprocity. This matters because nonlinear
-statistics interact with the baseline network, introducing posterior
-uncertainty even at horizon 0. Here we simulate a USA-China thaw (+0.5)
-and track reciprocity.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<p>Nonlinear statistics like reciprocity interact with the baseline
+network, producing posterior uncertainty even at horizon 0.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">S_usachn</span> <span class="op">=</span> <span class="fu"><a href="../reference/build_shock.html">build_shock</a></span><span class="op">(</span>m <span class="op">=</span> <span class="va">n</span>, type <span class="op">=</span> <span class="st">"unit_edge"</span>,</span>
-<span>                        i <span class="op">=</span> <span class="va">usa_idx</span>, j <span class="op">=</span> <span class="va">china_idx</span>, magnitude <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
-<span><span class="va">S_usachn</span> <span class="op">=</span> <span class="va">S_usachn</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">S_usachn</span><span class="op">)</span>  <span class="co"># symmetric shock</span></span>
+<span>                       i <span class="op">=</span> <span class="va">usa_idx</span>, j <span class="op">=</span> <span class="va">china_idx</span>, magnitude <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
+<span><span class="va">S_usachn</span> <span class="op">=</span> <span class="va">S_usachn</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/t.html" class="external-link">t</a></span><span class="op">(</span><span class="va">S_usachn</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">irf_recip</span> <span class="op">=</span> <span class="fu"><a href="../reference/compute_irf.html">compute_irf</a></span><span class="op">(</span></span>
-<span>  <span class="va">fit</span>,</span>
-<span>  shock    <span class="op">=</span> <span class="va">S_usachn</span>,</span>
-<span>  H        <span class="op">=</span> <span class="fl">5</span>,</span>
-<span>  t0       <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  <span class="va">fit</span>, shock <span class="op">=</span> <span class="va">S_usachn</span>, H <span class="op">=</span> <span class="fl">5</span>, t0 <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  stat_fun <span class="op">=</span> <span class="fu">dbn</span><span class="fu">::</span><span class="va"><a href="../reference/stat_reciprocity.html">stat_reciprocity</a></span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">irf_recip</span>, ci_level <span class="op">=</span> <span class="fl">0.90</span>,</span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">irf_recip</span>, ci_level <span class="op">=</span> <span class="fl">0.90</span>,</span>
 <span>     title <span class="op">=</span> <span class="st">"USA-China Alignment Thaw (+0.5) -&gt; Network Reciprocity"</span><span class="op">)</span></span></code></pre></div>
-<div class="figure" style="text-align: center">
-<img src="figure/plot-irf-recip-1.png" alt="plot of chunk plot-irf-recip"><p class="caption">
-plot of chunk plot-irf-recip
-</p>
-</div>
-<p>Notice the positive bump at horizon 0 — adding a mutually positive
-tie mechanically increases network reciprocity. Unlike the density IRF,
-there’s posterior uncertainty even at horizon 0 because reciprocity
-depends on the full baseline network, which varies across draws. The
-effect decays quickly, with credible intervals covering zero by horizon
-1. A single bilateral thaw increases reciprocity at impact but doesn’t
-sustain it through the estimated dynamics.</p>
 </div>
 <div class="section level2">
 <h2 id="practical-guidance">9 Practical guidance<a class="anchor" aria-label="anchor" href="#practical-guidance"></a>
 </h2>
 <div class="section level3">
-<h3 id="choosing-model-settings-for-real-data">Choosing model settings for real data<a class="anchor" aria-label="anchor" href="#choosing-model-settings-for-real-data"></a>
+<h3 id="model-settings">Model settings<a class="anchor" aria-label="anchor" href="#model-settings"></a>
 </h3>
-<p>The settings in this vignette (<code>nscan = 5000</code>,
-<code>burn = 2000</code>) are moderate and intended for reasonable build
-times. For publication-quality results, increase the chain length
-substantially. Always verify convergence with
-<code>plot_trace(fit)</code> before interpreting results.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<p>For publication-quality results, use longer chains to ensure stable
+credible intervals:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Y</span>, model <span class="op">=</span> <span class="st">"dynamic"</span>, family <span class="op">=</span> <span class="st">"gaussian"</span>,</span>
-<span>           symmetric <span class="op">=</span> <span class="cn">TRUE</span>, nscan <span class="op">=</span> <span class="fl">10000</span>, burn <span class="op">=</span> <span class="fl">5000</span>, odens <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></code></pre></div>
+<span>          symmetric <span class="op">=</span> <span class="cn">TRUE</span>, nscan <span class="op">=</span> <span class="fl">10000</span>, burn <span class="op">=</span> <span class="fl">5000</span>, odens <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
-<h3 id="node-count-limitations">Node count limitations<a class="anchor" aria-label="anchor" href="#node-count-limitations"></a>
+<h3 id="runtime-expectations">Runtime expectations<a class="anchor" aria-label="anchor" href="#runtime-expectations"></a>
 </h3>
-<p>The dynamic model scales as
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>O</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>T</mi><mo>×</mo><msup><mi>n</mi><mn>3</mn></msup><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">O(T \times n^3)</annotation></semantics></math>
-per iteration. Here are rough run-time expectations on an 8-core
-machine. For 50+ actors, use the low-rank approximation instead.</p>
 <table class="table">
 <thead><tr class="header">
 <th>Actors</th>
-<th>Time points</th>
-<th>Approx. time (8 cores)</th>
+<th>Time Points</th>
+<th>Approx. Time (8 Cores)</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
@@ -577,80 +421,34 @@ machine. For 50+ actors, use the low-rank approximation instead.</p>
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit_lr</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Y</span>, model <span class="op">=</span> <span class="st">"lowrank"</span>, r <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">ceiling</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log2</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>              nscan <span class="op">=</span> <span class="fl">10000</span>, burn <span class="op">=</span> <span class="fl">5000</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3">
-<h3 id="diagnosing-performance-bottlenecks">Diagnosing performance bottlenecks<a class="anchor" aria-label="anchor" href="#diagnosing-performance-bottlenecks"></a>
-</h3>
-<p>Set <code>verbose = 200L</code> to get a per-block timing breakdown
-at each reported iteration — useful for identifying bottlenecks in large
-models.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span><span class="va">Y</span>, model <span class="op">=</span> <span class="st">"dynamic"</span>, family <span class="op">=</span> <span class="st">"gaussian"</span>,</span>
-<span>           nscan <span class="op">=</span> <span class="fl">100</span>, burn <span class="op">=</span> <span class="fl">10</span>, verbose <span class="op">=</span> <span class="fl">200L</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="interpreting-irfs">Interpreting IRFs<a class="anchor" aria-label="anchor" href="#interpreting-irfs"></a>
 </h3>
-<p>Key things to keep in mind when reading IRF output:</p>
-<ul>
-<li>
-<strong>Horizon 0</strong> is the immediate, mechanical consequence
-of the shock.</li>
-<li>
-<strong>Linear statistics</strong> (density, degree): no posterior
-uncertainty at horizon 0, because the shock is a fixed constant.</li>
-<li>
-<strong>Nonlinear statistics</strong> (reciprocity, transitivity):
-uncertainty even at horizon 0, because the statistic interacts with the
-baseline network, which varies across posterior draws.</li>
-<li>
-<strong>Horizons 1+</strong>: the bilinear dynamics
-(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>t</mi></msub><annotation encoding="application/x-tex">A_t</annotation></semantics></math>,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>t</mi></msub><annotation encoding="application/x-tex">B_t</annotation></semantics></math>)
-propagate the shock forward. Uncertainty widens because the transition
-matrices are themselves estimated with posterior noise.</li>
-<li>
-<strong>Decay rate</strong>: governed by the spectral radius of
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>
-— eigenvalues near unity sustain the perturbation, values well below
-unity produce rapid decay.</li>
-<li>
-<strong>Credible intervals</strong> reflect posterior uncertainty in
-model parameters, not sampling variability in the observed data.</li>
-<li>
-<strong>IRFs are counterfactual scenarios</strong> that assume the
-transition dynamics remain invariant to the shock.</li>
-</ul>
+<p>Horizon 0 captures the mechanical consequence of the shock. For
+linear statistics (density, degree), the horizon-0 effect is exact; for
+nonlinear statistics (reciprocity, transitivity), it is uncertain even
+at horizon 0. The decay rate is governed by the spectral radius of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>,
+and the credible intervals reflect posterior uncertainty in model
+parameters. IRFs are counterfactual scenarios that assume transition
+dynamics are invariant to the shock.</p>
 </div>
 <div class="section level3">
 <h3 id="symmetric-networks">Symmetric networks<a class="anchor" aria-label="anchor" href="#symmetric-networks"></a>
 </h3>
-<p>When your data are undirected (<code>Y[i,j] = Y[j,i]</code>), make
-two choices consistently:</p>
-<ul>
-<li>Set <code>symmetric = TRUE</code> in <code><a href="../reference/dbn.html">dbn()</a></code> to constrain
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>B</mi><mi>t</mi></msub><mo>=</mo><msub><mi>A</mi><mi>t</mi></msub></mrow><annotation encoding="application/x-tex">B_t = A_t</annotation></semantics></math>.</li>
-<li>Symmetrize any shock matrix via <code>S = S + t(S)</code> after
-calling <code><a href="../reference/build_shock.html">build_shock()</a></code>, so both directions of a tie receive
-equal perturbation.</li>
-</ul>
+<p>For undirected data, two choices must be made consistently. First,
+set <code>symmetric = TRUE</code> in <code><a href="../reference/dbn.html">dbn()</a></code> to constrain
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>B</mi><mi>t</mi></msub><mo>=</mo><msub><mi>A</mi><mi>t</mi></msub></mrow><annotation encoding="application/x-tex">B_t = A_t</annotation></semantics></math>.
+Second, symmetrize any shock matrix after construction:
+<code>S = S + t(S)</code>.</p>
 </div>
 <div class="section level3">
-<h3 id="using-time_kept-for-time-thinned-models">Using <code>time_kept</code> for time-thinned models<a class="anchor" aria-label="anchor" href="#using-time_kept-for-time-thinned-models"></a>
+<h3 id="time-thinned-models">Time-thinned models<a class="anchor" aria-label="anchor" href="#time-thinned-models"></a>
 </h3>
-<p>When <code>time_thin &gt; 1</code>, the stored
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Θ</mi><annotation encoding="application/x-tex">\Theta</annotation></semantics></math>
-and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>A</mi><annotation encoding="application/x-tex">A</annotation></semantics></math>/<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>B</mi><annotation encoding="application/x-tex">B</annotation></semantics></math>
-arrays correspond to a subset of the full time series. The
-<code>time_kept</code> element records which original time indices were
-retained, so you can map stored indices back to substantive time
-points.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">original_years</span> <span class="op">=</span> <span class="va">years</span><span class="op">[</span><span class="va">fit</span><span class="op">$</span><span class="va">time_kept</span><span class="op">]</span></span></code></pre></div>
+<p>When <code>time_thin &gt; 1</code>, stored arrays correspond to a
+subset of the time series. Map back to original years with
+<code>years[fit$time_kept]</code>.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

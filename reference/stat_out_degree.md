@@ -1,6 +1,9 @@
 # Network Statistic: Out-Degree
 
-Row sums of network matrix
+Row sums of network matrix. Includes the diagonal entry for each node.
+In typical DBN usage the diagonal is `NA` or zero, so the result matches
+the conventional out-degree. If your matrix has non-zero diagonal
+entries, subtract them manually.
 
 ## Usage
 

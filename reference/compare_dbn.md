@@ -1,6 +1,9 @@
 # Compare Multiple DBN Models
 
-Creates comparative plots for multiple DBN results using ggplot2
+Creates side-by-side trace plots of scalar variance parameters from two
+or more fitted DBN models. Useful for comparing convergence behavior
+across different model specifications (e.g., static vs. dynamic,
+different ranks, different families).
 
 ## Usage
 
@@ -12,11 +15,12 @@ compare_dbn(...)
 
 - ...:
 
-  Multiple dbn objects to compare
+  Two or more fitted `dbn` objects to compare. Objects are labeled
+  "Model 1", "Model 2", etc. in the plot legend.
 
 ## Value
 
-A ggplot2 object or list of plots
+A ggplot2 object showing overlaid trace plots, faceted by parameter.
 
 ## See also
 

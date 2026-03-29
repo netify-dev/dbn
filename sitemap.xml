@@ -84,6 +84,7 @@
 <url><loc>https://netify-dev.github.io/dbn/reference/param_summary.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/parse_blocks.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/piecewise_methods.html</loc></url>
+<url><loc>https://netify-dev.github.io/dbn/reference/plot.dbn.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/plot.dbn_irf.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/plot_dbn.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/plot_dynamic.html</loc></url>
@@ -108,6 +109,7 @@
 <url><loc>https://netify-dev.github.io/dbn/reference/posterior_predict_dbn.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/ppc_ecdf.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/precompute_ranks.html</loc></url>
+<url><loc>https://netify-dev.github.io/dbn/reference/predict.dbn.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/predict_hmm.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/predict_lowrank.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/predict_ordinal.html</loc></url>
@@ -147,6 +149,7 @@
 <url><loc>https://netify-dev.github.io/dbn/reference/static_gibbs_step_tucker.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/step_ll.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/structural_stability.html</loc></url>
+<url><loc>https://netify-dev.github.io/dbn/reference/summary.dbn.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/summary_dbn.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/summary_dynamic.html</loc></url>
 <url><loc>https://netify-dev.github.io/dbn/reference/summary_hmm.html</loc></url>

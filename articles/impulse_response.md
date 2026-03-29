@@ -2,75 +2,102 @@
 
 ## 1 Overview
 
-Impulse response functions (IRFs) measure how a **shock** to the network
-propagates through the bilinear dynamics over time. Given the model
+Impulse response functions (IRFs) measure how a shock to one part of the
+network propagates through the bilinear dynamics over time. Given the
+model
 $\Theta_{t} = A_{t}\Theta_{t - 1}B_{t}\prime + M + \varepsilon_{t}$, we
 inject a perturbation $S$ at time $t_{0}$ and track a network-level
-statistic (density, degree, reciprocity, etc.) over $H$ horizons.
+statistic over $H$ horizons:
 
-## 2 Fit a dynamic model
+$$\Delta_{0} = S,\quad\Delta_{h} = A_{t_{0} + h}\,\Delta_{h - 1}\, B_{t_{0} + h}\prime$$
+
+At each horizon we compare a network statistic (density, degree, etc.)
+computed on the perturbed versus baseline network. The shock is applied
+once; subsequent horizons show how the estimated dynamics propagate it
+forward.
+
+## 2 Fit a well-converged dynamic model
 
 IRFs require a fitted model with time-varying $A$ and $B$ matrices. We
-use a Gaussian family for cleaner interpretation. The example below uses
-minimal settings for fast vignette building; see Section 8 for
-recommended settings in practice.
+use the Gaussian family for clean interpretation and simulate a 10-actor
+network with small innovation variances to keep the dynamics stable.
 
 ``` r
 sim = simulate_dynamic_dbn(
-  n = 10, p = 1, time = 10,
+  n = 10, p = 1, time = 15,
   sigma2 = 0.3, tauA2 = 0.03, tauB2 = 0.03,
-  seed = 123
+  seed = 6886
 )
 
 fit = dbn(
-  sim$Y,
+  sim$Z,
   model   = "dynamic",
   family  = "gaussian",
-  nscan   = 300,
-  burn    = 150,
-  odens   = 1,
+  nscan   = 1000,
+  burn    = 500,
+  odens   = 2,
   verbose = FALSE
 )
 ```
+
+Always verify convergence before computing IRFs, since poorly converged
+chains produce unreliable credible intervals:
+
+``` r
+check_convergence(fit)
+#>   sigma2   tau_A2   tau_B2       g2 
+#> 319.5975 230.5858 180.6480 355.3089
+#> 
+#> Fraction in 1st window = 0.1
+#> Fraction in 2nd window = 0.5 
+#> 
+#>  sigma2  tau_A2  tau_B2      g2 
+#> -1.7963  0.8303 -2.2997 -1.1740
+```
+
+![](impulse_response_files/figure-html/check-conv-1.png)
 
 ## 3 Building shock matrices
 
 The
 [`build_shock()`](https://netify-dev.github.io/dbn/reference/build_shock.md)
-function creates structured perturbation matrices:
+function creates structured perturbation matrices. Each type addresses a
+different counterfactual question.
 
 ``` r
 m = 10
 
-# Shock a single edge (i -> j)
+# shock a single directed edge (actor 1 -> actor 2)
 S_edge = build_shock(m, type = "unit_edge", i = 1, j = 2, magnitude = 2)
 
-# Shock all outgoing edges from actor i
+# shock all outgoing edges from actor 1
 S_node = build_shock(m, type = "node_out", i = 1, magnitude = 1)
 
-# Uniform density shock to all edges
+# uniform shock to all edges
 S_dens = build_shock(m, type = "density", magnitude = 0.5)
 
-# Custom shock matrix
+# custom block shock (e.g., a group-level perturbation)
 S_custom = matrix(0, m, m)
 S_custom[1:3, 4:6] = 1.0
 ```
 
-## 4 Unit edge shock – network density
+## 4 Edge shock: effect on network density
 
-Track how a single edge shock affects overall network density:
+How does shocking a single edge affect overall network connectivity? We
+add 2 units to the $(1,2)$ entry and track density (mean of off-diagonal
+entries) over 5 horizons.
 
 ``` r
 irf_dens = compute_irf(
   fit,
   shock    = S_edge,
-  H        = 6,
-  t0       = 2,
+  H        = 5,
+  t0       = 3,
   stat_fun = dbn::stat_density,
-  n_draws  = 20
+  n_draws  = 100
 )
 
-plot(irf_dens, title = "Edge shock -> Density")
+plot(irf_dens, title = "Edge Shock (1->2, +2) -> Network Density")
 ```
 
 ![](impulse_response_files/figure-html/irf-density-1.png)
@@ -80,85 +107,95 @@ print(irf_dens)
 #> Network Impulse Response Function
 #> Model: dynamic 
 #> Statistic: custom_function 
-#> Shock time: 2 
+#> Shock time: 3 
 #> 
 #> Summary:
 #>   horizon   mean median    sd   q025  q975    q10   q90
 #> 1       0  0.022  0.022 0.000  0.022 0.022  0.022 0.022
-#> 2       1  0.012 -0.001 0.056 -0.071 0.146 -0.044 0.062
-#> 3       2 -0.004  0.013 0.128 -0.178 0.252 -0.154 0.092
-#> 4       3 -0.004  0.003 0.268 -0.549 0.454 -0.274 0.334
-#> 5       4  0.103 -0.109 0.806 -0.779 2.115 -0.532 1.223
-#> 6       5  0.516  0.252 1.711 -1.166 4.581 -1.130 1.165
-#> 7       6  0.082  0.192 1.801 -3.356 2.914 -1.565 2.181
+#> 2       1  0.005 -0.002 0.046 -0.062 0.118 -0.042 0.062
+#> 3       2  0.004  0.000 0.098 -0.219 0.222 -0.104 0.126
+#> 4       3  0.006 -0.025 0.246 -0.255 0.303 -0.158 0.126
+#> 5       4  0.033  0.021 0.341 -0.584 0.898 -0.303 0.285
+#> 6       5 -0.032 -0.002 0.670 -1.512 0.948 -0.716 0.567
 ```
 
-## 5 Node shock – out-degree
+At horizon 0, the effect is exact: adding 2 to one off-diagonal cell in
+a 10-actor network changes density by $2/(10 \times 9) \approx 0.022$.
+At subsequent horizons, credible intervals widen as posterior
+uncertainty in the transition matrices compounds. The decay rate
+reflects the spectral properties of the estimated $A_{t}$: eigenvalues
+near unity sustain the perturbation, while values well below unity
+produce rapid decay.
 
-Track the effect of activating all outgoing edges of actor 1 on that
-actor’s out-degree:
+## 5 Node shock: effect on out-degree
+
+What happens when an actor increases all outgoing ties at once? The
+`node_out` shock sets all entries in row $i$ (including the self-loop
+diagonal entry) to the specified magnitude.
 
 ``` r
 irf_deg = compute_irf(
   fit,
   shock    = S_node,
-  H        = 6,
-  t0       = 2,
+  H        = 5,
+  t0       = 3,
   stat_fun = function(X) stat_out_degree(X)[1],
-  n_draws  = 20
+  n_draws  = 100
 )
 
-plot(irf_deg, title = "Node-out shock -> Out-degree of actor 1")
+plot(irf_deg, title = "Node-Out Shock (Actor 1, +1) -> Actor 1 Out-Degree")
 ```
 
 ![](impulse_response_files/figure-html/irf-degree-1.png)
 
-## 6 Density shock – reciprocity
+Actor 1’s out-degree jumps by 10 at horizon 0 (the shock sets all 10
+entries in row 1, including the diagonal, to magnitude 1). The posterior
+mean of the effect decays toward zero at subsequent horizons, but the
+credible intervals widen substantially as posterior uncertainty in the
+transition matrices compounds across horizons. Wide credible intervals
+at longer horizons are typical and reflect how estimation uncertainty
+accumulates in multi-step propagation.
 
-How does a uniform perturbation affect reciprocal ties?
+## 6 Edge shock: effect on reciprocity
+
+Reciprocity is a nonlinear statistic (the correlation between $X_{ij}$
+and $X_{ji}$). Unlike density, it depends on the baseline network
+structure, so there is posterior uncertainty even at horizon 0: the same
+shock produces different reciprocity changes depending on the baseline
+network, which varies across posterior draws.
 
 ``` r
 irf_recip = compute_irf(
   fit,
-  shock    = S_dens,
-  H        = 6,
-  t0       = 2,
+  shock    = S_edge,
+  H        = 5,
+  t0       = 3,
   stat_fun = stat_reciprocity,
-  n_draws  = 20
+  n_draws  = 100
 )
 
-plot(irf_recip, title = "Density shock -> Reciprocity")
+plot(irf_recip, title = "Edge Shock (1->2, +2) -> Network Reciprocity")
 ```
 
 ![](impulse_response_files/figure-html/irf-recip-1.png)
 
-## 7 Custom shock – transitivity
+The nonzero credible interval at horizon 0 illustrates this distinction:
+for linear statistics like density, the horizon-0 effect is a
+deterministic function of the shock matrix, while for nonlinear
+statistics it interacts with the posterior distribution of the baseline
+network.
 
-``` r
-irf_trans = compute_irf(
-  fit,
-  shock    = S_custom,
-  H        = 6,
-  t0       = 2,
-  stat_fun = stat_transitivity,
-  n_draws  = 20
-)
+## 7 Comparing multiple shocks
 
-plot(irf_trans, title = "Block shock -> Transitivity")
-```
-
-![](impulse_response_files/figure-html/irf-trans-1.png)
-
-## 8 Comparing multiple shocks
-
-Combine IRF results for a faceted comparison:
+Combining IRF results in a single figure allows side-by-side comparison
+across different shock types and statistics. Each panel uses its own
+y-axis scale because the statistics are on different scales.
 
 ``` r
 irfs = list(
   "Edge -> Density"     = irf_dens,
-  "Node -> Out-degree"  = irf_deg,
-  "Density -> Recipr."  = irf_recip,
-  "Block -> Transit."   = irf_trans
+  "Node -> Out-Degree"  = irf_deg,
+  "Edge -> Recipr."     = irf_recip
 )
 
 df_all = do.call(rbind, lapply(names(irfs), function(nm) {
@@ -174,9 +211,9 @@ df_all = do.call(rbind, lapply(names(irfs), function(nm) {
 
 ggplot(df_all, aes(x = horizon, y = mean)) +
   geom_ribbon(aes(ymin = q025, ymax = q975), alpha = 0.2) +
-  geom_line() +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-  facet_wrap(~shock, scales = "free_y") +
+  geom_line(linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  facet_wrap(~ shock, scales = "free_y") +
   labs(x = "Horizon", y = "IRF", title = "Impulse Response Comparison") +
   theme_bw() +
   theme(
@@ -188,32 +225,66 @@ ggplot(df_all, aes(x = horizon, y = mean)) +
 
 ![](impulse_response_files/figure-html/compare-irfs-1.png)
 
-**Note on settings:** The examples above use small networks (`n = 10`,
-`time = 10`) and short MCMC chains (`nscan = 300`) for fast vignette
-building. For publication-quality results, increase these settings:
+The key pattern to look for across all panels: a clear initial effect
+that decays toward zero, with credible intervals that widen but do not
+explode. An expanding credible interval that remains bounded is
+consistent with a well-identified model; explosive intervals suggest the
+estimated dynamics are unstable.
 
-``` r
-# Recommended settings for substantive analysis
-sim = simulate_dynamic_dbn(n = 30, p = 1, time = 50, seed = 123)
-fit = dbn(sim$Y, model = "dynamic", family = "gaussian",
-           nscan = 5000, burn = 2000, odens = 5, verbose = FALSE)
+## 8 Interpreting IRFs
 
-irf = compute_irf(fit, shock = S_edge, H = 20, t0 = 25,
-                    stat_fun = dbn::stat_density, n_draws = 200)
-```
+Horizon 0 captures the immediate, mechanical consequence of the shock.
+For linear statistics (density, degree), there is no posterior
+uncertainty at horizon 0 because the shock is a fixed constant. For
+nonlinear statistics (reciprocity, transitivity), there is uncertainty
+even at horizon 0 because the statistic interacts with the baseline
+network, which varies across posterior draws.
+
+At horizons 1 and beyond, the estimated dynamics propagate the shock
+forward. Uncertainty widens because the transition matrices $A_{t}$ and
+$B_{t}$ are themselves estimated with posterior noise. The decay rate is
+governed by the spectral radius of $A$: eigenvalues near unity sustain
+perturbations, while values well below unity produce rapid decay.
+
+It is important to note that IRFs are counterfactual scenarios that
+assume the transition dynamics remain invariant to the shock. The
+credible intervals reflect posterior uncertainty in model parameters,
+not sampling variability in the observed data.
 
 ## 9 Available network statistics
 
 The `stat_fun` argument accepts any function that maps a matrix to a
-scalar. Built-in statistics:
+scalar. Built-in statistics include
+[`stat_density()`](https://netify-dev.github.io/dbn/reference/stat_density.md)
+(mean of off-diagonal entries),
+[`stat_out_degree()`](https://netify-dev.github.io/dbn/reference/stat_out_degree.md)
+and
+[`stat_in_degree()`](https://netify-dev.github.io/dbn/reference/stat_in_degree.md)
+(row and column sums),
+[`stat_reciprocity()`](https://netify-dev.github.io/dbn/reference/stat_reciprocity.md)
+(correlation between $X_{ij}$ and $X_{ji}$), and
+[`stat_transitivity()`](https://netify-dev.github.io/dbn/reference/stat_transitivity.md)
+(clustering coefficient). For degree-based statistics, wrap to extract a
+specific actor: `function(X) stat_out_degree(X)[i]`.
 
-| Function               | Description                               |
-|------------------------|-------------------------------------------|
-| `stat_density(X)`      | Mean of off-diagonal entries              |
-| `stat_out_degree(X)`   | Row sums (vector)                         |
-| `stat_in_degree(X)`    | Column sums (vector)                      |
-| `stat_reciprocity(X)`  | Correlation between $X_{ij}$ and $X_{ji}$ |
-| `stat_transitivity(X)` | Clustering coefficient                    |
+## 10 Settings for publication
 
-For degree-based statistics, wrap to extract a specific actor:
-`function(X) stat_out_degree(X)[i]`.
+The examples above use moderate settings for vignette build times. For
+substantive analysis, increase both the model chain length and the
+number of IRF draws to ensure stable credible intervals:
+
+``` r
+fit = dbn(Y, model = "dynamic", family = "gaussian",
+          nscan = 10000, burn = 5000, odens = 5)
+
+irf = compute_irf(fit, shock = S, H = 10, t0 = 5,
+                  stat_fun = dbn::stat_density, n_draws = 500)
+```
+
+## 11 Next steps
+
+For a complete applied workflow with real data and IRFs, see
+[`vignette("applied_ir")`](https://netify-dev.github.io/dbn/articles/applied_ir.md).
+For piecewise models that compare pre- and post-regime influence
+structures, see
+[`vignette("piecewise_dbn")`](https://netify-dev.github.io/dbn/articles/piecewise_dbn.md).

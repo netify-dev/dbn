@@ -54,14 +54,11 @@ A ggplot2 object
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
-# Plot sender influence for actors 1, 3, 5
+# \donttest{
+sim <- simulate_dynamic_dbn(n = 10, time = 10, seed = 6886)
+fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+    nscan = 200, burn = 100, verbose = FALSE)
 plot_group_influence(fit, group = c(1, 3, 5), type = "sender")
 
-# Plot target influence using L2 norm
-plot_group_influence(fit,
-    group = c(1, 3, 5), type = "target",
-    fun = "sum", measure = "l2", cred = 0.8
-)
-} # }
+# }
 ```

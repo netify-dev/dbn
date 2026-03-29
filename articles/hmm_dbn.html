@@ -66,7 +66,7 @@
                         <h4 data-toc-skip class="author">Tosin Salau
 &amp; Shahryar Minhas</h4>
             
-            <h4 data-toc-skip class="date">2026-03-25</h4>
+            <h4 data-toc-skip class="date">2026-03-28</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/netify-dev/dbn/blob/main/vignettes/hmm_dbn.Rmd" class="external-link"><code>vignettes/hmm_dbn.Rmd</code></a></small>
       <div class="d-none name"><code>hmm_dbn.Rmd</code></div>
@@ -74,65 +74,83 @@
 
     
     
-<hr>
-<p><strong>NOTE: This vignette is under construction.</strong> The HMM
-model variant is implemented and functional, but the documentation and
-examples below are preliminary and subject to change.</p>
-<hr>
 <div class="section level2">
 <h2 id="overview">1 Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
 </h2>
-<p>The HMM (Hidden Markov Model) variant of the dynamic bilinear network
-model allows for <strong>regime-switching</strong> dynamics. At each
-time point, the network is governed by one of <em>R</em> discrete
-regimes, each with its own sender and receiver effect matrices
+<p>The HMM variant of the dynamic bilinear network model allows for
+regime-switching dynamics. At each time point, the network is governed
+by one of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>R</mi><annotation encoding="application/x-tex">R</annotation></semantics></math>
+discrete regimes, each with its own influence matrices
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>r</mi></msub><annotation encoding="application/x-tex">A_r</annotation></semantics></math>
 and
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>r</mi></msub><annotation encoding="application/x-tex">B_r</annotation></semantics></math>.
 Transitions between regimes follow a Markov chain with an estimated
 transition matrix
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>.</p>
-<p>Use <code>model = "hmm"</code> when you expect <strong>abrupt
-structural breaks</strong> in network dynamics rather than smooth
-evolution.</p>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>:</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>Θ</mi><mi>t</mi></msub><mo>=</mo><msub><mi>A</mi><msub><mi>s</mi><mi>t</mi></msub></msub><mspace width="0.167em"></mspace><msub><mi>Θ</mi><mrow><mi>t</mi><mo>−</mo><mn>1</mn></mrow></msub><mspace width="0.167em"></mspace><msubsup><mi>B</mi><msub><mi>s</mi><mi>t</mi></msub><mi>⊤</mi></msubsup><mo>+</mo><mi>M</mi><mo>+</mo><msub><mi>ε</mi><mi>t</mi></msub><mo>,</mo><mspace width="1.0em"></mspace><msub><mi>s</mi><mi>t</mi></msub><mo>∼</mo><mtext mathvariant="normal">Markov</mtext><mrow><mo stretchy="true" form="prefix">(</mo><mi>Π</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\Theta_t = A_{s_t} \, \Theta_{t-1} \, B_{s_t}^\top + M + \varepsilon_t, \quad s_t \sim \text{Markov}(\Pi)</annotation></semantics></math></p>
+<p>This model is appropriate when network dynamics exhibit abrupt
+structural breaks and the analyst wants the model to discover when those
+breaks occur, rather than specifying them in advance. For known break
+points, the piecewise model provides more stable inference with fewer
+parameters (see <code><a href="../articles/piecewise_dbn.html">vignette("piecewise_dbn")</a></code>).</p>
+<p>Regime identification improves with network size, time series length,
+and the magnitude of the structural difference between regimes. For
+small networks
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>&lt;</mo><mn>15</mn></mrow><annotation encoding="application/x-tex">n &lt; 15</annotation></semantics></math>)
+or subtle regime changes, the piecewise model with known break points is
+a more reliable choice.</p>
 </div>
 <div class="section level2">
 <h2 id="simulate-a-regime-switching-network">2 Simulate a regime-switching network<a class="anchor" aria-label="anchor" href="#simulate-a-regime-switching-network"></a>
 </h2>
-<p>We simulate a 12-node network over 30 time periods with
-<code>R = 2</code> regimes. The <code>transition_prob = 0.85</code>
-means each regime is moderately persistent, so we expect a few switches
-over the time series.</p>
+<p>We simulate a two-regime network with 12 actors over 30 time periods.
+The high <code>transition_prob</code> (0.9) means each regime persists
+for several consecutive periods before switching. The large
+<code>tau_A2</code> and <code>tau_B2</code> values (0.8) create regimes
+with substantially different dynamics, which is important for reliable
+regime identification.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sim</span> <span class="op">=</span> <span class="fu"><a href="../reference/simulate_hmm_dbn.html">simulate_hmm_dbn</a></span><span class="op">(</span></span>
-<span>  n <span class="op">=</span> <span class="fl">12</span>, p <span class="op">=</span> <span class="fl">1</span>, time <span class="op">=</span> <span class="fl">30</span>,</span>
-<span>  R <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  sigma2 <span class="op">=</span> <span class="fl">0.3</span>,</span>
-<span>  tau_A2 <span class="op">=</span> <span class="fl">0.15</span>, tau_B2 <span class="op">=</span> <span class="fl">0.15</span>,</span>
-<span>  transition_prob <span class="op">=</span> <span class="fl">0.85</span>,</span>
-<span>  seed <span class="op">=</span> <span class="fl">42</span></span>
+<span>  n     <span class="op">=</span> <span class="fl">12</span>,</span>
+<span>  p     <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  time  <span class="op">=</span> <span class="fl">30</span>,</span>
+<span>  R     <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  sigma2        <span class="op">=</span> <span class="fl">0.3</span>,</span>
+<span>  tau_A2        <span class="op">=</span> <span class="fl">0.8</span>,</span>
+<span>  tau_B2        <span class="op">=</span> <span class="fl">0.8</span>,</span>
+<span>  transition_prob <span class="op">=</span> <span class="fl">0.9</span>,</span>
+<span>  seed  <span class="op">=</span> <span class="fl">6886</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">Y</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 12 12  1 30</span></span>
+<span></span>
+<span><span class="co"># true regime sequence and frequencies</span></span>
+<span><span class="va">sim</span><span class="op">$</span><span class="va">S</span></span>
+<span><span class="co">#&gt;  [1] 2 2 2 2 2 2 2 2 2 1 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1 1</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">sim</span><span class="op">$</span><span class="va">S</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;  1  2 </span></span>
-<span><span class="co">#&gt;  6 24</span></span></code></pre></div>
-<p>The true regime sequence <code>sim$S</code> shows how often each
-regime is active.</p>
+<span><span class="co">#&gt; 12 18</span></span></code></pre></div>
+<p>The true regime labels show which regime generated each time point.
+With two regimes and a transition probability of 0.9, we expect each
+regime to persist for an average of 10 consecutive periods before
+switching.</p>
 </div>
 <div class="section level2">
 <h2 id="fit-the-hmm-model">3 Fit the HMM model<a class="anchor" aria-label="anchor" href="#fit-the-hmm-model"></a>
 </h2>
-<p>Set <code>model = "hmm"</code> and specify <code>R</code>, the number
-of regimes. The sampler estimates a separate pair of dynamics matrices
+<p>We set <code>model = "hmm"</code> and specify <code>R = 2</code>
+regimes. The sampler jointly estimates regime-specific dynamics matrices
 (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>r</mi></msub><annotation encoding="application/x-tex">A_r</annotation></semantics></math>,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>r</mi></msub><annotation encoding="application/x-tex">B_r</annotation></semantics></math>)
-for each regime alongside the transition matrix
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>.</p>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>r</mi></msub><annotation encoding="application/x-tex">B_r</annotation></semantics></math>),
+the transition matrix
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>,
+and the regime labels
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>s</mi><mi>t</mi></msub><annotation encoding="application/x-tex">s_t</annotation></semantics></math>.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit_hmm</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">=</span> <span class="fu"><a href="../reference/dbn.html">dbn</a></span><span class="op">(</span></span>
 <span>  <span class="va">sim</span><span class="op">$</span><span class="va">Y</span>,</span>
 <span>  model   <span class="op">=</span> <span class="st">"hmm"</span>,</span>
 <span>  family  <span class="op">=</span> <span class="st">"ordinal"</span>,</span>
@@ -144,14 +162,16 @@ for each regime alongside the transition matrix
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="model-summary">4 Model summary<a class="anchor" aria-label="anchor" href="#model-summary"></a>
+<h2 id="model-summary-and-transition-matrix">4 Model summary and transition matrix<a class="anchor" aria-label="anchor" href="#model-summary-and-transition-matrix"></a>
 </h2>
-<p>The summary prints the posterior mean transition matrix and
-regime-specific variance parameters. Look at the diagonal of
+<p>The summary reports the posterior mean transition matrix
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>
-to gauge how persistent each regime is.</p>
+and variance parameters. The diagonal of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>
+indicates regime persistence: values near 1 mean regimes tend to stick,
+while large off-diagonal values indicate frequent switching.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_hmm</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Regime-switching (HMM) DBN model</span></span>
 <span><span class="co">#&gt;   nodes     : 12 </span></span>
 <span><span class="co">#&gt;   relations : 1 </span></span>
@@ -159,88 +179,111 @@ to gauge how persistent each regime is.</p>
 <span><span class="co">#&gt;   regimes   : 2 </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;        mean  2.5%  97.5%</span></span>
-<span><span class="co">#&gt; sigma2 0.708 0.443 1.078</span></span>
-<span><span class="co">#&gt; tau_A2 0.049 0.043 0.055</span></span>
-<span><span class="co">#&gt; tau_B2 0.048 0.042 0.056</span></span>
-<span><span class="co">#&gt; g2     0.030 0.026 0.035</span></span>
+<span><span class="co">#&gt; sigma2 1.000 1.000 1.000</span></span>
+<span><span class="co">#&gt; tau_A2 0.041 0.037 0.046</span></span>
+<span><span class="co">#&gt; tau_B2 0.039 0.035 0.043</span></span>
+<span><span class="co">#&gt; g2     0.030 0.025 0.034</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Posterior mean transition matrix Pi:</span></span>
 <span><span class="co">#&gt;       [,1]  [,2]</span></span>
-<span><span class="co">#&gt; [1,] 0.663 0.337</span></span>
-<span><span class="co">#&gt; [2,] 0.033 0.967</span></span></code></pre></div>
-<p>The summary displays the posterior mean transition matrix
+<span><span class="co">#&gt; [1,] 0.691 0.309</span></span>
+<span><span class="co">#&gt; [2,] 0.504 0.496</span></span></code></pre></div>
+<p>Two things to note about the estimated
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>.
+First, the model’s regime labels may not match the simulation’s — this
+is the standard label-switching issue in mixture models and does not
+affect the substantive results. Second, with the moderate chain length
+used here (<code>nscan = 1000</code>), the transition matrix has
+substantial posterior uncertainty. Recovering the true persistence (0.9
+on the diagonal) requires longer chains and larger networks; with
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>n</mi><mo>=</mo><mn>12</mn></mrow><annotation encoding="application/x-tex">n = 12</annotation></semantics></math>
+actors and 30 time points, the model has limited data per regime to pin
+down
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>
-and variance parameters for each regime.</p>
+precisely. For substantive work, run at least <code>nscan = 5000</code>
+with <code>burn = 2000</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="regime-probabilities">5 Regime probabilities<a class="anchor" aria-label="anchor" href="#regime-probabilities"></a>
 </h2>
-<p>The posterior probability of each regime at each time point:</p>
+<p>The posterior probability of each regime at each time point provides
+the model’s classification of the time series into regimes.
+Probabilities near 0 or 1 indicate confident classification; values near
+0.5 indicate ambiguity. Regime identification depends on how different
+the regimes are (controlled by <code>tau_A2</code> and
+<code>tau_B2</code> in the simulation) and how much data is available
+per time point (number of actors).</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">probs</span> <span class="op">=</span> <span class="fu"><a href="../reference/regime_probs.html">regime_probs</a></span><span class="op">(</span><span class="va">fit_hmm</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">probs</span><span class="op">)</span></span>
-<span><span class="co">#&gt;       Regime1 Regime2</span></span>
-<span><span class="co">#&gt; Time1    0.00    1.00</span></span>
-<span><span class="co">#&gt; Time2    0.01    0.99</span></span>
-<span><span class="co">#&gt; Time3    0.00    1.00</span></span>
-<span><span class="co">#&gt; Time4    0.00    1.00</span></span>
-<span><span class="co">#&gt; Time5    0.00    1.00</span></span>
-<span><span class="co">#&gt; Time6    0.00    1.00</span></span></code></pre></div>
-<p>Visualize with a stacked area plot. Sharp transitions between colors
-indicate clear regime switches; blended regions suggest the model is
-uncertain about the active regime at those time points:</p>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_regime_probs.html">plot_regime_probs</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
+<p><img src="hmm_dbn_files/figure-html/regime-probs-1.png" class="r-plt" alt="" width="576" style="display: block; margin: auto;"></p>
+<p>The <code><a href="../reference/regime_probs.html">regime_probs()</a></code> function returns the underlying
+probability matrix for custom analysis. Each row sums to 1 across
+regimes.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_regime_probs.html">plot_regime_probs</a></span><span class="op">(</span><span class="va">fit_hmm</span><span class="op">)</span></span></code></pre></div>
-<p><img src="hmm_dbn_files/figure-html/regime-plot-1.png" class="r-plt" alt="" width="576" style="display: block; margin: auto;"></p>
+<code class="sourceCode R"><span><span class="va">probs</span> <span class="op">=</span> <span class="fu"><a href="../reference/regime_probs.html">regime_probs</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">probs</span>, <span class="fl">10</span><span class="op">)</span></span>
+<span><span class="co">#&gt;        Regime1 Regime2</span></span>
+<span><span class="co">#&gt; Time1        1       0</span></span>
+<span><span class="co">#&gt; Time2        1       0</span></span>
+<span><span class="co">#&gt; Time3        1       0</span></span>
+<span><span class="co">#&gt; Time4        1       0</span></span>
+<span><span class="co">#&gt; Time5        1       0</span></span>
+<span><span class="co">#&gt; Time6        0       1</span></span>
+<span><span class="co">#&gt; Time7        1       0</span></span>
+<span><span class="co">#&gt; Time8        1       0</span></span>
+<span><span class="co">#&gt; Time9        1       0</span></span>
+<span><span class="co">#&gt; Time10       0       1</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="model-diagnostics">6 Model diagnostics<a class="anchor" aria-label="anchor" href="#model-diagnostics"></a>
 </h2>
-<p>The default plot shows posterior summaries of the dynamics matrices
-for each regime. Well-mixed trace plots and stable posterior densities
-indicate convergence.</p>
+<p>The default <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> method for HMM fits provides a
+combined diagnostic view: regime probabilities, the estimated transition
+matrix, and MCMC trace plots for monitoring convergence.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_hmm</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></code></pre></div>
 <p><img src="hmm_dbn_files/figure-html/plot-hmm-1.png" class="r-plt" alt="" width="576" style="display: block; margin: auto;"></p>
-<p>Trace plots for scalar parameters:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_trace.html">plot_trace</a></span><span class="op">(</span><span class="va">fit_hmm</span><span class="op">)</span></span></code></pre></div>
-<p><img src="hmm_dbn_files/figure-html/trace-hmm-1.png" class="r-plt" alt="" width="576" style="display: block; margin: auto;"></p>
 </div>
 <div class="section level2">
 <h2 id="dyad-trajectory">7 Dyad trajectory<a class="anchor" aria-label="anchor" href="#dyad-trajectory"></a>
 </h2>
-<p>Track a specific dyad over time with credible intervals:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/dyad_path.html">dyad_path</a></span><span class="op">(</span><span class="va">fit_hmm</span>, i <span class="op">=</span> <span class="fl">2</span>, j <span class="op">=</span> <span class="fl">7</span><span class="op">)</span></span></code></pre></div>
-<p><img src="hmm_dbn_files/figure-html/dyad-hmm-1.png" class="r-plt" alt="" width="576" style="display: block; margin: auto;"></p>
+<p>The <code><a href="../reference/dyad_path.html">dyad_path()</a></code> function tracks a specific bilateral
+relationship over time with posterior credible intervals, averaging
+across regime assignments.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/dyad_path.html">dyad_path</a></span><span class="op">(</span><span class="va">fit</span>, i <span class="op">=</span> <span class="fl">2</span>, j <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></code></pre></div>
+<p><img src="hmm_dbn_files/figure-html/dyad-1.png" class="r-plt" alt="" width="576" style="display: block; margin: auto;"></p>
 </div>
 <div class="section level2">
 <h2 id="forecasting">8 Forecasting<a class="anchor" aria-label="anchor" href="#forecasting"></a>
 </h2>
-<p>Generate multi-step-ahead forecasts:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">pred</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit_hmm</span>, H <span class="op">=</span> <span class="fl">3</span>, draws <span class="op">=</span> <span class="fl">50</span>, summary <span class="op">=</span> <span class="st">"mean"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">pred</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 12 12  1  3</span></span></code></pre></div>
-<p>The predict method samples future regime states from
+<p>The <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> method samples future regime states from
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Π</mi><annotation encoding="application/x-tex">\Pi</annotation></semantics></math>
-and propagates the bilinear dynamics forward.</p>
+and propagates the regime-specific bilinear dynamics forward. This means
+forecast uncertainty reflects both posterior uncertainty in
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>A</mi><mi>r</mi></msub><annotation encoding="application/x-tex">A_r</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>B</mi><mi>r</mi></msub><annotation encoding="application/x-tex">B_r</annotation></semantics></math>
+and uncertainty about which regime will be active in future periods.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">pred</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, H <span class="op">=</span> <span class="fl">5</span>, draws <span class="op">=</span> <span class="fl">100</span>, summary <span class="op">=</span> <span class="st">"mean"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/dim.html" class="external-link">dim</a></span><span class="op">(</span><span class="va">pred</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 12 12  1  5</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="when-to-use-hmm">9 When to use HMM<a class="anchor" aria-label="anchor" href="#when-to-use-hmm"></a>
 </h2>
-<p>The HMM model is appropriate when:</p>
-<ul>
-<li>Network dynamics exhibit <strong>discrete structural breaks</strong>
-(e.g., policy changes, crises, regime transitions)</li>
-<li>You want to <strong>classify time points</strong> into distinct
-behavioral regimes</li>
-<li>The number of regimes <em>R</em> is relatively small (2–5)</li>
-</ul>
-<p>For smoothly evolving dynamics, consider
-<code>model = "dynamic"</code> instead. For large networks with many
-nodes, consider <code>model = "lowrank"</code>.</p>
+<p>The HMM model is appropriate when network dynamics exhibit discrete
+structural breaks (such as policy changes, crises, or regime
+transitions) and the analyst wants data-driven discovery of when those
+breaks occur. The number of regimes
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>R</mi><annotation encoding="application/x-tex">R</annotation></semantics></math>
+should be small (2-5), and the network should have enough actors and
+time points to identify regime structure. For smoothly evolving dynamics
+without discrete breaks, <code>model = "dynamic"</code> is a better
+choice. For known break points, <code>model = "piecewise"</code>
+provides more stable inference. For large networks (50+ actors),
+<code>model = "lowrank"</code> offers better scalability.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

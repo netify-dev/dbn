@@ -1,6 +1,8 @@
 # Simulate from Static DBN Model
 
-Generates data from a static DBN with fixed A and B matrices
+Generates synthetic network data from a static DBN with fixed A and B
+influence matrices. Useful for testing model recovery and understanding
+the data-generating process.
 
 ## Usage
 
@@ -23,60 +25,97 @@ simulate_static_dbn(
 
 - n:
 
-  Number of row actors / senders
+  Number of actors (senders). For bipartite networks, this is the number
+  of senders.
 
 - n_col:
 
-  Number of column actors / receivers (default: n)
+  Number of receivers (default: same as `n` for unipartite)
 
 - p:
 
-  Number of relation types
+  Number of relation types (default: 2)
 
 - time:
 
-  Number of time points
+  Number of time periods to simulate
 
 - sigma2:
 
-  Innovation variance
+  Process noise variance. Larger values produce noisier networks.
 
 - tau2:
 
-  Variance for A/B deviations from identity
+  Prior variance for A and B deviations from the identity matrix. Larger
+  values produce stronger cross-actor influence.
 
 - K:
 
-  Number of ordinal categories
+  Number of ordinal categories for the observed data (default: 5). The
+  continuous latent values are discretized into 1 through K.
 
 - return_truth:
 
-  Return true parameters in a truth sub-list
+  If TRUE (default), include the true parameters in a `$truth` sub-list
+  for validation.
 
 - seed:
 
-  Random seed
+  Random seed for reproducibility
 
 - symmetric:
 
-  Logical. If TRUE, set B = A for symmetric/undirected networks.
-  Default: FALSE.
+  If TRUE, set B = A for symmetric/undirected networks.
 
 ## Value
 
-List containing simulated data and true parameters
+A list containing:
+
+- Y:
+
+  Observed ordinal data array `[n_row, n_col, p, time]`
+
+- Z:
+
+  Continuous latent values (use with `family = "gaussian"`)
+
+- Theta:
+
+  True latent network state at each time point
+
+- A:
+
+  True sender influence matrix
+
+- B:
+
+  True receiver influence matrix
+
+- M:
+
+  True baseline mean array `[n_row, n_col, p]`
+
+- sigma2, tau2, K:
+
+  True parameter values used in simulation
 
 ## See also
 
-[`dbn`](https://netify-dev.github.io/dbn/reference/dbn.md) for model
+[`dbn()`](https://netify-dev.github.io/dbn/reference/dbn.md) for model
 fitting,
-[`simulate_test_data`](https://netify-dev.github.io/dbn/reference/simulate_test_data.md)
+[`simulate_dynamic_dbn()`](https://netify-dev.github.io/dbn/reference/simulate_dynamic_dbn.md)
+for time-varying version,
+[`simulate_test_data()`](https://netify-dev.github.io/dbn/reference/simulate_test_data.md)
 for quick test data
 
 ## Examples
 
 ``` r
 sim <- simulate_static_dbn(n = 8, time = 5, seed = 42)
-str(sim$Y)
-#>  int [1:8, 1:8, 1:2, 1:5] NA 4 3 2 4 5 5 1 3 NA ...
+dim(sim$Y)    # observed ordinal data
+#> [1] 8 8 2 5
+dim(sim$Z)    # continuous latent (for gaussian family)
+#> [1] 8 8 2 5
+dim(sim$A)    # true sender influence matrix
+#> [1] 8 8
 ```
