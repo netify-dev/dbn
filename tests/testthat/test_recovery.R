@@ -247,7 +247,7 @@ test_that("simulation study: PPD calibration for dynamic gaussian", {
 	)
 
 	ppd = tryCatch(
-		posterior_predict_dbn(fit, ndraws = 50, seed = 42),
+		posterior_predict_dbn(fit, draws = 50, seed = 42),
 		error = function(e) {
 			message("PPD generation failed: ", conditionMessage(e))
 			NULL
@@ -293,7 +293,7 @@ test_that("simulation study: PPD calibration for static gaussian", {
 	)
 
 	ppd = tryCatch(
-		posterior_predict_dbn(fit, ndraws = 50, seed = 43),
+		posterior_predict_dbn(fit, draws = 50, seed = 43),
 		error = function(e) {
 			message("PPD generation failed: ", conditionMessage(e))
 			NULL

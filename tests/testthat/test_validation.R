@@ -38,9 +38,9 @@ test_that("validation: check_convergence produces diagnostic output", {
 #### PPD calibration (skip_on_cran + DBN_VALIDATION)
 ####
 
-compute_ppd_coverage = function(fit, obs, ndraws = 100, prob = 0.90) {
+compute_ppd_coverage = function(fit, obs, draws = 100, prob = 0.90) {
 	ppd = tryCatch(
-		posterior_predict_dbn(fit, ndraws = ndraws, seed = 42),
+		posterior_predict_dbn(fit, draws = draws, seed = 42),
 		error = function(e) NULL
 	)
 	if (is.null(ppd) || is.null(ppd$y_rep) || !is.array(ppd$y_rep)) {
@@ -78,7 +78,7 @@ test_that("validation: static ordinal PPD produces valid ordinal output", {
 	)
 
 	ppd = tryCatch(
-		posterior_predict_dbn(fit, ndraws = 50, seed = 42),
+		posterior_predict_dbn(fit, draws = 50, seed = 42),
 		error = function(e) NULL
 	)
 
@@ -113,7 +113,7 @@ test_that("validation: static gaussian PPD p-value is non-extreme", {
 	)
 
 	ppd = tryCatch(
-		posterior_predict_dbn(fit, ndraws = 200, seed = 42),
+		posterior_predict_dbn(fit, draws = 200, seed = 42),
 		error = function(e) NULL
 	)
 
@@ -577,7 +577,7 @@ test_that("predict returns PPD for all model types", {
 
 	for (nm in names(fits)) {
 		ppd = tryCatch(
-			posterior_predict_dbn(fits[[nm]]$fit, ndraws = 5, seed = 42),
+			posterior_predict_dbn(fits[[nm]]$fit, draws = 5, seed = 42),
 			error = function(e) NULL
 		)
 		expect_true(!is.null(ppd),
@@ -807,7 +807,7 @@ test_that("plot_ppc_ecdf and plot_ppc_density produce output", {
 		nscan = 50, burn = 20, odens = 1, verbose = FALSE)
 
 	ppd = tryCatch(
-		posterior_predict_dbn(fit, ndraws = 5, seed = 42),
+		posterior_predict_dbn(fit, draws = 5, seed = 42),
 		error = function(e) NULL
 	)
 

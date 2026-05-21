@@ -13,12 +13,12 @@
 \describe{
 \item{H}{Forecast horizon (number of steps ahead). Triggers
 forecasting mode.}
-\item{S, draws}{Number of posterior draws to use for forecasting.}
+\item{draws}{Number of posterior draws to use (for both forecasting
+and posterior predictive checks). Default depends on the entry
+point used downstream.}
 \item{summary}{If \code{"mean"}, return the pointwise mean across draws.
 If \code{NULL} (default), return the full array of simulated
 trajectories.}
-\item{ndraws}{Number of draws for posterior predictive checks
-(default: 100).}
 \item{seed}{Random seed for reproducibility.}
 }}
 }
@@ -31,20 +31,20 @@ replicated datasets.
 }
 \description{
 Generates predictions from a fitted DBN model. With no
-arguments (or PPD-only arguments), returns posterior predictive
-replications of the observed data for model checking. With forecasting
-arguments (\code{H}, \code{S}, \code{summary}), propagates the estimated dynamics
-forward to produce multi-step-ahead forecasts.
+forecasting arguments, returns posterior predictive replications of the
+observed data for model checking. With \code{H} (and optionally \code{draws} and
+\code{summary}), propagates the estimated dynamics forward to produce
+multi-step-ahead forecasts.
 }
 \details{
 \strong{Posterior predictive distribution (default):} Simulates new datasets
 from the fitted model to compare against the observed data. Use
 \code{\link[=plot_ppc_ecdf]{plot_ppc_ecdf()}} or \code{\link[=plot_ppc_density]{plot_ppc_density()}} for visual checks.
 
-\strong{Forecasting:} Pass \code{H} (horizon), \code{S} or \code{draws} (number of
-simulations), and optionally \code{summary = "mean"} to average across draws.
-The forecast propagates \eqn{A_t}, \eqn{B_t}, and process noise forward
-from the final observed time point.
+\strong{Forecasting:} Pass \code{H} (horizon), \code{draws} (number of posterior draws
+to use), and optionally \code{summary = "mean"} to average across draws. The
+forecast propagates \eqn{A_t}, \eqn{B_t}, and process noise forward from
+the final observed time point.
 }
 \examples{
 \donttest{
@@ -53,11 +53,11 @@ fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
            nscan = 200, burn = 100, verbose = FALSE)
 
 # forecasting: 5 steps ahead
-fc <- predict(fit, H = 5, S = 50, summary = "mean")
+fc <- predict(fit, H = 5, draws = 50, summary = "mean")
 dim(fc)
 
 # posterior predictive check
-ppd <- predict(fit, ndraws = 10)
+ppd <- predict(fit, draws = 10)
 }
 }
 \seealso{

@@ -28,5 +28,5 @@ summary(fit)
 }
 }
 \seealso{
-\code{\link[=dbn]{dbn()}}, \code{\link[=param_summary]{param_summary()}}, \code{\link[=check_convergence]{check_convergence()}}, \code{\link[=plot_dbn]{plot_dbn()}}
+\code{\link[=dbn]{dbn()}}, \code{\link[=param_summary]{param_summary()}}, \code{\link[=check_convergence]{check_convergence()}}, \code{\link[=plot.dbn]{plot.dbn()}}
 }

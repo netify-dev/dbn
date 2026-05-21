@@ -25,20 +25,9 @@ arma::cube ffbs_theta_struct_5arg_cpp(const arma::cube& Z, const arma::mat& mu,
                                      const arma::cube& A_array, const arma::cube& B_array,
                                      double sigma2);
 
-// safe symmetric PD inverse with regularization fallback
-static arma::mat safe_inv_sympd(const arma::mat& M) {
-    arma::mat M_sym = 0.5 * (M + M.t());
-    arma::mat result;
-    bool ok = arma::inv_sympd(result, M_sym);
-    if (!ok) {
-        double reg = 1e-6 * arma::norm(M_sym, "fro") + 1e-8;
-        M_sym.diag() += reg;
-        ok = arma::inv_sympd(result, M_sym);
-        if (!ok) {
-            result = arma::inv(M_sym);
-        }
-    }
-    return result;
+// safe symmetric PD inverse: delegates to shared helper in dbn_stability.h
+static inline arma::mat safe_inv_sympd(const arma::mat& M) {
+    return dbn_safe_inv_sympd(M);
 }
 
 
@@ -365,6 +354,29 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
     // A_private[i] holds row i's sampled values across time
     std::vector<arma::mat> A_private(n_row, arma::mat(n_row, Tt, arma::fill::zeros));
 
+    // F_t = (Theta_{t-1} * B_t^T)^T stacked across relations is independent
+    // of the row index i, so we precompute it (and V_t = (F'F/sigma2 + I/tau)^-1)
+    // once per t and share across all i. F'F and the inverse were previously
+    // recomputed n_row times. The sampler still calls thread_safe_mvnrnd with
+    // the same Sigma argument so the RNG / Cholesky path is bit-identical.
+    std::vector<arma::mat> F_t_cache(Tt);
+    std::vector<arma::mat> V_t_cache(Tt);
+    for(int t = 1; t < Tt; t++) {
+        arma::mat F_t(p * n_col, n_row);
+        for(int j = 0; j < p; j++) {
+            int base_idx = j * n_col;
+            int col_idx_prev = j * Tt + t - 1;
+            arma::mat Theta_prev = col_as_mat(Theta_4d, col_idx_prev, n_row, n_col);
+            F_t.rows(base_idx, base_idx + n_col - 1) =
+                (Theta_prev * Barray_old.slice(t).t()).t();
+        }
+        arma::mat V_inv = inv_sigma2 * (F_t.t() * F_t) + inv_tauA2 * eye_nr;
+        arma::mat V_t = safe_inv_sympd(V_inv);
+        V_t = 0.5 * (V_t + V_t.t());
+        F_t_cache[t] = std::move(F_t);
+        V_t_cache[t] = std::move(V_t);
+    }
+
     #pragma omp parallel for schedule(static) num_threads(n_threads_A)
     for(int i = 0; i < n_row; i++) {
 #ifdef _OPENMP
@@ -372,33 +384,25 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
 #else
         int tid = 0;
 #endif
-        arma::mat F_it(p * n_col, n_row);
         arma::vec y_it(p * n_col);
         for(int t = 1; t < Tt; t++) {
 
             for(int j = 0; j < p; j++) {
                 int base_idx = j * n_col;
-                int col_idx_prev = j * Tt + t - 1;
                 int col_idx_curr = j * Tt + t;
-
-                arma::mat Theta_prev = col_as_mat(Theta_4d, col_idx_prev, n_row, n_col);
                 arma::mat Theta_curr = col_as_mat(Theta_4d, col_idx_curr, n_row, n_col);
-
-                F_it.rows(base_idx, base_idx + n_col - 1) = (Theta_prev * Barray_old.slice(t).t()).t();
                 y_it.subvec(base_idx, base_idx + n_col - 1) = Theta_curr.row(i).t();
             }
 
-            arma::mat V_inv = inv_sigma2 * (F_it.t() * F_it) + inv_tauA2 * eye_nr;
-            arma::mat V = safe_inv_sympd(V_inv);
-            V = 0.5 * (V + V.t());
-            arma::vec m_post = V * (inv_sigma2 * (F_it.t() * y_it));
+            const arma::mat& F_t = F_t_cache[t];
+            const arma::mat& V_t = V_t_cache[t];
+            arma::vec m_post = V_t * (inv_sigma2 * (F_t.t() * y_it));
 
             if(ar1 && t > 1) {
-                // AR(1) prior contribution
-                m_post += (rhoA * inv_tauA2) * (V * A_private[i].col(t - 1));
+                m_post += (rhoA * inv_tauA2) * (V_t * A_private[i].col(t - 1));
             }
 
-            arma::vec a_new = thread_safe_mvnrnd(m_post, V, rngs_A[tid]);
+            arma::vec a_new = thread_safe_mvnrnd(m_post, V_t, rngs_A[tid]);
             A_private[i].col(t) = a_new;
         }
     }
@@ -422,6 +426,24 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
 
     std::vector<arma::mat> B_private(n_col, arma::mat(n_col, Tt, arma::fill::zeros));
 
+    // Precompute F_kt and V_t once per t (independent of column index k).
+    std::vector<arma::mat> FB_t_cache(Tt);
+    std::vector<arma::mat> VB_t_cache(Tt);
+    for(int t = 1; t < Tt; t++) {
+        arma::mat F_t(p * n_row, n_col);
+        for(int j = 0; j < p; j++) {
+            int base_idx = j * n_row;
+            int col_idx_prev = j * Tt + t - 1;
+            arma::mat Theta_prev = col_as_mat(Theta_4d, col_idx_prev, n_row, n_col);
+            F_t.rows(base_idx, base_idx + n_row - 1) = Aarray.slice(t) * Theta_prev;
+        }
+        arma::mat V_inv = inv_sigma2 * (F_t.t() * F_t) + inv_tauB2 * eye_nc;
+        arma::mat V_t = safe_inv_sympd(V_inv);
+        V_t = 0.5 * (V_t + V_t.t());
+        FB_t_cache[t] = std::move(F_t);
+        VB_t_cache[t] = std::move(V_t);
+    }
+
     #pragma omp parallel for schedule(static) num_threads(n_threads_B)
     for(int k = 0; k < n_col; k++) {
 #ifdef _OPENMP
@@ -429,32 +451,25 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
 #else
         int tid = 0;
 #endif
-        arma::mat F_kt(p * n_row, n_col);
         arma::vec y_kt(p * n_row);
         for(int t = 1; t < Tt; t++) {
 
             for(int j = 0; j < p; j++) {
                 int base_idx = j * n_row;
-                int col_idx_prev = j * Tt + t - 1;
                 int col_idx_curr = j * Tt + t;
-
-                arma::mat Theta_prev = col_as_mat(Theta_4d, col_idx_prev, n_row, n_col);
                 arma::mat Theta_curr = col_as_mat(Theta_4d, col_idx_curr, n_row, n_col);
-
-                F_kt.rows(base_idx, base_idx + n_row - 1) = Aarray.slice(t) * Theta_prev;
                 y_kt.subvec(base_idx, base_idx + n_row - 1) = Theta_curr.col(k);
             }
 
-            arma::mat V_inv = inv_sigma2 * (F_kt.t() * F_kt) + inv_tauB2 * eye_nc;
-            arma::mat V = safe_inv_sympd(V_inv);
-            V = 0.5 * (V + V.t());
-            arma::vec m_post = V * (inv_sigma2 * (F_kt.t() * y_kt));
+            const arma::mat& F_t = FB_t_cache[t];
+            const arma::mat& V_t = VB_t_cache[t];
+            arma::vec m_post = V_t * (inv_sigma2 * (F_t.t() * y_kt));
 
             if(ar1 && t > 1) {
-                m_post += (rhoB * inv_tauB2) * (V * B_private[k].col(t - 1));
+                m_post += (rhoB * inv_tauB2) * (V_t * B_private[k].col(t - 1));
             }
 
-            arma::vec b_new = thread_safe_mvnrnd(m_post, V, rngs_B[tid]);
+            arma::vec b_new = thread_safe_mvnrnd(m_post, V_t, rngs_B[tid]);
             B_private[k].col(t) = b_new;
         }
     }
@@ -474,6 +489,14 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
 }
 
 // sample process and observation variances
+//
+// when exclude_diagonal == true (used for symmetric / undirected
+// networks where self-ties are structurally undefined), the residual
+// sum of squares and the effective sample size both drop the
+// diagonal entries i == j (for square networks only). this gives an
+// unbiased posterior on sigma^2 / sigma^2_obs by treating the
+// diagonal as not observed rather than as observed-to-be-zero.
+//
 //' @keywords internal
 //' @noRd
 // [[Rcpp::export]]
@@ -484,8 +507,14 @@ List update_variances_dynamic(const arma::mat& Theta_4d,
                            const arma::cube& Barray,
                            double a_sig, double b_sig,
                            int n_row, int n_col, int p, int Tt,
-                           bool is_gaussian = false) {
+                           bool is_gaussian = false,
+                           bool exclude_diagonal = false) {
     int nc = n_row * n_col;
+    // for unipartite networks, the diagonal has n_row entries per slice;
+    // bipartite (n_row != n_col) has no meaningful diagonal so we keep
+    // all entries even if exclude_diagonal is set.
+    bool drop_diag = exclude_diagonal && (n_row == n_col);
+    int n_off_per_slice = drop_diag ? (nc - n_row) : nc;
     // process variance RSS
     double proc_rss = 0.0;
 
@@ -505,13 +534,20 @@ List update_variances_dynamic(const arma::mat& Theta_4d,
 
             // residual: theta_t - A_t * theta_{t-1} * B_t'
             arma::mat pred = Aarray.slice(t) * Theta_prev * Barray.slice(t).t();
-            local_rss += accu(square(Theta_curr - pred));
+            arma::mat resid = Theta_curr - pred;
+            if (drop_diag) {
+                local_rss += accu(square(resid)) -
+                    accu(square(resid.diag()));
+            } else {
+                local_rss += accu(square(resid));
+            }
         }
 
         proc_rss += local_rss;
     }
 
-    double sigma2 = (b_sig + proc_rss / 2.0) / R::rgamma((a_sig + nc * (Tt - 1) * p) / 2.0, 1.0);
+    double sigma2 = (b_sig + proc_rss / 2.0) /
+        R::rgamma((a_sig + n_off_per_slice * (Tt - 1) * p) / 2.0, 1.0);
 
     double sigma2_obs = 1.0;
     if(is_gaussian) {
@@ -530,13 +566,20 @@ List update_variances_dynamic(const arma::mat& Theta_4d,
                 arma::mat Z_jt = col_as_mat(Z_4d, idx, n_row, n_col);
                 arma::mat Theta_jt = col_as_mat(Theta_4d, idx, n_row, n_col);
 
-                local_rss += accu(square(Z_jt - (Theta_jt + M_j)));
+                arma::mat resid_obs = Z_jt - (Theta_jt + M_j);
+                if (drop_diag) {
+                    local_rss += accu(square(resid_obs)) -
+                        accu(square(resid_obs.diag()));
+                } else {
+                    local_rss += accu(square(resid_obs));
+                }
             }
 
             obs_rss += local_rss;
         }
 
-        sigma2_obs = (1.0 + obs_rss / 2.0) / R::rgamma((1.0 + nc * Tt * p) / 2.0, 1.0);
+        sigma2_obs = (1.0 + obs_rss / 2.0) /
+            R::rgamma((1.0 + n_off_per_slice * Tt * p) / 2.0, 1.0);
     }
 
     return List::create(
@@ -643,15 +686,13 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
                 y_local.subvec(base_idx, base_idx + n_col - 1) = Theta_curr.row(i).t();
             }
 
-            if (n_row > 50) {
-                arma::mat FtF = F_local.t() * F_local;
-                arma::mat W = inv_tauA2 * eye_nr + inv_sigma2 * FtF;
-                V_local = tauA2 * (eye_nr - tauA2 * inv_sigma2 *
-                                  solve(W, FtF, solve_opts::likely_sympd));
-            } else {
-                arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauA2 * eye_nr;
-                V_local = safe_inv_sympd(V_inv);
-            }
+            // direct symmetric-PD inverse of the precision matrix.
+            // a Woodbury form is only an asymptotic win when (p*n_col) <<
+            // n_row, which never happens in current production callers; the
+            // earlier branched form had an algebra error (extra tauA2 factor),
+            // so we use the direct path unconditionally.
+            arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauA2 * eye_nr;
+            V_local = safe_inv_sympd(V_inv);
 
             V_local = 0.5 * (V_local + V_local.t());
             arma::vec m_post = V_local * (inv_sigma2 * (F_local.t() * y_local));
@@ -704,15 +745,9 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
                 y_local.subvec(base_idx, base_idx + n_row - 1) = Theta_curr.col(k);
             }
 
-            if (n_col > 50) {
-                arma::mat FtF = F_local.t() * F_local;
-                arma::mat W = inv_tauB2 * eye_nc + inv_sigma2 * FtF;
-                V_local = tauB2 * (eye_nc - tauB2 * inv_sigma2 *
-                                  solve(W, FtF, solve_opts::likely_sympd));
-            } else {
-                arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauB2 * eye_nc;
-                V_local = safe_inv_sympd(V_inv);
-            }
+            // direct symmetric-PD inverse (see comment in A update above).
+            arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauB2 * eye_nc;
+            V_local = safe_inv_sympd(V_inv);
 
             V_local = 0.5 * (V_local + V_local.t());
             arma::vec m_post = V_local * (inv_sigma2 * (F_local.t() * y_local));

@@ -18,7 +18,16 @@ dbn_dynamic(
   store_z = NULL,
   previous = NULL,
   init = NULL,
-  symmetric = FALSE
+  symmetric = FALSE,
+  lambda_diag = 0,
+  phi_diag = 0.999,
+  kappa_Abar2 = 0.5,
+  tau_A_fixed = NULL,
+  kappa_A2 = NULL,
+  rho_max = NULL,
+  rho_max_rejects = 50L,
+  keep = NULL,
+  sampler = "auto"
 )
 }
 \arguments{
@@ -53,7 +62,45 @@ dbn_dynamic(
 
 \item{init}{List of initial values: A, B, sigma2, tau_A2, tau_B2, g2, rho_A, rho_B, Theta, M, Z (optional)}
 
-\item{symmetric}{Logical. If TRUE, enforce B = A after each MCMC update. Default: FALSE.}
+\item{symmetric}{Logical. If TRUE, enforce \code{B_t = A_t} and use the
+symmetric-specification sampler (matrix-free PCG on the symmetric
+zero-diagonal latent state, per-entry M-H on the symmetric operator).
+Requires unipartite square data (\code{n_row == n_col}, \code{p == 1}). Default:
+FALSE.}
+
+\item{lambda_diag}{Diagonal-penalty weight for the symmetric specification.
+\code{0} (default) disables the diagonal penalty; positive values activate
+the per-entry M-H sampler with prior \code{A_t = Abar + Delta_t} and
+stationary AR(1) on \code{Delta_t}. Only used when \code{symmetric = TRUE}.}
+
+\item{phi_diag}{Persistence parameter on \code{Delta_t} when \code{lambda_diag > 0}
+(default: 0.999, near random-walk).}
+
+\item{kappa_Abar2}{Per-entry prior variance on \code{Abar} when
+\code{lambda_diag > 0} (default: 0.5).}
+
+\item{tau_A_fixed}{If non-NULL, hold \code{tau_A^2} fixed at this value and
+skip the conjugate IG update. Only used when \code{symmetric = TRUE}.}
+
+\item{kappa_A2}{If non-NULL, decouple the row-1 prior variance from
+\code{tau_A^2} by setting each row's \code{A_1} prior variance to this value.
+NULL (default) ties the prior to \code{tau_A^2}.}
+
+\item{rho_max}{Optional cap on the per-time spectral radius of \code{A_t}
+via row-trajectory rejection sampling in the suffstat path. NULL
+(default) disables.}
+
+\item{rho_max_rejects}{Per-row resampling attempts before leaving the
+row unchanged for this sweep (default: 50). Only used when
+\code{rho_max > 0}.}
+
+\item{keep}{Optional character vector of draw-indexed components to retain
+in the returned object, controlling its size on disk and in memory.
+Recognized: \code{"Theta"} (latent-state draws -- by far the largest
+component), \code{"A"}, \code{"B"}, \code{"M"}, \code{"Z"}. \code{NULL} (default) keeps all.
+Coupling, leverage, and rank-probability analysis need only \code{A}, \code{B},
+and \code{M}; passing \code{keep = c("A", "B", "M")} drops the latent-state draws
+and substantially shrinks the saved object. See \code{\link[=estimate_memory]{estimate_memory()}}.}
 }
 \value{
 List containing MCMC results

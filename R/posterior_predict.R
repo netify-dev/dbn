@@ -16,20 +16,22 @@ NULL
 #'   [plot_ppc_ecdf()] or [plot_ppc_density()] to check whether the model
 #'   captures the key features of the data (a "posterior predictive check").
 #' @param fit A dbn model fit object (output from [dbn()])
-#' @param ndraws Number of replicated datasets to generate (default: 100)
+#' @param draws Number of replicated datasets to generate (default: 100)
 #' @param seed Random seed for reproducibility
-#' @param draws Specific posterior draw indices to use (overrides `ndraws`)
-#' @return A list of `ndraws` replicated data arrays, each with the same
-#'   dimensions as the original data. Has class `"dbn_ppd"`.
+#' @param draw_indices Optional integer vector of specific posterior draw
+#'   indices to use. When supplied, overrides `draws` (number replicated is
+#'   set to `length(draw_indices)`).
+#' @return A list of replicated data arrays, each with the same dimensions
+#'   as the original data. Has class `"dbn_ppd"`.
 #' @seealso \code{\link{plot_ppc_ecdf}}, \code{\link{plot_ppc_density}}, \code{\link{param_summary}}
 #' @examples
 #' \donttest{
 #' sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-#' ppd <- posterior_predict_dbn(fit, ndraws = 5)
+#' ppd <- posterior_predict_dbn(fit, draws = 5)
 #' }
 #' @export
-posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) {
+posterior_predict_dbn <- function(fit, draws = 100, seed = NULL, draw_indices = NULL) {
 	if (!is.null(seed)) set.seed(seed)
 
 	fam <- get_family(fit)
@@ -38,14 +40,14 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 	}
 
 	# pick which draws to use
-	if (is.null(draws)) {
+	if (is.null(draw_indices)) {
 		if (fit$model == "dynamic") {
 			n_total_draws <- length(fit$sigma2)
 		} else if (fit$model == "static") {
 			n_total_draws <- nrow(fit$params)
 		} else if (fit$model == "hmm") {
 			n_total_draws <- length(fit$draws$pars$sigma2_proc)
-		} else if (fit$model == "lowrank" || fit$model == "lowrank_accurate") {
+		} else if (fit$model == "lowrank") {
 			n_total_draws <- length(fit$sigma2)
 		} else if (fit$model == "piecewise") {
 			n_total_draws <- length(fit$draws$misc$Theta)
@@ -53,20 +55,15 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 			n_total_draws <- fit$meta$draws %||% length(fit$draws$theta)
 		}
 
-		if (ndraws >= n_total_draws) {
-			draws <- seq_len(n_total_draws)
-		} else {
-			draws <- sample(seq_len(n_total_draws), ndraws, replace = TRUE)
-		}
-	} else {
-		ndraws <- length(draws)
+		draw_indices <- sample(seq_len(n_total_draws), draws, replace = TRUE)
 	}
+	draws <- length(draw_indices)
 	####
 
-	Yrep <- vector("list", ndraws)
+	Yrep <- vector("list", draws)
 
-	for (d in seq_along(draws)) {
-		draw_idx <- draws[d]
+	for (d in seq_along(draw_indices)) {
+		draw_idx <- draw_indices[d]
 
 		# get theta for this model type
 		if (fit$model == "dynamic") {
@@ -151,7 +148,7 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 
 			th <- fit$draws$theta[[draw_idx]]
 
-		} else if (fit$model == "lowrank" || fit$model == "lowrank_accurate") {
+		} else if (fit$model == "lowrank") {
 
 			# use stored FFBS theta draws if available
 			if (!is.null(fit$draws$theta) && length(fit$draws$theta) >= draw_idx) {
@@ -242,7 +239,7 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 		if (fit$model == "dynamic" && !is.null(fit$M)) {
 			misc$M <- fit$M[, , , draw_idx, drop = FALSE]
 			dim(misc$M) <- dim(fit$M)[1:3]
-		} else if ((fit$model == "lowrank" || fit$model == "lowrank_accurate") && !is.null(fit$M)) {
+		} else if (fit$model == "lowrank" && !is.null(fit$M)) {
 			if (is.list(fit$M)) {
 				misc$M <- fit$M[[draw_idx]]
 			} else {
@@ -256,7 +253,7 @@ posterior_predict_dbn <- function(fit, ndraws = 100, seed = NULL, draws = NULL) 
 		}
 
 		if (fam$name == "gaussian") {
-			if ((fit$model == "dynamic" || fit$model == "lowrank" || fit$model == "lowrank_accurate")
+			if ((fit$model == "dynamic" || fit$model == "lowrank")
 				&& !is.null(fit$sigma2_obs)) {
 				misc$sigma2_obs <- fit$sigma2_obs[draw_idx]
 			} else if (!is.null(fit$draws$pars) && "sigma2_obs" %in% names(fit$draws$pars)) {
@@ -351,8 +348,8 @@ get_family <- function(fit) {
 #'
 #' @description Plot empirical CDFs of observed vs replicated data
 #' @param fit A dbn model fit object
-#' @param ppd Posterior predictive samples (from posterior_predict_dbn)
-#' @param ndraws_plot Number of replicates to show (default: 20)
+#' @param ppd Posterior predictive samples (from `posterior_predict_dbn`)
+#' @param n_show Number of replicates to display (default: 20)
 #' @param alpha Transparency for replicate lines (default: 0.3)
 #' @param rel Relation index to plot (default: 1)
 #' @param time Time index to plot (default: all)
@@ -363,14 +360,14 @@ get_family <- function(fit) {
 #' \donttest{
 #' sim <- simulate_static_dbn(n = 6, time = 5, seed = 1)
 #' fit <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
-#' ppd <- posterior_predict_dbn(fit, ndraws = 5)
+#' ppd <- posterior_predict_dbn(fit, draws = 5)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) plot_ppc_ecdf(fit, ppd, Y_obs = sim$Y)
 #' }
 #' @export
-plot_ppc_ecdf <- function(fit, ppd = NULL, ndraws_plot = 20,
+plot_ppc_ecdf <- function(fit, ppd = NULL, n_show = 20,
 						  alpha = 0.3, rel = 1, time = NULL, Y_obs = NULL) {
 	if (is.null(ppd)) {
-		ppd <- posterior_predict_dbn(fit, ndraws = ndraws_plot)
+		ppd <- posterior_predict_dbn(fit, draws = n_show)
 	}
 
 	if (is.null(Y_obs)) {
@@ -398,7 +395,7 @@ plot_ppc_ecdf <- function(fit, ppd = NULL, ndraws_plot = 20,
 		set = "Observed"
 	)
 
-	draws_show <- sample(seq_along(ppd), min(ndraws_plot, length(ppd)))
+	draws_show <- sample(seq_along(ppd), min(n_show, length(ppd)))
 
 	for (d in draws_show) {
 		rep_vals <- c(ppd[[d]][, , rel, time])
@@ -492,13 +489,13 @@ plot_ppc_ecdf <- function(fit, ppd = NULL, ndraws_plot = 20,
 #' \donttest{
 #' sim <- simulate_static_dbn(n = 6, time = 5, seed = 1)
 #' fit <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
-#' ppd <- posterior_predict_dbn(fit, ndraws = 5)
+#' ppd <- posterior_predict_dbn(fit, draws = 5)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) plot_ppc_density(fit, ppd, Y_obs = sim$Y)
 #' }
 #' @export
 plot_ppc_density <- function(fit, ppd = NULL, rel = 1, time = NULL, Y_obs = NULL) {
 	if (is.null(ppd)) {
-		ppd <- posterior_predict_dbn(fit, ndraws = 50)
+		ppd <- posterior_predict_dbn(fit, draws = 50)
 	}
 
 	if (is.null(Y_obs)) {

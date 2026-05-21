@@ -1,4 +1,5 @@
 #include <RcppArmadillo.h>
+#include "dbn_stability.h"
 // [[Rcpp::depends(RcppArmadillo)]]
 
 #ifdef _OPENMP
@@ -8,40 +9,12 @@
 using namespace Rcpp;
 using namespace arma;
 
-// inv_sympd with regularization fallback
-static arma::mat safe_inv_lr(const arma::mat& M) {
-    arma::mat M_sym = 0.5 * (M + M.t());
-    arma::mat result;
-    bool ok = arma::inv_sympd(result, M_sym);
-    if (!ok) {
-        double reg = 1e-6 * arma::norm(M_sym, "fro") + 1e-8;
-        M_sym.diag() += reg;
-        ok = arma::inv_sympd(result, M_sym);
-        if (!ok) {
-            result = arma::inv(M_sym);
-        }
-    }
-    return result;
+// safe helpers: delegate to the shared definitions in dbn_stability.h
+static inline arma::mat safe_inv_lr(const arma::mat& M) {
+    return dbn_safe_inv_sympd(M);
 }
-
-// mvnrnd with regularization fallback
-static arma::vec safe_mvnrnd_lr(const arma::vec& mu, const arma::mat& Sigma) {
-    arma::mat S = 0.5 * (Sigma + Sigma.t());
-    if (S.n_rows != mu.n_elem || S.n_cols != mu.n_elem) {
-        // dimension mismatch, fall back to diagonal
-        return mu + 1e-4 * arma::randn(mu.n_elem);
-    }
-    try {
-        return arma::mvnrnd(mu, S);
-    } catch (...) {
-        double reg = 1e-6 * arma::norm(S, "fro") + 1e-8;
-        S.diag() += reg;
-        try {
-            return arma::mvnrnd(mu, S);
-        } catch (...) {
-            return mu + arma::sqrt(arma::abs(S.diag())) % arma::randn(mu.n_elem);
-        }
-    }
+static inline arma::vec safe_mvnrnd_lr(const arma::vec& mu, const arma::mat& Sigma) {
+    return dbn_safe_mvnrnd(mu, Sigma);
 }
 
 // forward declarations

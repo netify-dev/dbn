@@ -2,13 +2,17 @@
 // [[Rcpp::depends(RcppArmadillo)]]
 
 //' Compute impulse response for constant A,B matrices
-//' 
+//'
+//' Low-level C++ helper used by `compute_irf()`. Not user-facing; the public
+//' entry point is `compute_irf()`.
+//'
 //' @param A Transition matrix A (m x m)
 //' @param B Transition matrix B (m x m)
 //' @param S Shock matrix (m x m)
 //' @param H Number of horizons to compute
 //' @return Cube of impulse responses (m x m x H+1)
-//' @export
+//' @keywords internal
+//' @noRd
 // [[Rcpp::export]]
 arma::cube impulse_response_const(const arma::mat& A,
                                   const arma::mat& B,
@@ -46,14 +50,18 @@ arma::cube impulse_response_const(const arma::mat& A,
 }
 
 //' Compute impulse response for time-varying A,B matrices
-//' 
+//'
+//' Low-level C++ helper used by `compute_irf()`. Not user-facing; the public
+//' entry point is `compute_irf()`.
+//'
 //' @param Aarray Cube of A matrices over time (m x m x T)
 //' @param Barray Cube of B matrices over time (m x m x T)
 //' @param S Shock matrix (m x m)
 //' @param t0 Time index of shock (0-based)
 //' @param H Number of horizons to compute
 //' @return Cube of impulse responses (m x m x H+1)
-//' @export
+//' @keywords internal
+//' @noRd
 // [[Rcpp::export]]
 arma::cube impulse_response_dynamic(const arma::cube& Aarray,
                                     const arma::cube& Barray,

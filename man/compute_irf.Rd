@@ -57,6 +57,5 @@ print(irf)
 }
 \seealso{
 \code{\link{build_shock}}, \code{\link{plot.dbn_irf}},
-\code{\link{print.dbn_irf}}, \code{\link{debug_irf}},
-\code{\link{stat_density}}
+\code{\link{print.dbn_irf}}, \code{\link{stat_density}}
 }

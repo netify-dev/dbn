@@ -26,7 +26,15 @@ dimension of the influence structure drives the dynamics at each time
 point. The returned data frame includes posterior means and 95\\%
 credible intervals.
 }
+\examples{
+\donttest{
+sim <- simulate_lowrank_dbn(n = 8, time = 8, r = 2, seed = 1)
+fit <- dbn_lowrank(sim$Y, r = 2, nscan = 200, burn = 100, verbose = FALSE)
+df_alpha <- tidy_dbn_lowrank(fit)
+head(df_alpha)
+}
+}
 \seealso{
-\code{\link[=dbn]{dbn()}} with \code{model = "lowrank"}, \code{\link[=plot_dbn]{plot_dbn()}} for built-in
+\code{\link[=dbn]{dbn()}} with \code{model = "lowrank"}, \code{\link[=plot.dbn]{plot.dbn()}} for built-in
 diagnostic plots
 }

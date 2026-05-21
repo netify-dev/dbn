@@ -61,8 +61,17 @@ if posterior predictive checks show poor fit. Default: 2.}
 
 \item{...}{Additional arguments (currently unused)}
 }
+\value{
+A \code{dbn} object with components including \code{U}, \code{alpha}, \code{B}, \code{M},
+\code{Theta}, \code{sigma2}, \code{tau_A2}, \code{tau_B2}, \code{g2}, plus an \code{info} list of
+model settings. See \code{summary()} and \code{plot()} methods for inspection,
+and \code{tidy_dbn_lowrank()} for posterior summaries.
+}
 \description{
-Fits DBN with low-rank sender effects
+Fits a dynamic bilinear network model with a low-rank
+factorization of the sender operator. Recommended for moderate-to-large
+networks (n >= 25) where the full-rank \code{dbn_dynamic()} is memory- or
+compute-limited.
 }
 \examples{
 \donttest{
@@ -71,5 +80,6 @@ fit <- dbn_lowrank(sim$Y, r = 2, nscan = 200, burn = 100, verbose = FALSE)
 }
 }
 \seealso{
-\code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
+\code{\link[=dbn]{dbn()}} for the main dispatcher, \code{\link[=param_summary]{param_summary()}} for posterior
+summaries, \code{\link[=tidy_dbn_lowrank]{tidy_dbn_lowrank()}} for low-rank-specific tidiers.
 }

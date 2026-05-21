@@ -425,7 +425,8 @@ test_that("edge_prob returns correct matrix", {
 test_that("estimate_memory scales with network size", {
 	mem_small = estimate_memory(n_row = 10, quiet = TRUE)
 	mem_large = estimate_memory(n_row = 50, quiet = TRUE)
-	expect_true(mem_large > mem_small)
+	expect_gt(mem_large[["object_gb"]], mem_small[["object_gb"]])
+	expect_gt(mem_large[["peak_gb"]], mem_small[["peak_gb"]])
 })
 
 test_that("predict works for HMM model", {
@@ -480,7 +481,7 @@ test_that("plot_ppc_ecdf works for static model", {
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 117)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
 		nscan = 30, burn = 10, verbose = FALSE)
-	ppd = posterior_predict_dbn(fit, ndraws = 5, seed = 42)
+	ppd = posterior_predict_dbn(fit, draws = 5, seed = 42)
 
 	p = plot_ppc_ecdf(fit, ppd, Y_obs = sim$Y)
 	expect_s3_class(p, "ggplot")
@@ -492,7 +493,7 @@ test_that("plot_ppc_density works for static model", {
 	sim = simulate_static_dbn(n = 6, p = 1, time = 5, seed = 118)
 	fit = dbn(sim$Y, model = "static", family = "ordinal",
 		nscan = 30, burn = 10, verbose = FALSE)
-	ppd = posterior_predict_dbn(fit, ndraws = 5, seed = 42)
+	ppd = posterior_predict_dbn(fit, draws = 5, seed = 42)
 
 	p = plot_ppc_density(fit, ppd, Y_obs = sim$Y)
 	expect_s3_class(p, "ggplot")

@@ -86,8 +86,8 @@ update_AB_batch_extended <- function(Theta_4d, Aarray_old, Barray_old, sigma2, t
 
 #' @keywords internal
 #' @noRd
-update_variances_dynamic <- function(Theta_4d, Z_4d, M, Aarray, Barray, a_sig, b_sig, n_row, n_col, p, Tt, is_gaussian = FALSE) {
-    .Call('_dbn_update_variances_dynamic', PACKAGE = 'dbn', Theta_4d, Z_4d, M, Aarray, Barray, a_sig, b_sig, n_row, n_col, p, Tt, is_gaussian)
+update_variances_dynamic <- function(Theta_4d, Z_4d, M, Aarray, Barray, a_sig, b_sig, n_row, n_col, p, Tt, is_gaussian = FALSE, exclude_diagonal = FALSE) {
+    .Call('_dbn_update_variances_dynamic', PACKAGE = 'dbn', Theta_4d, Z_4d, M, Aarray, Barray, a_sig, b_sig, n_row, n_col, p, Tt, is_gaussian, exclude_diagonal)
 }
 
 #' @keywords internal
@@ -305,26 +305,34 @@ update_innovation_cov_adaptive <- function(Sigma_e_current, nu, S, X, A, B, adap
 }
 
 #' Compute impulse response for constant A,B matrices
-#' 
+#'
+#' Low-level C++ helper used by `compute_irf()`. Not user-facing; the public
+#' entry point is `compute_irf()`.
+#'
 #' @param A Transition matrix A (m x m)
 #' @param B Transition matrix B (m x m)
 #' @param S Shock matrix (m x m)
 #' @param H Number of horizons to compute
 #' @return Cube of impulse responses (m x m x H+1)
-#' @export
+#' @keywords internal
+#' @noRd
 impulse_response_const <- function(A, B, S, H) {
     .Call('_dbn_impulse_response_const', PACKAGE = 'dbn', A, B, S, H)
 }
 
 #' Compute impulse response for time-varying A,B matrices
-#' 
+#'
+#' Low-level C++ helper used by `compute_irf()`. Not user-facing; the public
+#' entry point is `compute_irf()`.
+#'
 #' @param Aarray Cube of A matrices over time (m x m x T)
 #' @param Barray Cube of B matrices over time (m x m x T)
 #' @param S Shock matrix (m x m)
 #' @param t0 Time index of shock (0-based)
 #' @param H Number of horizons to compute
 #' @return Cube of impulse responses (m x m x H+1)
-#' @export
+#' @keywords internal
+#' @noRd
 impulse_response_dynamic <- function(Aarray, Barray, S, t0, H) {
     .Call('_dbn_impulse_response_dynamic', PACKAGE = 'dbn', Aarray, Barray, S, t0, H)
 }
@@ -615,6 +623,24 @@ compute_A_lowrank_batch <- function(outer_prods, alpha, Tt) {
     .Call('_dbn_compute_A_lowrank_batch', PACKAGE = 'dbn', outer_prods, alpha, Tt)
 }
 
+#' @keywords internal
+#' @noRd
+update_A_suffstat_cpp <- function(Theta_arr, Aarray_old, sigma2, tau2, tau2_init_per_row, rho_max = 0.0, max_rejects = 50L) {
+    .Call('_dbn_update_A_suffstat_cpp', PACKAGE = 'dbn', Theta_arr, Aarray_old, sigma2, tau2, tau2_init_per_row, rho_max, max_rejects)
+}
+
+update_A_symmetric_mh_cpp <- function(Z_arr, Aarray_init, sigma2, tau_A2, kappa_A2, proposal_sd, n_sweeps, burn = 0L, odens = 1L, adapt = TRUE) {
+    .Call('_dbn_update_A_symmetric_mh_cpp', PACKAGE = 'dbn', Z_arr, Aarray_init, sigma2, tau_A2, kappa_A2, proposal_sd, n_sweeps, burn, odens, adapt)
+}
+
+update_A_ar1_mh_diag_cpp <- function(Z_arr, Aarray_init, Abar, phi, sigma2, sigma2_diag, tau_Delta2, proposal_sd, n_sweeps, burn = 0L, odens = 1L, adapt = TRUE) {
+    .Call('_dbn_update_A_ar1_mh_diag_cpp', PACKAGE = 'dbn', Z_arr, Aarray_init, Abar, phi, sigma2, sigma2_diag, tau_Delta2, proposal_sd, n_sweeps, burn, odens, adapt)
+}
+
+update_A_ar1_mh_cpp <- function(Z_arr, Aarray_init, Abar, phi, sigma2, tau_Delta2, proposal_sd, n_sweeps, burn = 0L, odens = 1L, adapt = TRUE) {
+    .Call('_dbn_update_A_ar1_mh_cpp', PACKAGE = 'dbn', Z_arr, Aarray_init, Abar, phi, sigma2, tau_Delta2, proposal_sd, n_sweeps, burn, odens, adapt)
+}
+
 #' Reshape 4D array to 3D for C++ processing
 #' @description Efficiently reshape Z from n_row x n_col x p x Tt to n_row x n_col x (p*Tt)
 #' @param Z_4d Input 4D array as R array
@@ -742,6 +768,24 @@ compute_rss_static_parallel <- function(Z_cube, M, n_row, n_col, p, Tt) {
 #' @noRd
 update_B_static_tiled <- function(Z_cube, M, s2, t2, n_row, n_col, p, Tt) {
     .Call('_dbn_update_B_static_tiled', PACKAGE = 'dbn', Z_cube, M, s2, t2, n_row, n_col, p, Tt)
+}
+
+cg_benchmark_tridiag_cpp <- function(Y_arr_3d, M_mat, A_arr, sigma2, sigma2_obs, pairs) {
+    .Call('_dbn_cg_benchmark_tridiag_cpp', PACKAGE = 'dbn', Y_arr_3d, M_mat, A_arr, sigma2, sigma2_obs, pairs)
+}
+
+cg_benchmark_blockdiag_cpp <- function(Y_arr_3d, M_mat, A_arr, sigma2, sigma2_obs, pairs) {
+    .Call('_dbn_cg_benchmark_blockdiag_cpp', PACKAGE = 'dbn', Y_arr_3d, M_mat, A_arr, sigma2, sigma2_obs, pairs)
+}
+
+#' @keywords internal
+#' @noRd
+theta_pcg_sampler_cpp <- function(Y_arr_3d, M_mat, A_arr, sigma2, sigma2_obs, pairs) {
+    .Call('_dbn_theta_pcg_sampler_cpp', PACKAGE = 'dbn', Y_arr_3d, M_mat, A_arr, sigma2, sigma2_obs, pairs)
+}
+
+theta_pcg_asym_sampler_cpp <- function(Y_arr_3d, M_mat, A_arr, B_arr, sigma2, sigma2_obs) {
+    .Call('_dbn_theta_pcg_asym_sampler_cpp', PACKAGE = 'dbn', Y_arr_3d, M_mat, A_arr, B_arr, sigma2, sigma2_obs)
 }
 
 #' @keywords internal

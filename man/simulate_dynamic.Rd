@@ -4,26 +4,28 @@
 \alias{simulate_dynamic}
 \title{Forecast future network states from dynamic DBN model}
 \usage{
-simulate_dynamic(fit, H, S, summary = "none")
+simulate_dynamic(fit, H, draws, summary = "none")
 }
 \arguments{
-\item{fit}{A fitted dbn object from dbn_dynamic()}
+\item{fit}{A fitted \code{dbn} object from \code{dbn_dynamic()}.}
 
-\item{H}{Number of time steps to forecast ahead}
+\item{H}{Number of time steps to forecast ahead.}
 
-\item{S}{Number of posterior samples to generate}
+\item{draws}{Number of posterior samples to generate.}
 
 \item{summary}{Character string specifying summary type:
 \itemize{
-\item "none": Return full array of forecasts (default)
-\item "mean": Return posterior mean forecasts
+\item \code{"none"}: Return full array of forecasts (default)
+\item \code{"mean"}: Return posterior mean forecasts
 }}
 }
 \value{
-If \code{summary = "none"}, returns 5D array with dimensions nodes by nodes by relations by horizon by samples.
-If \code{summary = "mean"}, returns 4D array with dimensions nodes by nodes by relations by horizon containing posterior means.
+If \code{summary = "none"}, returns a 5D array with dimensions
+\verb{[nodes, nodes, relations, horizon, draws]}. If \code{summary = "mean"},
+returns a 4D array with dimensions \verb{[nodes, nodes, relations, horizon]}.
 }
 \description{
-Generate H-step ahead forecasts from a fitted dynamic DBN model
+Generate H-step ahead forecasts from a fitted dynamic DBN
+model.
 }
 \keyword{internal}

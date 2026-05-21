@@ -1,8 +1,8 @@
 Package: dbn
 Type: Package
 Title: Dynamic Bilinear Network Models for Ordinal Relational Data
-Version: 1.0.0
-Date: 2026-03-25
+Version: 1.1.1
+Date: 2026-05-20
 Authors@R: c(
     person("Tosin", "Salau", email = "salaubol@msu.edu",
            role = "aut"),
@@ -34,10 +34,11 @@ Imports:
     grDevices,
     utils,
     methods,
+    parallel,
     rlang,
     truncnorm,
     Rcpp (>= 1.0.0)
-SystemRequirements: C++11, GNU make, OpenMP (optional)
+SystemRequirements: GNU make, OpenMP (optional)
 LinkingTo:
     Rcpp,
     RcppArmadillo
@@ -53,7 +54,8 @@ Suggests:
     igraph,
     lattice,
     peacesciencer,
-    RcppArmadillo
+    RcppArmadillo,
+    RhpcBLASctl
 Remotes:
     netify-dev/netify
 VignetteBuilder: knitr

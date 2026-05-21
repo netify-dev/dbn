@@ -188,7 +188,7 @@ trajectory (reflecting uncertainty in $A$, $B$, and $\sigma^2$), and
 `summary = "mean"` averages across them.
 
 ```{r forecast}
-fc = predict(fit, H = 5, S = 200, summary = "mean")
+fc = predict(fit, H = 5, draws = 200, summary = "mean")
 dim(fc)
 ```
 

@@ -39,5 +39,5 @@ plot(fit)
 }
 }
 \seealso{
-\code{\link[=dbn]{dbn()}}, \code{\link[=plot_trace]{plot_trace()}}, \code{\link[=check_convergence]{check_convergence()}}, \code{\link[=summary_dbn]{summary_dbn()}}
+\code{\link[=dbn]{dbn()}}, \code{\link[=plot_trace]{plot_trace()}}, \code{\link[=check_convergence]{check_convergence()}}, \code{\link[=summary.dbn]{summary.dbn()}}
 }

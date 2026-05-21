@@ -1420,6 +1420,9 @@ compare_group_influence <- function(fit,
 									fun = c("mean", "sum"),
 									cred = 0.95) {
 	if (!requireNamespace("ggplot2", quietly = TRUE)) cli::cli_abort(c("Package {.pkg ggplot2} is required for this function.", "i" = "Install with {.code install.packages(\"ggplot2\")}"))
+	type <- match.arg(type)
+	measure <- match.arg(measure)
+	fun <- match.arg(fun)
 	if (!is.list(groups)) {
 		cli::cli_abort("groups must be a list of integer vectors")
 	}
@@ -1476,16 +1479,18 @@ compare_group_influence <- function(fit,
 ####
 #' Simulate data from static DBN model
 #'
-#' @description Generate posterior predictive samples from a fitted static DBN model
-#' @param fit A fitted dbn object from dbn_static()
-#' @param S Number of posterior samples to generate
+#' @description Generate posterior predictive samples from a fitted static
+#'   DBN model.
+#' @param fit A fitted `dbn` object from `dbn_static()`.
+#' @param draws Number of posterior samples to generate.
 #' @param summary Character string specifying summary type:
-#'   - "none": Return full array of simulations (default)
-#'   - "mean": Return posterior mean across simulations
-#' @return If summary = "none", returns 5D array with dimensions nodes by nodes by relations by time by samples.
-#'   If summary = "mean", returns 4D array with dimensions nodes by nodes by relations by time containing posterior means.
+#'   - `"none"`: Return full array of simulations (default)
+#'   - `"mean"`: Return posterior mean across simulations
+#' @return If `summary = "none"`, returns a 5D array with dimensions
+#'   `[nodes, nodes, relations, time, draws]`. If `summary = "mean"`,
+#'   returns a 4D array with dimensions `[nodes, nodes, relations, time]`.
 #' @keywords internal
-simulate_static <- function(fit, S, summary = "none") {
+simulate_static <- function(fit, draws, summary = "none") {
 	n_row <- fit$dims$n_row
 	n_col <- fit$dims$n_col
 	p <- fit$dims$p
@@ -1495,15 +1500,14 @@ simulate_static <- function(fit, S, summary = "none") {
 		cli::cli_abort("tprod function not found. Please load the dbn package.")
 	}
 
-	out <- array(0, dim = c(n_row, n_col, p, Tt, S))
+	out <- array(0, dim = c(n_row, n_col, p, Tt, draws))
 
 	n_saved <- dim(fit$B[[1]])[3]
-	idx <- sample(n_saved, S, replace = TRUE)
+	idx <- sample(n_saved, draws, replace = TRUE)
 
-	for (s in seq_len(S)) {
+	for (s in seq_len(draws)) {
 		Bdraw <- lapply(fit$B, function(b) b[, , idx[s]])
 
-		# Y = tprod(M, B) + noise
 		Yrep <- tprod(fit$M, Bdraw)
 
 		s2 <- fit$params[idx[s], "s2"]
@@ -1525,40 +1529,40 @@ simulate_static <- function(fit, S, summary = "none") {
 ####
 #' Forecast future network states from dynamic DBN model
 #'
-#' @description Generate H-step ahead forecasts from a fitted dynamic DBN model
-#' @param fit A fitted dbn object from dbn_dynamic()
-#' @param H Number of time steps to forecast ahead
-#' @param S Number of posterior samples to generate
+#' @description Generate H-step ahead forecasts from a fitted dynamic DBN
+#'   model.
+#' @param fit A fitted `dbn` object from `dbn_dynamic()`.
+#' @param H Number of time steps to forecast ahead.
+#' @param draws Number of posterior samples to generate.
 #' @param summary Character string specifying summary type:
-#'   - "none": Return full array of forecasts (default)
-#'   - "mean": Return posterior mean forecasts
-#' @return If \code{summary = "none"}, returns 5D array with dimensions nodes by nodes by relations by horizon by samples.
-#'   If \code{summary = "mean"}, returns 4D array with dimensions nodes by nodes by relations by horizon containing posterior means.
+#'   - `"none"`: Return full array of forecasts (default)
+#'   - `"mean"`: Return posterior mean forecasts
+#' @return If `summary = "none"`, returns a 5D array with dimensions
+#'   `[nodes, nodes, relations, horizon, draws]`. If `summary = "mean"`,
+#'   returns a 4D array with dimensions `[nodes, nodes, relations, horizon]`.
 #' @keywords internal
-simulate_dynamic <- function(fit, H, S, summary = "none") {
+simulate_dynamic <- function(fit, H, draws, summary = "none") {
 	n_row <- fit$dims$n_row
 	n_col <- fit$dims$n_col
 	p <- fit$dims$p
 	Tt <- fit$dims$Tt
 
-	Theta_pred <- array(0, c(n_row, n_col, p, H, S))
+	Theta_pred <- array(0, c(n_row, n_col, p, H, draws))
 
 	n_saved <- length(fit$A)
-	idx <- sample(n_saved, S, replace = TRUE)
+	idx <- sample(n_saved, draws, replace = TRUE)
 
-	for (s in seq_len(S)) {
+	for (s in seq_len(draws)) {
 		A_last <- fit$A[[idx[s]]][, , Tt]
 		B_last <- fit$B[[idx[s]]][, , Tt]
 		sigma2 <- fit$sigma2[idx[s]]
 
-		# initialize at zero (equilibrium mean)
 		Theta_curr <- array(0, c(n_row, n_col, p))
 
 		for (h in seq_len(H)) {
 			Theta_new <- array(0, c(n_row, n_col, p))
 
 			for (rel in seq_len(p)) {
-				# Theta_t = A_t * Theta_{t-1} * B_t' + noise
 				Theta_new[, , rel] <- A_last %*% Theta_curr[, , rel] %*% t(B_last) +
 					sqrt(sigma2) * matrix(rnorm(n_row * n_col), n_row, n_col)
 			}
@@ -1587,9 +1591,8 @@ simulate_dynamic <- function(fit, H, S, summary = "none") {
 #' @keywords internal
 predict_ordinal <- function(fit, draws = 100, H = NULL) {
 	if (fit$model == "static") {
-		Z_pred <- predict(fit, S = draws, summary = "none")
+		Z_pred <- predict(fit, draws = draws, summary = "none")
 
-		# add baseline mean M to latent predictions
 		for (s in seq_len(draws)) {
 			Z_pred[, , , , s] <- sweep(Z_pred[, , , , s], 1:3, fit$M, "+")
 		}
@@ -1610,7 +1613,7 @@ predict_ordinal <- function(fit, draws = 100, H = NULL) {
 	} else {
 		if (is.null(H)) H <- 1
 
-		Theta_pred <- predict(fit, H = H, S = draws, summary = "none")
+		Theta_pred <- predict(fit, H = H, draws = draws, summary = "none")
 
 		n_row <- fit$dims$n_row
 		n_col <- fit$dims$n_col
@@ -1640,5 +1643,67 @@ predict_ordinal <- function(fit, draws = 100, H = NULL) {
 
 		R_pred
 	}
+}
+####
+
+####
+#' Compare Posterior Means Across Different Samplers
+#'
+#' @description For two fits to the same data using different samplers
+#'   (e.g., exact PCG vs approximate FFBS), compute the Frobenius-norm difference
+#'   in posterior mean A and B matrices. Useful for assessing how much the
+#'   approximation differs from the exact method.
+#'
+#' @param fit1 First fitted `dbn` object (typically exact PCG)
+#' @param fit2 Second fitted `dbn` object (typically approximate FFBS)
+#' @param verbose Logical. If TRUE, print summary.
+#'
+#' @return Invisibly, a list with:
+#'   \item{A_diff_frob}{Frobenius norm of difference in posterior mean A matrices}
+#'   \item{B_diff_frob}{Frobenius norm of difference in posterior mean B matrices}
+#'   \item{sampler1}{Sampler used in fit1}
+#'   \item{sampler2}{Sampler used in fit2}
+#'
+#' @export
+compare_samplers <- function(fit1, fit2, verbose = TRUE) {
+	if (!inherits(fit1, "dbn") || !inherits(fit2, "dbn")) {
+		cli::cli_abort("Both arguments must be fitted {.cls dbn} objects.")
+	}
+
+	sampler1 <- fit1$meta$sampler_used %||% "unknown"
+	sampler2 <- fit2$meta$sampler_used %||% "unknown"
+
+	# Compute posterior means for A and B
+	A1_mean <- apply(simplify2array(fit1$A), 1:2, mean)
+	A2_mean <- apply(simplify2array(fit2$A), 1:2, mean)
+	B1_mean <- apply(simplify2array(fit1$B), 1:2, mean)
+	B2_mean <- apply(simplify2array(fit2$B), 1:2, mean)
+
+	# Frobenius norms of differences
+	A_diff_frob <- norm(A1_mean - A2_mean, type = "F")
+	B_diff_frob <- norm(B1_mean - B2_mean, type = "F")
+
+	if (verbose) {
+		cli::cli_h3("Sampler Comparison")
+		cli::cli_inform("Sampler 1: {sampler1}")
+		cli::cli_inform("Sampler 2: {sampler2}")
+		cli::cli_inform("")
+		cli::cli_text("Frobenius norm of difference in posterior mean A: {sprintf('%.4f', A_diff_frob)}")
+		cli::cli_text("Frobenius norm of difference in posterior mean B: {sprintf('%.4f', B_diff_frob)}")
+		if (A_diff_frob < 0.1 && B_diff_frob < 0.1) {
+			cli::cli_alert_success("Samplers agree closely (low difference).")
+		} else if (A_diff_frob < 0.5 || B_diff_frob < 0.5) {
+			cli::cli_alert_info("Samplers show moderate agreement.")
+		} else {
+			cli::cli_alert_warning("Samplers differ substantially (check convergence).")
+		}
+	}
+
+	invisible(list(
+		A_diff_frob = A_diff_frob,
+		B_diff_frob = B_diff_frob,
+		sampler1 = sampler1,
+		sampler2 = sampler2
+	))
 }
 ####

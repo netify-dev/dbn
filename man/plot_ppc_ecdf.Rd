@@ -7,7 +7,7 @@
 plot_ppc_ecdf(
   fit,
   ppd = NULL,
-  ndraws_plot = 20,
+  n_show = 20,
   alpha = 0.3,
   rel = 1,
   time = NULL,
@@ -17,9 +17,9 @@ plot_ppc_ecdf(
 \arguments{
 \item{fit}{A dbn model fit object}
 
-\item{ppd}{Posterior predictive samples (from posterior_predict_dbn)}
+\item{ppd}{Posterior predictive samples (from \code{posterior_predict_dbn})}
 
-\item{ndraws_plot}{Number of replicates to show (default: 20)}
+\item{n_show}{Number of replicates to display (default: 20)}
 
 \item{alpha}{Transparency for replicate lines (default: 0.3)}
 
@@ -39,7 +39,7 @@ Plot empirical CDFs of observed vs replicated data
 \donttest{
 sim <- simulate_static_dbn(n = 6, time = 5, seed = 1)
 fit <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
-ppd <- posterior_predict_dbn(fit, ndraws = 5)
+ppd <- posterior_predict_dbn(fit, draws = 5)
 if (requireNamespace("ggplot2", quietly = TRUE)) plot_ppc_ecdf(fit, ppd, Y_obs = sim$Y)
 }
 }

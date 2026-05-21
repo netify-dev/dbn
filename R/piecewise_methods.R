@@ -292,18 +292,19 @@ summary_piecewise <- function(object, ...) {
 ####
 #' Simulate from Piecewise Model
 #'
-#' @description generates forecasts or simulations from piecewise model
-#' @param object piecewise dbn fit
-#' @param H forecast horizon
-#' @param ndraws number of posterior draws to use
-#' @param seed random seed
-#' @param ... additional arguments
-#' @return list with simulated values
+#' @description Generates forecasts or simulations from a piecewise DBN model.
+#' @param object Piecewise `dbn` fit.
+#' @param H Forecast horizon.
+#' @param draws Number of posterior draws to use.
+#' @param summary `"mean"` (default) or `"none"` (return all draws).
+#' @param seed Random seed.
+#' @param ... Additional arguments (currently unused).
+#' @return Array of simulated values; 4D if `summary = "mean"`, 5D
+#'   (with a trailing draws dimension) otherwise.
 #' @keywords internal
-simulate_piecewise <- function(object, H = 10, ndraws = 100, S = NULL,
+simulate_piecewise <- function(object, H = 10, draws = 100,
 							   summary = c("mean", "none"), seed = NULL, ...) {
 	if (!is.null(seed)) set.seed(seed)
-	if (!is.null(S)) ndraws <- S
 	summary <- match.arg(summary)
 
 	n_row <- object$dims$n_row
@@ -312,9 +313,8 @@ simulate_piecewise <- function(object, H = 10, ndraws = 100, S = NULL,
 	Tt <- object$dims$Tt
 	K <- object$blocks$K
 
-	# use last block's A, B for forecasting
 	n_available <- object$settings$draws
-	draw_idx <- sample(1:n_available, min(ndraws, n_available))
+	draw_idx <- sample(1:n_available, min(draws, n_available))
 
 	Y_sim <- array(NA, dim = c(n_row, n_col, p, H, length(draw_idx)))
 

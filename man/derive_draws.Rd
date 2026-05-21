@@ -7,27 +7,33 @@
 derive_draws(fit, fun, draws = NULL, chunk = 20, name = "derived")
 }
 \arguments{
-\item{fit}{A dbn model fit object}
+\item{fit}{A \code{dbn} model fit object}
 
-\item{fun}{Function to apply to each Theta draw}
+\item{fun}{Function applied to each posterior draw; receives a per-draw
+list of components and returns the derived quantity.}
 
-\item{draws}{Draw indices to process}
+\item{draws}{Integer vector of draw indices to process. \code{NULL} (default)
+processes all stored draws.}
 
 \item{chunk}{Chunk size for memory efficiency}
 
 \item{name}{Name for the derived quantity}
 }
 \value{
-List of derived quantities with class "dbn_derived"
+List of derived quantities with class \code{"dbn_derived"}.
 }
 \description{
-Apply a transformation function to each posterior draw
+Apply a transformation function \code{fun} to each posterior draw.
+The function receives a list with one element per stored draw component
+(\code{theta}, \code{z}, \code{pars}, and any \code{misc} slots), and should return the
+derived quantity for that draw.
 }
 \examples{
 \donttest{
 sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
 fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-dd <- derive_draws(fit, function(x) x$sigma2)
+dd <- derive_draws(fit, function(d) sum(d$theta^2))
+length(dd)
 }
 }
 \seealso{

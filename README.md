@@ -148,7 +148,12 @@ All models share the bilinear form `Theta_t = A_t * Theta_{t-1} * B_t' + M + noi
 
 ### Symmetric Networks (`symmetric = TRUE`)
 
-All models except low-rank support a `symmetric = TRUE` option that constrains B = A, appropriate for undirected networks where sender and receiver dynamics are identical. Requires square networks (n_row == n_col).
+All models except low-rank support a `symmetric = TRUE` option for undirected networks where sender and receiver dynamics are identical. The constraint is two-fold:
+
+- `B_t = A_t` is enforced at every sampling iteration, so the latent state evolves as `Theta_t = A_t %*% Theta_{t-1} %*% t(A_t) + noise`.
+- `A_t = t(A_t)` is enforced at storage: the package symmetrizes via `(A_t + t(A_t)) / 2` at each iteration, so the operator matrix is itself symmetric.
+
+The second constraint is what makes the diagonal-penalty constraint-counting argument rigorous (Proposition 5 of the companion methods paper). Requires square networks (`n_row == n_col`).
 
 ## Outcome Families
 

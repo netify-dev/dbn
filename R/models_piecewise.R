@@ -142,6 +142,17 @@ dbn_piecewise <- function(Y,
 		Theta_store <- vector("list", n_keep)
 	}
 
+	if (isTRUE(verbose > 0)) {
+		pw_notes <- character()
+		if (.dbn_data_looks_undirected(Y, n_row, n_col) && !isTRUE(symmetric)) {
+			pw_notes <- c(pw_notes,
+				"Data looks undirected (symmetric adjacency) but {.code symmetric = FALSE}; {.code symmetric = TRUE} is better identified for undirected networks.")
+		}
+		.dbn_preflight("piecewise", n_row, n_col, p, Tt, burn, nscan, odens,
+					   n_keep, notes = pw_notes)
+	}
+
+	t_start <- proc.time()[[3]]
 	if (verbose) {
 		cli::cli_alert_info("Running piecewise DBN MCMC ({n_iter} iterations)")
 		cli::cli_progress_bar("MCMC iterations", total = n_iter)
@@ -374,12 +385,19 @@ dbn_piecewise <- function(Y,
 		}
 		####
 
-		if (verbose && iter %% verbose == 0) {
-			cli::cli_progress_update()
+		if (verbose) {
+			if (iter %% verbose == 0 || iter == n_iter) {
+				cli::cli_progress_update(set = iter)
+			}
+			.dbn_heartbeat(iter, n_iter, t_start, verbose)
 		}
 	}
 
 	if (verbose) cli::cli_progress_done()
+	if (verbose) {
+		.dbn_closing("piecewise", t_start,
+					 conv = .dbn_mixing_note(param_samples[, "s2"], "s2"))
+	}
 	####
 
 	# assemble output

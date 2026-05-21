@@ -186,7 +186,7 @@ Replicated curves that closely track the observed curve indicate the model
 captures the data's distributional features.
 
 ```{r ppc, fig.height = 4}
-ppd = posterior_predict_dbn(fit, ndraws = 20, seed = 6886)
+ppd = posterior_predict_dbn(fit, draws = 20, seed = 6886)
 plot_ppc_ecdf(fit, ppd, Y_obs = Y, rel = 1)
 ```
 

@@ -4,20 +4,22 @@
 \alias{posterior_predict_dbn}
 \title{Generate Posterior Predictive Samples}
 \usage{
-posterior_predict_dbn(fit, ndraws = 100, seed = NULL, draws = NULL)
+posterior_predict_dbn(fit, draws = 100, seed = NULL, draw_indices = NULL)
 }
 \arguments{
 \item{fit}{A dbn model fit object (output from \code{\link[=dbn]{dbn()}})}
 
-\item{ndraws}{Number of replicated datasets to generate (default: 100)}
+\item{draws}{Number of replicated datasets to generate (default: 100)}
 
 \item{seed}{Random seed for reproducibility}
 
-\item{draws}{Specific posterior draw indices to use (overrides \code{ndraws})}
+\item{draw_indices}{Optional integer vector of specific posterior draw
+indices to use. When supplied, overrides \code{draws} (number replicated is
+set to \code{length(draw_indices)}).}
 }
 \value{
-A list of \code{ndraws} replicated data arrays, each with the same
-dimensions as the original data. Has class \code{"dbn_ppd"}.
+A list of replicated data arrays, each with the same dimensions
+as the original data. Has class \code{"dbn_ppd"}.
 }
 \description{
 Simulates new datasets from the fitted model. For each
@@ -30,7 +32,7 @@ captures the key features of the data (a "posterior predictive check").
 \donttest{
 sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
 fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-ppd <- posterior_predict_dbn(fit, ndraws = 5)
+ppd <- posterior_predict_dbn(fit, draws = 5)
 }
 }
 \seealso{

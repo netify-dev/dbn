@@ -211,8 +211,15 @@ predict_lowrank <- function(object, H = 1, draws = 100,
 #' @return Data frame with columns: `time`, `mean` (posterior mean of
 #'   \eqn{\alpha_k(t)}), `lo` (2.5th percentile), `hi` (97.5th
 #'   percentile), and `factor` (factor index).
-#' @seealso [dbn()] with `model = "lowrank"`, [plot_dbn()] for built-in
+#' @seealso [dbn()] with `model = "lowrank"`, [plot.dbn()] for built-in
 #'   diagnostic plots
+#' @examples
+#' \donttest{
+#' sim <- simulate_lowrank_dbn(n = 8, time = 8, r = 2, seed = 1)
+#' fit <- dbn_lowrank(sim$Y, r = 2, nscan = 200, burn = 100, verbose = FALSE)
+#' df_alpha <- tidy_dbn_lowrank(fit)
+#' head(df_alpha)
+#' }
 #' @export
 tidy_dbn_lowrank <- function(fit, factors = NULL) {
 	if (is.null(factors)) factors <- 1:fit$settings$r

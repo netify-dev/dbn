@@ -51,9 +51,13 @@ loglik_U <- function(U, alpha, Theta, Barray, sigma2) {
 ####
 
 ####
-#' DBN Low-rank Model (Accurate)
+#' DBN Low-rank Model (accurate alternative sampler, internal)
 #'
-#' @description Fits DBN with low-rank sender effects using batch FFBS
+#' @description Internal alternative implementation of the low-rank dynamic
+#'   model. Retained for regression testing and long-T numerical-conditioning
+#'   use cases. The public entry point is [dbn_lowrank()]; [dbn()] with
+#'   `model = "lowrank"` routes to [dbn_lowrank()], not to this function.
+#'   Access via `dbn:::dbn_lowrank_accurate()` if you need it.
 #' @param Y Data array (nodes x nodes x relations x time)
 #' @param r Rank for low-rank factorization. A good starting point is
 #'   \code{ceiling(log2(n))} where \code{n} is the number of nodes. Increase
@@ -73,14 +77,10 @@ loglik_U <- function(U, alpha, Theta, Barray, sigma2) {
 #' @param init Initial values
 #' @param symmetric Logical. Not supported for low-rank models (will error). Default: FALSE.
 #' @param ... Additional arguments (currently unused)
-#' @return List containing MCMC results
-#' @seealso \code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
-#' @examples
-#' \donttest{
-#' sim <- simulate_lowrank_dbn(n = 8, time = 5, r = 2, seed = 1)
-#' fit <- dbn_lowrank(sim$Y, r = 2, nscan = 200, burn = 100, verbose = FALSE)
-#' }
-#' @export
+#' @return List containing MCMC results (same structure as [dbn_lowrank()]).
+#' @seealso [dbn_lowrank()] (the public entry point), [dbn()] for the
+#'   dispatcher.
+#' @keywords internal
 dbn_lowrank_accurate <- function(Y,
 						family = c("ordinal", "gaussian", "binary"),
 						r = 2,
@@ -583,10 +583,18 @@ dbn_lowrank_accurate <- function(Y,
 ####
 #' DBN Low-rank Model
 #'
-#' @description Fits DBN with low-rank sender effects
+#' @description Fits a dynamic bilinear network model with a low-rank
+#'   factorization of the sender operator. Recommended for moderate-to-large
+#'   networks (n >= 25) where the full-rank `dbn_dynamic()` is memory- or
+#'   compute-limited.
 #' @inheritParams dbn_lowrank_accurate
 #' @param ... Additional arguments (currently unused)
-#' @seealso \code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
+#' @return A `dbn` object with components including `U`, `alpha`, `B`, `M`,
+#'   `Theta`, `sigma2`, `tau_A2`, `tau_B2`, `g2`, plus an `info` list of
+#'   model settings. See `summary()` and `plot()` methods for inspection,
+#'   and `tidy_dbn_lowrank()` for posterior summaries.
+#' @seealso [dbn()] for the main dispatcher, [param_summary()] for posterior
+#'   summaries, [tidy_dbn_lowrank()] for low-rank-specific tidiers.
 #' @examples
 #' \donttest{
 #' sim <- simulate_lowrank_dbn(n = 8, time = 5, r = 2, seed = 1)

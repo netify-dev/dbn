@@ -4,24 +4,26 @@
 \alias{simulate_static}
 \title{Simulate data from static DBN model}
 \usage{
-simulate_static(fit, S, summary = "none")
+simulate_static(fit, draws, summary = "none")
 }
 \arguments{
-\item{fit}{A fitted dbn object from dbn_static()}
+\item{fit}{A fitted \code{dbn} object from \code{dbn_static()}.}
 
-\item{S}{Number of posterior samples to generate}
+\item{draws}{Number of posterior samples to generate.}
 
 \item{summary}{Character string specifying summary type:
 \itemize{
-\item "none": Return full array of simulations (default)
-\item "mean": Return posterior mean across simulations
+\item \code{"none"}: Return full array of simulations (default)
+\item \code{"mean"}: Return posterior mean across simulations
 }}
 }
 \value{
-If summary = "none", returns 5D array with dimensions nodes by nodes by relations by time by samples.
-If summary = "mean", returns 4D array with dimensions nodes by nodes by relations by time containing posterior means.
+If \code{summary = "none"}, returns a 5D array with dimensions
+\verb{[nodes, nodes, relations, time, draws]}. If \code{summary = "mean"},
+returns a 4D array with dimensions \verb{[nodes, nodes, relations, time]}.
 }
 \description{
-Generate posterior predictive samples from a fitted static DBN model
+Generate posterior predictive samples from a fitted static
+DBN model.
 }
 \keyword{internal}

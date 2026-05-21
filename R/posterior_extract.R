@@ -536,19 +536,25 @@ regime_probs <- function(fit) {
 ####
 #' Derive new quantities from posterior draws
 #'
-#' @description Apply a transformation function to each posterior draw
-#' @param fit A dbn model fit object
-#' @param fun Function to apply to each Theta draw
-#' @param draws Draw indices to process
+#' @description Apply a transformation function `fun` to each posterior draw.
+#'   The function receives a list with one element per stored draw component
+#'   (`theta`, `z`, `pars`, and any `misc` slots), and should return the
+#'   derived quantity for that draw.
+#' @param fit A `dbn` model fit object
+#' @param fun Function applied to each posterior draw; receives a per-draw
+#'   list of components and returns the derived quantity.
+#' @param draws Integer vector of draw indices to process. `NULL` (default)
+#'   processes all stored draws.
 #' @param chunk Chunk size for memory efficiency
 #' @param name Name for the derived quantity
-#' @return List of derived quantities with class "dbn_derived"
+#' @return List of derived quantities with class `"dbn_derived"`.
 #' @seealso \code{\link{param_summary}}, \code{\link{theta_slice}}, \code{\link{theta_summary}}
 #' @examples
 #' \donttest{
 #' sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-#' dd <- derive_draws(fit, function(x) x$sigma2)
+#' dd <- derive_draws(fit, function(d) sum(d$theta^2))
+#' length(dd)
 #' }
 #' @export
 derive_draws <- function(fit, fun, draws = NULL, chunk = 20, name = "derived") {

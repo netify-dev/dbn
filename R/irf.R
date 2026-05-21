@@ -336,8 +336,7 @@ extract_baseline <- function(fit, draw_idx, n_row, n_col, p) {
 #' @param ... Additional arguments
 #' @return Data frame with IRF results including posterior summaries
 #' @seealso \code{\link{build_shock}}, \code{\link{plot.dbn_irf}},
-#'   \code{\link{print.dbn_irf}}, \code{\link{debug_irf}},
-#'   \code{\link{stat_density}}
+#'   \code{\link{print.dbn_irf}}, \code{\link{stat_density}}
 #' @examples
 #' \donttest{
 #' sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
@@ -587,21 +586,25 @@ print.dbn_irf <- function(x, digits = 3, ...) {
 ####
 #' Debug IRF
 #'
-#' @description Diagnostic output for troubleshooting IRF computation
+#' @description Diagnostic output for troubleshooting IRF computation.
+#'   Internal helper retained for regression testing.
 #' @param fit A dbn model fit object
 #' @param draw_idx Posterior draw index to debug
-#' @param shock_i Source node
-#' @param shock_j Target node
+#' @param shock_i Source node (default: 1)
+#' @param shock_j Target node (default: 2)
+#' @return Invisibly returns `NULL`; called for its printed diagnostic side
+#'   effects.
 #' @seealso \code{\link{compute_irf}}, \code{\link{build_shock}},
 #'   \code{\link{plot.dbn_irf}}
 #' @examples
 #' \donttest{
 #' sim <- simulate_dynamic_dbn(n = 15, time = 50, seed = 1)
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-#' debug_irf(fit, draw_idx = 1, shock_i = 1, shock_j = 2)
+#' dbn:::debug_irf(fit, draw_idx = 1, shock_i = 1, shock_j = 2)
 #' }
-#' @export
-debug_irf <- function(fit, draw_idx = 1, shock_i = 8, shock_j = 12) {
+#' @keywords internal
+#' @noRd
+debug_irf <- function(fit, draw_idx = 1, shock_i = 1, shock_j = 2) {
 	cat("=== IRF Debug Information ===\n")
 
 	cat("\n1. Model Structure:\n")
@@ -644,8 +647,12 @@ debug_irf <- function(fit, draw_idx = 1, shock_i = 8, shock_j = 12) {
 		S <- matrix(0, n_row, n_col)
 		S[shock_i, shock_j] <- 1
 
+		Tt_A <- dim(A_array)[3]
+		H_dbg <- min(5, Tt_A - 1)
+		t0_dbg <- max(0, Tt_A - H_dbg - 1)
+
 		cat("\n5. Testing C++ impulse_response_dynamic:\n")
-		Delta <- impulse_response_dynamic(A_array, B_array, S, 46, 5)
+		Delta <- impulse_response_dynamic(A_array, B_array, S, t0_dbg, H_dbg)
 		cat("   Delta dim:", dim(Delta), "\n")
 		cat("   Delta[,,2] non-zero elements:", sum(Delta[, , 2] != 0), "\n")
 

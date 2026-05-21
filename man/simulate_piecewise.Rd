@@ -7,28 +7,30 @@
 simulate_piecewise(
   object,
   H = 10,
-  ndraws = 100,
-  S = NULL,
+  draws = 100,
   summary = c("mean", "none"),
   seed = NULL,
   ...
 )
 }
 \arguments{
-\item{object}{piecewise dbn fit}
+\item{object}{Piecewise \code{dbn} fit.}
 
-\item{H}{forecast horizon}
+\item{H}{Forecast horizon.}
 
-\item{ndraws}{number of posterior draws to use}
+\item{draws}{Number of posterior draws to use.}
 
-\item{seed}{random seed}
+\item{summary}{\code{"mean"} (default) or \code{"none"} (return all draws).}
 
-\item{...}{additional arguments}
+\item{seed}{Random seed.}
+
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
-list with simulated values
+Array of simulated values; 4D if \code{summary = "mean"}, 5D
+(with a trailing draws dimension) otherwise.
 }
 \description{
-generates forecasts or simulations from piecewise model
+Generates forecasts or simulations from a piecewise DBN model.
 }
 \keyword{internal}

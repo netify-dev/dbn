@@ -16,7 +16,7 @@ test_that("posterior_predict_dbn works for static model", {
 	fit = dbn_static(Y, family = "ordinal", nscan = 100, burn = 50, verbose = FALSE)
 	
 	# PPD
-	ppd = posterior_predict_dbn(fit, ndraws = 20, seed = 123)
+	ppd = posterior_predict_dbn(fit, draws = 20, seed = 123)
 	
 	# structure
 	expect_type(ppd, "list")
@@ -43,7 +43,7 @@ test_that("posterior_predict_dbn works for dynamic model", {
 	fit = dbn_dynamic(Y, family = "ordinal", nscan = 100, burn = 50, verbose = FALSE)
 	
 	# PPD
-	ppd = posterior_predict_dbn(fit, ndraws = 15, seed = 456)
+	ppd = posterior_predict_dbn(fit, draws = 15, seed = 456)
 	
 	# structure
 	expect_type(ppd, "list")
@@ -74,7 +74,7 @@ test_that("posterior_predict_dbn works for dynamic model with time thinning", {
 	expect_equal(dim(fit$A[[1]])[3], 10)  # Tt / 2
 	
 	# PPD works with thinned draws
-	ppd = posterior_predict_dbn(fit, ndraws = 10, seed = 789)
+	ppd = posterior_predict_dbn(fit, draws = 10, seed = 789)
 	
 	# structure
 	expect_type(ppd, "list")
@@ -94,7 +94,7 @@ test_that("posterior_predict_dbn works for gaussian family", {
 	
 	# static
 	fit_static = dbn_static(Y, family = "gaussian", nscan = 80, burn = 40, verbose = FALSE)
-	ppd_static = posterior_predict_dbn(fit_static, ndraws = 10, seed = 111)
+	ppd_static = posterior_predict_dbn(fit_static, draws = 10, seed = 111)
 	
 	expect_type(ppd_static, "list")
 	expect_equal(length(ppd_static), 10)
@@ -102,7 +102,7 @@ test_that("posterior_predict_dbn works for gaussian family", {
 	
 	# dynamic
 	fit_dynamic = dbn_dynamic(Y, family = "gaussian", nscan = 80, burn = 40, verbose = FALSE)
-	ppd_dynamic = posterior_predict_dbn(fit_dynamic, ndraws = 10, seed = 222)
+	ppd_dynamic = posterior_predict_dbn(fit_dynamic, draws = 10, seed = 222)
 	
 	expect_type(ppd_dynamic, "list")
 	expect_equal(length(ppd_dynamic), 10)
@@ -121,7 +121,7 @@ test_that("posterior_predict_dbn works for binary family", {
 	
 	# static
 	fit_static = dbn_static(Y, family = "binary", nscan = 60, burn = 30, verbose = FALSE)
-	ppd_static = posterior_predict_dbn(fit_static, ndraws = 8, seed = 333)
+	ppd_static = posterior_predict_dbn(fit_static, draws = 8, seed = 333)
 	
 	expect_type(ppd_static, "list")
 	expect_equal(length(ppd_static), 8)
@@ -149,7 +149,7 @@ test_that("posterior_predict_dbn works for lowrank model", {
 	fit = dbn_lowrank(Y, family = "ordinal", r = 2, nscan = 80, burn = 40, verbose = FALSE)
 	
 	# PPD
-	ppd = posterior_predict_dbn(fit, ndraws = 10, seed = 444)
+	ppd = posterior_predict_dbn(fit, draws = 10, seed = 444)
 	
 	# structure
 	expect_type(ppd, "list")
@@ -171,7 +171,7 @@ test_that("posterior_predict_dbn works for hmm model", {
 	fit = dbn_hmm(Y, family = "ordinal", R = 2, nscan = 100, burn = 50, verbose = FALSE)
 	
 	# PPD
-	ppd = posterior_predict_dbn(fit, ndraws = 12, seed = 555)
+	ppd = posterior_predict_dbn(fit, draws = 12, seed = 555)
 	
 	# structure
 	expect_type(ppd, "list")
@@ -193,13 +193,13 @@ test_that("posterior_predict_dbn handles edge cases", {
 	fit = dbn_static(Y, family = "ordinal", nscan = 20, burn = 10, verbose = FALSE)
 	
 	# more draws than available
-	ppd = posterior_predict_dbn(fit, ndraws = 50, seed = 666)
+	ppd = posterior_predict_dbn(fit, draws = 50, seed = 666)
 	
 	# samples with replacement
 	expect_equal(length(ppd), 50)
 	
 	# specific draws
-	ppd_specific = posterior_predict_dbn(fit, draws = c(1, 5, 10), seed = 777)
+	ppd_specific = posterior_predict_dbn(fit, draw_indices = c(1, 5, 10), seed = 777)
 	expect_equal(length(ppd_specific), 3)
 })
 
@@ -219,7 +219,7 @@ test_that("posterior_predict_dbn works with 3D input data", {
 	})
 	
 	# predictions
-	ppd = posterior_predict_dbn(fit, ndraws = 10, seed = 888)
+	ppd = posterior_predict_dbn(fit, draws = 10, seed = 888)
 	
 	# matches expanded 4D structure
 	expect_type(ppd, "list")

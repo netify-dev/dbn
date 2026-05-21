@@ -10,7 +10,7 @@ test_that("impulse_response_const works correctly", {
 		S[1, 2] = 1  # unit shock
 		H = 3
 		
-		Delta = impulse_response_const(A, B, S, H)
+		Delta = dbn:::impulse_response_const(A, B, S, H)
 		
 		# dimensions
 		expect_equal(dim(Delta), c(m, m, H + 1))
@@ -46,7 +46,7 @@ test_that("impulse_response_dynamic works correctly", {
 		t0 = 2  # 0-based
 		H = 3
 		
-		Delta = impulse_response_dynamic(Aarray, Barray, S, t0, H)
+		Delta = dbn:::impulse_response_dynamic(Aarray, Barray, S, t0, H)
 		
 		# dimensions
 		expect_equal(dim(Delta), c(m, m, H + 1))
@@ -146,7 +146,7 @@ test_that("error handling works correctly", {
 		B = diag(m + 1)  # wrong size
 		S = matrix(0, m, m)
 		
-		expect_error(impulse_response_const(A, B, S, 5), "dimensions")
+		expect_error(dbn:::impulse_response_const(A, B, S, 5), "dimensions")
 		
 		# invalid shock parameters
 		expect_error(build_shock(m, "unit_edge", i = 0, j = 1), "between 1 and")

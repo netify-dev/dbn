@@ -2,7 +2,7 @@
 % Please edit documentation in R/models_lowrank.R
 \name{dbn_lowrank_accurate}
 \alias{dbn_lowrank_accurate}
-\title{DBN Low-rank Model (Accurate)}
+\title{DBN Low-rank Model (accurate alternative sampler, internal)}
 \usage{
 dbn_lowrank_accurate(
   Y,
@@ -62,17 +62,17 @@ if posterior predictive checks show poor fit. Default: 2.}
 \item{...}{Additional arguments (currently unused)}
 }
 \value{
-List containing MCMC results
+List containing MCMC results (same structure as \code{\link[=dbn_lowrank]{dbn_lowrank()}}).
 }
 \description{
-Fits DBN with low-rank sender effects using batch FFBS
-}
-\examples{
-\donttest{
-sim <- simulate_lowrank_dbn(n = 8, time = 5, r = 2, seed = 1)
-fit <- dbn_lowrank(sim$Y, r = 2, nscan = 200, burn = 100, verbose = FALSE)
-}
+Internal alternative implementation of the low-rank dynamic
+model. Retained for regression testing and long-T numerical-conditioning
+use cases. The public entry point is \code{\link[=dbn_lowrank]{dbn_lowrank()}}; \code{\link[=dbn]{dbn()}} with
+\code{model = "lowrank"} routes to \code{\link[=dbn_lowrank]{dbn_lowrank()}}, not to this function.
+Access via \code{dbn:::dbn_lowrank_accurate()} if you need it.
 }
 \seealso{
-\code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
+\code{\link[=dbn_lowrank]{dbn_lowrank()}} (the public entry point), \code{\link[=dbn]{dbn()}} for the
+dispatcher.
 }
+\keyword{internal}

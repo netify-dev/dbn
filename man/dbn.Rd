@@ -13,6 +13,7 @@ dbn(
   odens = 1,
   verbose = TRUE,
   symmetric = FALSE,
+  sampler = "auto",
   ...
 )
 }
@@ -52,6 +53,13 @@ See \strong{Details} for guidance on choosing:
 \item{verbose}{Logical or numeric. If TRUE, show progress. If numeric, print detailed info every n iterations (default: TRUE)}
 
 \item{symmetric}{Logical. If TRUE, enforce B = A (symmetric/undirected network). Requires square network (n_row == n_col). Not supported for lowrank models. Default: FALSE.}
+
+\item{sampler}{Character string specifying the inference sampler (dynamic model only).
+\itemize{
+\item \code{"auto"} (default): Smart choice — exact PCG for symmetric, FFBS for asymmetric.
+\item \code{"exact"}: Exact posterior via preconditioned conjugate gradient (PCG).
+\item \code{"approx"}: Approximate posterior via forward-filtering/backward-sampling (FFBS).
+}}
 
 \item{...}{Additional model-specific parameters:
 \describe{

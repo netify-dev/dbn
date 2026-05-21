@@ -75,7 +75,7 @@ test_that("posterior_predict works for lowrank model", {
 	sim = simulate_lowrank_dbn(n = 6, p = 1, time = 6, r = 2, seed = 48)
 	fit = dbn(sim$Y, model = "lowrank", family = "ordinal",
 						 nscan = 80, burn = 40, verbose = FALSE, r = 2)
-	ppd = posterior_predict_dbn(fit, ndraws = 5, seed = 1)
+	ppd = posterior_predict_dbn(fit, draws = 5, seed = 1)
 	expect_s3_class(ppd, "dbn_ppd")
 	expect_equal(length(ppd), 5)
 })
