@@ -63,3 +63,5 @@ src/*.so
 src/*.dll
 src/*.dylib
 src/symbols.rds
+
+.claude/
