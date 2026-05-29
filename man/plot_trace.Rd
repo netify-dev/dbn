@@ -29,3 +29,6 @@ if (requireNamespace("ggplot2", quietly = TRUE)) plot_trace(fit)
 \seealso{
 \code{\link{param_summary}}, \code{\link{plot_theta}}, \code{\link{plot_regime_probs}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

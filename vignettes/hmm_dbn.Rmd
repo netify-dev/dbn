@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
   comment   = "#>",
   fig.align = "center",
   fig.width = 6, fig.height = 4,
-  message   = FALSE, warning = FALSE,
+  message   = TRUE, warning = FALSE,
   eval      = NOT_CRAN
 )
 library(dbn)
@@ -27,122 +27,175 @@ library(ggplot2)
 
 ## 1 Overview
 
-The HMM variant of the dynamic bilinear network model allows for
-regime-switching dynamics.  At each time point, the network is governed
+The HMM variant of the dynamic bilinear network model handles
+regime-switching dynamics. At each time point, the network is governed
 by one of $R$ discrete regimes, each with its own influence matrices
-$A_r$ and $B_r$.  Transitions between regimes follow a Markov chain with
-an estimated transition matrix $\Pi$:
+$A_r$ and $B_r$. Transitions between regimes follow a Markov chain
+with an estimated transition matrix $\Pi$:
 
-$$\Theta_t = A_{s_t} \, \Theta_{t-1} \, B_{s_t}^\top + M + \varepsilon_t, \quad s_t \sim \text{Markov}(\Pi)$$
+$$\Theta_t = M + A_{s_t} \, (\Theta_{t-1} - M) \, B_{s_t}^\top + \varepsilon_t, \quad s_t \sim \text{Markov}(\Pi)$$
 
-This model is appropriate when network dynamics exhibit abrupt
-structural breaks and the analyst wants the model to discover when those
-breaks occur, rather than specifying them in advance.  For known break
-points, the piecewise model provides more stable inference with fewer
-parameters (see `vignette("piecewise_dbn")`).
+Use this when network dynamics have abrupt structural breaks and you
+want the model to discover when the breaks happened rather than
+specifying them up front. For known break points, the piecewise model
+has fewer parameters (see `vignette("piecewise_dbn")`).
 
-Regime identification improves with network size, time series length, and
-the magnitude of the structural difference between regimes.  For small
-networks ($n < 15$) or subtle regime changes, the piecewise model with
-known break points is a more reliable choice.
+Regime identification gets easier with bigger networks, longer time
+series, and larger structural differences between regimes. For small
+networks (roughly $n \leq 10$) or subtle regime changes, piecewise with
+known break points is the more reliable choice.
 
 ## 2 Simulate a regime-switching network
 
-We simulate a two-regime network with 12 actors over 30 time periods.
-The high `transition_prob` (0.9) means each regime persists for several
-consecutive periods before switching.  The large `tau_A2` and `tau_B2`
-values (0.8) create regimes with substantially different dynamics, which
-is important for reliable regime identification.
+We simulate a two-regime network with 15 actors over 50 time periods.
+A `transition_prob` of 0.85 means each regime persists for an average
+of $1/(1 - 0.85) \approx 6.7$ consecutive periods before switching, so
+a 50-period series usually visits both regimes several times. Moderate
+`tau_A2` and `tau_B2` values (0.3) keep the regimes visibly distinct
+while staying in a numerically stable range; very large innovation
+variances (≥ 1.0) here cause the variance posteriors to saturate the
+sampler's safety ceiling.
 
 ```{r simulate, cache = TRUE}
 sim = simulate_hmm_dbn(
-  n     = 12,
+  n     = 15,
   p     = 1,
-  time  = 30,
+  time  = 50,
   R     = 2,
-  sigma2        = 0.3,
-  tau_A2        = 0.8,
-  tau_B2        = 0.8,
-  transition_prob = 0.9,
+  sigma2          = 0.3,
+  tau_A2          = 0.3,
+  tau_B2          = 0.3,
+  transition_prob = 0.85,
   seed  = 6886
 )
 
-dim(sim$Y)
+dim(sim$Z)
 
 # true regime sequence and frequencies
 sim$S
 table(sim$S)
 ```
 
-The true regime labels show which regime generated each time point.  With
-two regimes and a transition probability of 0.9, we expect each regime
-to persist for an average of 10 consecutive periods before switching.
+The true regime labels show which regime generated each time point.
 
 ## 3 Fit the HMM model
 
-We set `model = "hmm"` and specify `R = 2` regimes.  The sampler jointly
-estimates regime-specific dynamics matrices ($A_r$, $B_r$), the
+Set `model = "hmm"` and specify `R = 2` regimes. We fit on the
+continuous latent (`sim$Z`) with the Gaussian family for sharper
+recovery at this network size; the ordinal path is also supported but
+loses cell-level information through the binning. The sampler jointly
+estimates the regime-specific dynamics matrices ($A_r$, $B_r$), the
 transition matrix $\Pi$, and the regime labels $s_t$.
 
 ```{r fit, cache = TRUE}
 fit = dbn(
-  sim$Y,
+  sim$Z,
   model   = "hmm",
-  family  = "ordinal",
+  family  = "gaussian",
   R       = 2,
-  nscan   = 1000,
-  burn    = 500,
-  odens   = 2,
+  nscan   = 3000,
+  burn    = 1500,
+  odens   = 3,
   verbose = FALSE
 )
 ```
 
 ## 4 Model summary and transition matrix
 
-The summary reports the posterior mean transition matrix $\Pi$ and
-variance parameters.  The diagonal of $\Pi$ indicates regime persistence:
-values near 1 mean regimes tend to stick, while large off-diagonal values
-indicate frequent switching.
+The summary reports the posterior mean transition matrix $\Pi$ and the
+variance parameters. The diagonal of $\Pi$ measures regime persistence:
+values near 1 mean the regimes stick; large off-diagonals mean frequent
+switching.
 
 ```{r summary}
 summary(fit)
 ```
 
-Two things to note about the estimated $\Pi$.  First, the model's regime
-labels may not match the simulation's — this is the standard
-label-switching issue in mixture models and does not affect the
-substantive results.  Second, with the moderate chain length used here
-(`nscan = 1000`), the transition matrix has substantial posterior
-uncertainty.  Recovering the true persistence (0.9 on the diagonal)
-requires longer chains and larger networks; with $n = 12$ actors and
-30 time points, the model has limited data per regime to pin down $\Pi$
-precisely.  For substantive work, run at least `nscan = 5000` with
-`burn = 2000`.
+The model's regime labels may not match the simulator's; this is the
+standard label-switching issue in mixture models and does not affect
+substantive results.
 
 ## 5 Regime probabilities
 
-The posterior probability of each regime at each time point provides the
-model's classification of the time series into regimes.  Probabilities
-near 0 or 1 indicate confident classification; values near 0.5 indicate
-ambiguity.  Regime identification depends on how different the regimes
-are (controlled by `tau_A2` and `tau_B2` in the simulation) and how much
-data is available per time point (number of actors).
+The posterior probability of each regime at each time point gives the
+model's classification of the series. Values near 0 or 1 mean confident
+classification; near 0.5 means ambiguous. Identification depends on how
+different the regimes are (controlled by `tau_A2` and `tau_B2` in the
+simulator) and how much data lives at each time point (the number of
+actors).
 
 ```{r regime-probs, fig.height = 3.5}
 plot_regime_probs(fit)
 ```
 
-The `regime_probs()` function returns the underlying probability matrix
-for custom analysis.  Each row sums to 1 across regimes.
+`regime_probs()` returns the underlying probability matrix for custom
+analysis. Each row sums to 1 across regimes.
 
 ```{r regime-table}
 probs = regime_probs(fit)
 head(probs, 10)
 ```
 
+### Recovery against the true regime sequence
+
+The model's regime labels may be permuted relative to the simulator's,
+so we align them by checking both label orderings and keeping the
+assignment with higher agreement.
+
+```{r regime-recovery, fig.height = 3.5}
+modal = apply(probs, 1, which.max)
+true_S = sim$S
+
+# pick the label permutation that best matches the truth. for R = 2
+# the only non-identity permutation is the swap; in general we search
+# all R! permutations and keep the highest-agreement assignment.
+R = ncol(probs)
+all_perms = if (requireNamespace("gtools", quietly = TRUE)) {
+  gtools::permutations(R, R)
+} else {
+  # fallback when gtools is not available: identity and reverse only.
+  # exhaustive for R = 2, partial for R >= 3.
+  rbind(seq_len(R), rev(seq_len(R)))
+}
+accs = apply(all_perms, 1, function(p) mean(p[modal] == true_S))
+best = all_perms[which.max(accs), ]
+modal_aligned = best[modal]
+acc = max(accs)
+
+df_states = rbind(
+  data.frame(time = seq_along(true_S),       regime = factor(true_S),
+             source = "True"),
+  data.frame(time = seq_along(modal_aligned), regime = factor(modal_aligned),
+             source = "Posterior modal")
+)
+
+ggplot(df_states, aes(x = time, y = source, fill = regime)) +
+  geom_tile(colour = "white", linewidth = 0.4) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title    = "Regime Sequence Recovery",
+    subtitle = paste0("Modal agreement = ", round(acc, 2)),
+    x = "Time", y = NULL, fill = "Regime"
+  ) +
+  theme_bw() +
+  theme(panel.border = element_blank(), panel.grid = element_blank())
+```
+
+Modal agreement well above the 0.5 chance baseline means the model
+recovers the regime structure. Disagreements usually cluster near the
+true transition points, where the data themselves are genuinely
+ambiguous. At the demo settings here ($n = 15$, $T = 50$,
+`nscan = 3000`) recovery is solid; at smaller scales (say
+$n \leq 12$, $T \leq 30$, `nscan` in the low hundreds), modal agreement
+can sit near the chance baseline even when the regimes are genuinely
+distinct, because the sampler does not have enough information per
+regime to pin down the labels. For substantive HMM inference, aim for
+at least $n \geq 15$, $T \geq 40$, `nscan` $\geq 5000$, and run
+multiple chains via `dbn_multichain()`.
+
 ## 6 Model diagnostics
 
-The default `plot()` method for HMM fits provides a combined diagnostic
+The default `plot()` method for HMM fits gives a combined diagnostic
 view: regime probabilities, the estimated transition matrix, and MCMC
 trace plots for monitoring convergence.
 
@@ -152,9 +205,8 @@ plot(fit)
 
 ## 7 Dyad trajectory
 
-The `dyad_path()` function tracks a specific bilateral relationship
-over time with posterior credible intervals, averaging across regime
-assignments.
+`dyad_path()` tracks a specific bilateral relationship over time with
+posterior credible intervals, averaging across regime assignments.
 
 ```{r dyad, cache = TRUE, fig.height = 3.5}
 dyad_path(fit, i = 2, j = 5)
@@ -163,9 +215,9 @@ dyad_path(fit, i = 2, j = 5)
 ## 8 Forecasting
 
 The `predict()` method samples future regime states from $\Pi$ and
-propagates the regime-specific bilinear dynamics forward.  This means
-forecast uncertainty reflects both posterior uncertainty in $A_r$ and
-$B_r$ and uncertainty about which regime will be active in future periods.
+propagates the regime-specific bilinear dynamics forward. So forecast
+uncertainty captures both the posterior uncertainty in $A_r$, $B_r$ and
+the uncertainty about which regime is active in future periods.
 
 ```{r forecast}
 pred = predict(fit, H = 5, draws = 100, summary = "mean")
@@ -174,12 +226,11 @@ dim(pred)
 
 ## 9 When to use HMM
 
-The HMM model is appropriate when network dynamics exhibit discrete
-structural breaks (such as policy changes, crises, or regime
-transitions) and the analyst wants data-driven discovery of when those
-breaks occur.  The number of regimes $R$ should be small (2-5), and
-the network should have enough actors and time points to identify
-regime structure.  For smoothly evolving dynamics without discrete
-breaks, `model = "dynamic"` is a better choice.  For known break points,
-`model = "piecewise"` provides more stable inference.  For large networks
-(50+ actors), `model = "lowrank"` offers better scalability.
+Reach for the HMM model when network dynamics have discrete structural
+breaks (policy changes, crises, regime transitions) and you want
+data-driven discovery of when the breaks happened. Keep $R$ small (2-5),
+and make sure the network has enough actors and time points to identify
+the regime structure. For smoothly evolving dynamics without discrete
+breaks, `model = "dynamic"` is a better choice. For known break points,
+use `model = "piecewise"`. For large networks (50+ actors),
+`model = "lowrank"` scales better.

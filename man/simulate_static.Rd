@@ -4,7 +4,7 @@
 \alias{simulate_static}
 \title{Simulate data from static DBN model}
 \usage{
-simulate_static(fit, draws, summary = "none")
+simulate_static(fit, draws = 100L, summary = "none")
 }
 \arguments{
 \item{fit}{A fitted \code{dbn} object from \code{dbn_static()}.}

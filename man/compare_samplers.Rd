@@ -26,3 +26,6 @@ For two fits to the same data using different samplers
 in posterior mean A and B matrices. Useful for assessing how much the
 approximation differs from the exact method.
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

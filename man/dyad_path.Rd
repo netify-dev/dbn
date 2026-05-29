@@ -36,3 +36,6 @@ dyad_path(fit, i = 1, j = 2)
 \code{\link{dbn}}, \code{\link{net_snapshot}},
 \code{\link{role_trajectory}}, \code{\link{theta_summary}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

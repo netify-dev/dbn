@@ -33,3 +33,6 @@ if (requireNamespace("ggplot2", quietly = TRUE)) plot_theta(fit)
 \seealso{
 \code{\link{theta_summary}}, \code{\link{plot_trace}}, \code{\link{param_summary}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

@@ -9,9 +9,13 @@ plot_piecewise_blocks(x, ...)
 \arguments{
 \item{x}{piecewise dbn fit}
 
-\item{...}{additional arguments}
+\item{...}{unused}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
-visualizes A matrix differences across blocks
+Per-pair heatmap of posterior-mean differences between
+block-specific A matrices.
 }
 \keyword{internal}

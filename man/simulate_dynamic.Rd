@@ -4,7 +4,7 @@
 \alias{simulate_dynamic}
 \title{Forecast future network states from dynamic DBN model}
 \usage{
-simulate_dynamic(fit, H, draws, summary = "none")
+simulate_dynamic(fit, H, draws = 100L, summary = "none", seed = NULL)
 }
 \arguments{
 \item{fit}{A fitted \code{dbn} object from \code{dbn_dynamic()}.}

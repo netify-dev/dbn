@@ -14,8 +14,9 @@ build_shock(
 )
 }
 \arguments{
-\item{m}{Number of actors (senders). This should match the fitted model's
-network size.}
+\item{m}{Number of actors (senders), or a fitted \code{dbn} object. When a
+fitted object is passed, the network size and actor names are read off
+the fit so \code{i} and \code{j} may be supplied as character strings.}
 
 \item{type}{Type of shock:
 \itemize{
@@ -25,14 +26,17 @@ network size.}
 \item \code{"density"}: uniform perturbation to all edges
 }}
 
-\item{i}{Source actor index (sender)}
+\item{i}{Source actor (sender). Integer index or character name; the
+latter is matched against \code{dimnames(fit$Y)[[1]]} when \code{m} is a fit.}
 
-\item{j}{Target actor index (receiver), used only for \code{"unit_edge"}}
+\item{j}{Target actor (receiver), used only for \code{"unit_edge"}. Integer
+index or character name (matched against \code{dimnames(fit$Y)[[2]]}).}
 
 \item{magnitude}{Size of the perturbation. Scale relative to your data:
 e.g., if data ranges from -1 to 1, a magnitude of 0.5 is a large shock.}
 
-\item{n_col}{Number of receiver nodes (default: same as \code{m})}
+\item{n_col}{Number of receiver nodes (default: same as \code{m}). Ignored
+when \code{m} is a fitted \code{dbn} object.}
 }
 \value{
 An \verb{m x n_col} matrix of zeros with the specified entries set to
@@ -60,9 +64,17 @@ For \strong{symmetric (undirected) networks}, symmetrize the shock after
 building it: \code{S = S + t(S)}.
 }
 \examples{
-# Unit edge shock: activate edge from node 1 to node 2
+# Integer indices (legacy interface)
 S <- build_shock(m = 5, type = "unit_edge", i = 1, j = 2)
-str(S)
+
+# Named actors via a fitted object
+\dontrun{
+  Y <- simulate_dynamic_dbn(n = 5, time = 8)$Z
+  dimnames(Y) <- list(c("USA","UK","CHN","RUS","DEU"),
+                      c("USA","UK","CHN","RUS","DEU"), "tie", NULL)
+  fit <- dbn(Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
+  S <- build_shock(fit, type = "unit_edge", i = "USA", j = "CHN")
+}
 
 # Node-level shock: activate all outgoing edges from node 1
 S_out <- build_shock(m = 5, type = "node_out", i = 1)
@@ -75,4 +87,7 @@ S_bip <- build_shock(m = 4, n_col = 6, type = "unit_edge", i = 1, j = 3)
 }
 \seealso{
 \code{\link{compute_irf}}, \code{\link{plot.dbn_irf}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

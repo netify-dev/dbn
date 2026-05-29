@@ -37,3 +37,6 @@ ps <- param_summary(fit)
 \seealso{
 \code{\link{theta_summary}}, \code{\link{plot_trace}}, \code{\link{derive_draws}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

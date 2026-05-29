@@ -10,211 +10,202 @@ NULL
 ####
 #' Plot Piecewise DBN Results
 #'
-#' @description diagnostic plots for piecewise-static model
+#' @description ggplot-based diagnostic plots for the piecewise-static
+#'   model. Selects between four panel types: variance traces, pairwise
+#'   block-difference heatmaps, per-block influence-norm dotplot, or a
+#'   single-block influence heatmap.
 #' @param x piecewise dbn fit object
 #' @param type plot type: "trace", "blocks", "stability", "influence"
-#' @param block which block to plot (for block-specific plots)
+#' @param block which block to plot (for `type = "influence"`)
 #' @param ... additional arguments
-#' @return plot object (invisibly)
+#' @return A `ggplot` (or `gridExtra::arrangeGrob`) object.
 #' @keywords internal
 plot_piecewise <- function(x, type = c("trace", "blocks", "stability", "influence"),
-						   block = NULL, ...) {
+						   block = 1, ...) {
 	type <- match.arg(type)
-
-	if (type == "trace") {
-		plot_piecewise_trace(x, ...)
-	} else if (type == "blocks") {
-		plot_piecewise_blocks(x, ...)
-	} else if (type == "stability") {
-		plot_piecewise_stability(x, ...)
-	} else if (type == "influence") {
-		plot_piecewise_influence(x, block = block, ...)
-	}
+	if (!requireNamespace("ggplot2", quietly = TRUE))
+		cli::cli_abort("Package {.pkg ggplot2} is required for piecewise plotting.")
+	switch(type,
+		trace     = plot_piecewise_trace(x, ...),
+		blocks    = plot_piecewise_blocks(x, ...),
+		stability = plot_piecewise_stability(x, ...),
+		influence = plot_piecewise_influence(x, block = block, ...)
+	)
 }
 ####
 
 ####
 #' Trace Plot for Piecewise Model
 #'
-#' @description plots MCMC traces for variance parameters
+#' @description ggplot panel of variance-parameter MCMC traces.
 #' @param x piecewise dbn fit
-#' @param ... additional arguments
+#' @param ... unused
+#' @return A `ggplot` object.
 #' @keywords internal
 plot_piecewise_trace <- function(x, ...) {
 	params <- x$draws$pars
+	if (is.null(params) || nrow(params) == 0L)
+		cli::cli_abort("No scalar parameter draws found on the piecewise fit.")
 	n_keep <- nrow(params)
-
-	old_par <- par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
-	on.exit(par(old_par))
-
-	plot(1:n_keep, params$s2, type = "l", col = "steelblue",
-		 xlab = "Iteration", ylab = expression(sigma^2),
-		 main = "Observation Variance")
-
-	plot(1:n_keep, params$t2, type = "l", col = "darkgreen",
-		 xlab = "Iteration", ylab = expression(tau^2),
-		 main = "A/B Prior Variance")
-
-	plot(1:n_keep, params$g2, type = "l", col = "darkred",
-		 xlab = "Iteration", ylab = expression(gamma^2),
-		 main = "M Prior Variance")
-
-	# autocorrelation of s2
-	if (n_keep > 50) {
-		acf_vals <- acf(params$s2, lag.max = 50, plot = FALSE)
-		plot(acf_vals$lag, acf_vals$acf, type = "h", col = "steelblue",
-			 xlab = "Lag", ylab = "ACF", main = "s2 Autocorrelation")
-		abline(h = 0, lty = 2)
-	} else {
-		plot.new()
-		text(0.5, 0.5, "Insufficient draws for ACF")
-	}
-
-	invisible(x)
+	long <- data.frame(
+		iter = rep(seq_len(n_keep), 3L),
+		value = c(params$s2, params$t2, params$g2),
+		param = factor(rep(c("sigma2", "tau2", "g2"), each = n_keep),
+		               levels = c("sigma2", "tau2", "g2"))
+	)
+	ggplot2::ggplot(long, ggplot2::aes(x = .data$iter, y = .data$value)) +
+		ggplot2::geom_line(linewidth = 0.4, colour = "steelblue") +
+		ggplot2::facet_wrap(~ .data$param, scales = "free_y", ncol = 1L,
+			labeller = ggplot2::labeller(param = c(
+				sigma2 = "sigma^2 (observation variance)",
+				tau2   = "tau^2 (A/B prior variance)",
+				g2     = "g^2 (M prior variance)"
+			))) +
+		ggplot2::labs(x = "Iteration", y = NULL,
+		              title = "Piecewise model: variance parameter traces") +
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank(),
+		               strip.background = ggplot2::element_rect(fill = "black", colour = "black"),
+		               strip.text = ggplot2::element_text(colour = "white", hjust = 0))
 }
 ####
 
 ####
 #' Block Comparison Plot
 #'
-#' @description visualizes A matrix differences across blocks
+#' @description Per-pair heatmap of posterior-mean differences between
+#'   block-specific A matrices.
 #' @param x piecewise dbn fit
-#' @param ... additional arguments
+#' @param ... unused
+#' @return A `ggplot` object.
 #' @keywords internal
 plot_piecewise_blocks <- function(x, ...) {
 	K <- x$blocks$K
-	n_row <- x$dims$n_row
-
 	if (K < 2) {
-		cli::cli_warn("Single block model - no block comparison to plot")
-		return(invisible(x))
+		cli::cli_warn("Single block model -- no block comparison to plot.")
+		return(invisible(NULL))
 	}
-
-	# get posterior mean A for each block
-	A_means <- lapply(1:K, function(k) {
+	n_row <- x$dims$n_row
+	# posterior mean A per block
+	A_means <- lapply(seq_len(K), function(k) {
 		A_samples <- lapply(x$draws$misc$A, function(a) a[[k]])
 		Reduce(`+`, A_samples) / length(A_samples)
 	})
-
-	# compute pairwise differences
-	n_pairs <- K * (K - 1) / 2
-	n_cols <- min(3, n_pairs)
-	n_rows <- ceiling(n_pairs / n_cols)
-
-	old_par <- par(mfrow = c(n_rows, n_cols), mar = c(4, 4, 3, 1))
-	on.exit(par(old_par))
-
-	pair_idx <- 1
-	for (i in 1:(K - 1)) {
-		for (j in (i + 1):K) {
-			diff_mat <- A_means[[j]] - A_means[[i]]
-
-			# heatmap of difference
-			image(1:n_row, 1:n_row, t(diff_mat)[, n_row:1],
-				  col = colorRampPalette(c("blue", "white", "red"))(50),
-				  xlab = "Sender", ylab = "Receiver",
-				  main = paste0("A[", x$blocks$names[j], "] - A[", x$blocks$names[i], "]"))
-
-			pair_idx <- pair_idx + 1
-		}
-	}
-
-	invisible(x)
+	block_names <- x$blocks$names
+	pairs <- utils::combn(K, 2L)
+	df <- do.call(rbind, lapply(seq_len(ncol(pairs)), function(p) {
+		i <- pairs[1L, p]; j <- pairs[2L, p]
+		diff_mat <- A_means[[j]] - A_means[[i]]
+		data.frame(
+			sender = rep(seq_len(n_row), each = n_row),
+			receiver = rep(seq_len(n_row), times = n_row),
+			diff = as.vector(diff_mat),
+			pair = sprintf("A[%s] - A[%s]", block_names[j], block_names[i])
+		)
+	}))
+	lim <- max(abs(df$diff), na.rm = TRUE)
+	ggplot2::ggplot(df, ggplot2::aes(x = .data$sender, y = .data$receiver, fill = .data$diff)) +
+		ggplot2::geom_tile() +
+		ggplot2::scale_y_reverse(breaks = pretty(seq_len(n_row))) +
+		ggplot2::scale_fill_gradient2(low = "blue", mid = "white", high = "red",
+		                              midpoint = 0, limits = c(-lim, lim),
+		                              name = expression(Delta * A)) +
+		ggplot2::facet_wrap(~ .data$pair) +
+		ggplot2::coord_equal() +
+		ggplot2::labs(x = "Sender", y = "Receiver",
+		              title = "Block-to-block differences in posterior mean A") +
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank(),
+		               strip.background = ggplot2::element_rect(fill = "black", colour = "black"),
+		               strip.text = ggplot2::element_text(colour = "white", hjust = 0))
 }
 ####
 
 ####
 #' Plot Block Stability
 #'
-#' @description shows Frobenius norm of A across blocks
+#' @description Per-block Frobenius norm of A with 95% credible
+#'   intervals, plotted at the block midpoints.
 #' @param x piecewise dbn fit
-#' @param ... additional arguments
+#' @param ... unused
+#' @return A `ggplot` object.
 #' @keywords internal
 plot_piecewise_stability <- function(x, ...) {
 	K <- x$blocks$K
-
-	# compute posterior mean and CI for ||A_k||_F
-	A_norms <- matrix(NA, nrow = x$settings$draws, ncol = K)
-
-	for (s in 1:x$settings$draws) {
-		for (k in 1:K) {
+	A_norms <- matrix(NA_real_, nrow = x$settings$draws, ncol = K)
+	for (s in seq_len(x$settings$draws)) {
+		for (k in seq_len(K)) {
 			A_norms[s, k] <- sqrt(sum(x$draws$misc$A[[s]][[k]]^2))
 		}
 	}
-
-	# block midpoints for x-axis
-	midpoints <- sapply(x$blocks$block_indices, function(idx) mean(idx))
-
-	# compute means and CIs
-	means <- colMeans(A_norms)
-	lower <- apply(A_norms, 2, quantile, 0.025)
-	upper <- apply(A_norms, 2, quantile, 0.975)
-
-	old_par <- par(mar = c(5, 5, 3, 1))
-	on.exit(par(old_par))
-
-	plot(midpoints, means, type = "b", pch = 19, col = "steelblue",
-		 ylim = range(c(lower, upper)),
-		 xlab = "Time (block midpoint)", ylab = expression(paste("||", A[k], "||"[F])),
-		 main = "Influence Magnitude by Block")
-
-	# add CI
-	arrows(midpoints, lower, midpoints, upper,
-		   length = 0.05, angle = 90, code = 3, col = "steelblue")
-
-	# add block boundaries
-	bounds <- x$blocks$boundaries[-c(1, length(x$blocks$boundaries))]
-	if (length(bounds) > 0) {
-		abline(v = bounds, lty = 2, col = "gray50")
+	midpoints <- vapply(x$blocks$block_indices, function(idx) mean(idx), numeric(1))
+	df <- data.frame(
+		block = factor(x$blocks$names, levels = x$blocks$names),
+		midpoint = midpoints,
+		mean = colMeans(A_norms),
+		lo = apply(A_norms, 2L, stats::quantile, 0.025),
+		hi = apply(A_norms, 2L, stats::quantile, 0.975)
+	)
+	bounds <- x$blocks$boundaries[-c(1L, length(x$blocks$boundaries))]
+	p <- ggplot2::ggplot(df, ggplot2::aes(x = .data$midpoint, y = .data$mean)) +
+		ggplot2::geom_errorbar(ggplot2::aes(ymin = .data$lo, ymax = .data$hi),
+		                       width = 0.6, colour = "steelblue") +
+		ggplot2::geom_point(colour = "steelblue", size = 2.5) +
+		ggplot2::geom_line(colour = "steelblue", linewidth = 0.4) +
+		ggplot2::geom_text(ggplot2::aes(y = .data$hi, label = .data$block),
+		                   vjust = -0.8, size = 3.2) +
+		ggplot2::labs(x = "Time (block midpoint)",
+		              y = expression("||" * A[k] * "||"[F]),
+		              title = "Influence magnitude by block") +
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
+	if (length(bounds) > 0L) {
+		p <- p + ggplot2::geom_vline(xintercept = bounds,
+		                              linetype = "dashed", colour = "grey50")
 	}
-
-	# add block labels
-	for (k in 1:K) {
-		text(midpoints[k], upper[k] + 0.1 * diff(range(c(lower, upper))),
-			 x$blocks$names[k], cex = 0.8)
-	}
-
-	invisible(x)
+	p
 }
 ####
 
 ####
 #' Plot Influence Matrix for Block
 #'
-#' @description heatmap of A matrix for specified block
+#' @description Heatmap of the posterior mean A for a single block.
 #' @param x piecewise dbn fit
 #' @param block block index or name
-#' @param ... additional arguments
+#' @param ... unused
+#' @return A `ggplot` object.
 #' @keywords internal
 plot_piecewise_influence <- function(x, block = 1, ...) {
 	K <- x$blocks$K
-
-	# resolve block index
 	if (is.character(block)) {
-		block <- which(x$blocks$names == block)
-		if (length(block) == 0) {
+		block_idx <- which(x$blocks$names == block)
+		if (length(block_idx) == 0L)
 			cli::cli_abort("Block name not found: {block}")
-		}
+		block <- block_idx
 	}
-	if (block < 1 || block > K) {
+	if (block < 1L || block > K)
 		cli::cli_abort("Block index out of range: {block}")
-	}
-
 	n_row <- x$dims$n_row
-
-	# compute posterior mean A
 	A_samples <- lapply(x$draws$misc$A, function(a) a[[block]])
 	A_mean <- Reduce(`+`, A_samples) / length(A_samples)
-
-	old_par <- par(mar = c(5, 5, 4, 2))
-	on.exit(par(old_par))
-
-	image(1:n_row, 1:n_row, t(A_mean)[, n_row:1],
-		  col = colorRampPalette(c("blue", "white", "red"))(50),
-		  xlab = "Sender", ylab = "Receiver",
-		  main = paste0("Influence Matrix A - ", x$blocks$names[block]))
-
-	invisible(x)
+	df <- data.frame(
+		sender = rep(seq_len(n_row), each = n_row),
+		receiver = rep(seq_len(n_row), times = n_row),
+		value = as.vector(A_mean)
+	)
+	lim <- max(abs(df$value), na.rm = TRUE)
+	ggplot2::ggplot(df, ggplot2::aes(x = .data$sender, y = .data$receiver, fill = .data$value)) +
+		ggplot2::geom_tile() +
+		ggplot2::scale_y_reverse(breaks = pretty(seq_len(n_row))) +
+		ggplot2::scale_fill_gradient2(low = "blue", mid = "white", high = "red",
+		                              midpoint = 0, limits = c(-lim, lim),
+		                              name = "A entry") +
+		ggplot2::coord_equal() +
+		ggplot2::labs(x = "Sender", y = "Receiver",
+		              title = paste0("Influence matrix A -- ", x$blocks$names[block])) +
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 }
 ####
 
@@ -229,8 +220,6 @@ plot_piecewise_influence <- function(x, block = 1, ...) {
 summary_piecewise <- function(object, ...) {
 	cat("Piecewise-Static DBN Model Summary\n")
 	cat(rep("=", 40), "\n\n", sep = "")
-
-	# data dimensions
 	cat("Data:\n")
 	cat("  Nodes: ", object$dims$n_row, "\n", sep = "")
 	if (object$dims$is_bipartite) {
@@ -238,55 +227,39 @@ summary_piecewise <- function(object, ...) {
 	}
 	cat("  Relations: ", object$dims$p, "\n", sep = "")
 	cat("  Time points: ", object$dims$Tt, "\n\n", sep = "")
-
-	# block structure
 	cat("Block Structure:\n")
 	cat("  Number of blocks: ", object$blocks$K, "\n", sep = "")
 	cat("  Boundaries: ", paste(object$blocks$boundaries, collapse = " -> "), "\n", sep = "")
 	cat("  Block lengths: ", paste(object$blocks$lengths, collapse = ", "), "\n\n", sep = "")
-
-	# MCMC info
 	cat("MCMC:\n")
 	cat("  Iterations: ", object$settings$nscan, "\n", sep = "")
 	cat("  Burn-in: ", object$settings$burn, "\n", sep = "")
 	cat("  Saved draws: ", object$settings$draws, "\n\n", sep = "")
-
-	# parameter summaries
 	cat("Parameter Estimates (posterior mean [95% CI]):\n")
 	params <- object$draws$pars
-
-	s2_mean <- mean(params$s2)
-	s2_ci <- quantile(params$s2, c(0.025, 0.975))
+	s2_mean <- mean(params$s2); s2_ci <- stats::quantile(params$s2, c(0.025, 0.975))
 	cat("  s2: ", round(s2_mean, 4), " [", round(s2_ci[1], 4), ", ", round(s2_ci[2], 4), "]\n", sep = "")
-
-	t2_mean <- mean(params$t2)
-	t2_ci <- quantile(params$t2, c(0.025, 0.975))
+	t2_mean <- mean(params$t2); t2_ci <- stats::quantile(params$t2, c(0.025, 0.975))
 	cat("  t2: ", round(t2_mean, 4), " [", round(t2_ci[1], 4), ", ", round(t2_ci[2], 4), "]\n", sep = "")
-
-	g2_mean <- mean(params$g2)
-	g2_ci <- quantile(params$g2, c(0.025, 0.975))
+	g2_mean <- mean(params$g2); g2_ci <- stats::quantile(params$g2, c(0.025, 0.975))
 	cat("  g2: ", round(g2_mean, 4), " [", round(g2_ci[1], 4), ", ", round(g2_ci[2], 4), "]\n\n", sep = "")
-
-	# block-specific summaries
 	cat("Block-Specific Influence (||A_k||_F):\n")
-	for (k in 1:object$blocks$K) {
-		A_norms <- sapply(object$draws$misc$A, function(a) sqrt(sum(a[[k]]^2)))
-		norm_mean <- mean(A_norms)
-		norm_ci <- quantile(A_norms, c(0.025, 0.975))
+	for (k in seq_len(object$blocks$K)) {
+		A_norms <- vapply(object$draws$misc$A, function(a) sqrt(sum(a[[k]]^2)), numeric(1))
+		norm_mean <- mean(A_norms); norm_ci <- stats::quantile(A_norms, c(0.025, 0.975))
 		cat("  ", object$blocks$names[k], ": ", round(norm_mean, 3),
-			" [", round(norm_ci[1], 3), ", ", round(norm_ci[2], 3), "]\n", sep = "")
+		    " [", round(norm_ci[1], 3), ", ", round(norm_ci[2], 3), "]\n", sep = "")
 	}
-
-	# auto-K info if available
 	if (!is.null(object$auto_K)) {
 		cat("\nAutomatic Block Selection:\n")
 		cat("  Stage 1 suggestion: K = ", object$auto_K$stage1_suggestion, "\n", sep = "")
 		cat("  Selected K: ", object$auto_K$selected_K, "\n", sep = "")
 		cat("  WAIC comparison: ", paste(round(object$auto_K$waics, 2), collapse = ", "), "\n", sep = "")
 	}
-
 	invisible(object)
 }
+####
+
 ####
 
 ####

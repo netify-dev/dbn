@@ -9,9 +9,13 @@ plot_piecewise_stability(x, ...)
 \arguments{
 \item{x}{piecewise dbn fit}
 
-\item{...}{additional arguments}
+\item{...}{unused}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
-shows Frobenius norm of A across blocks
+Per-block Frobenius norm of A with 95\% credible
+intervals, plotted at the block midpoints.
 }
 \keyword{internal}

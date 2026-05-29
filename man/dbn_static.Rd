@@ -10,11 +10,15 @@ dbn_static(
   nscan = 10000,
   burn = 1000,
   odens = 1,
-  seed = 6886,
+  seed = NULL,
   verbose = TRUE,
   previous = NULL,
   init = NULL,
-  symmetric = FALSE
+  symmetric = FALSE,
+  a_sig = 1,
+  b_sig = 1,
+  a_g = 0.5,
+  b_g = 0.5
 )
 }
 \arguments{
@@ -35,19 +39,52 @@ dbn_static(
 
 \item{seed}{Random seed for reproducibility}
 
-\item{verbose}{Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.}
+\item{verbose}{Logical or numeric. If TRUE the progress bar is updated on every iteration (its display rate is throttled by the terminal); if numeric \code{n}, the bar is updated every n-th iteration; FALSE suppresses all progress output.}
 
 \item{previous}{Previous dbn_static results to continue from (optional)}
 
 \item{init}{List of initial values for parameters: B, s2, t2, g2, M, Z (optional)}
 
-\item{symmetric}{Logical. If TRUE, store symmetric flag in output dims. Default: FALSE.}
+\item{symmetric}{Logical. If TRUE, enforce a symmetric (undirected) operator: averages each Tucker factor with its transpose at every update and forces a symmetric baseline mean M. Requires a unipartite square network (n_row == n_col). Default: FALSE.}
+
+\item{a_sig, b_sig}{Shape and rate of the inverse-gamma prior on the
+process variance (default 1, 1).}
+
+\item{a_g, b_g}{Shape and rate of the inverse-gamma prior on the
+baseline-mean variance (default 0.5, 0.5).}
 }
 \value{
-List containing MCMC results
+A list with class \code{dbn}. The static fit stores its factor draws
+under a single name, \code{B}, as a length-3 list -- one Tucker factor per
+mode -- rather than as separate \code{A} (senders) and \code{B} (receivers) matrices:
+\describe{
+\item{\code{B[[1]]}}{Sender factor draws, dimension \verb{[n_row, n_row, draws]}.
+This is the static analogue of \code{A} in the dynamic model; static fits
+have no top-level \code{fit$A} field.}
+\item{\code{B[[2]]}}{Receiver factor draws, dimension \verb{[n_col, n_col, draws]}.}
+\item{\code{B[[3]]}}{Relation factor draws, dimension \verb{[p, p, draws]}.}
+}
+This layout reflects the static model's symmetric Tucker decomposition
+(all three modes are treated uniformly). For the per-mode access pattern
+that the dynamic model exposes (\code{fit$A} for senders, \code{fit$B} for
+receivers), use \code{fit$B[[1]]} and \code{fit$B[[2]]} respectively.
 }
 \description{
-Fits DBN model with fixed sender/receiver effects
+Fits a DBN with operators that do not vary over time
+(\eqn{A_t = A}, \eqn{B_t = B}). Good for small panels, short
+time series, and as a fast baseline. For the broader model
+structure (the deviation-form bilinear AR, priors, and the
+identifiability anchor \eqn{A_0 = B_0 = I}), see
+\link{dbn-package}.
+}
+\details{
+The static model has the Tucker decomposition
+\eqn{\Theta_t = M + A (\Theta_{t-1} - M) B^T + \varepsilon_t} with
+constant \eqn{A} and \eqn{B}. When \code{symmetric = TRUE} the
+sampler enforces \eqn{B = A} and a symmetric \eqn{M} by averaging
+the corresponding Tucker factor with its transpose after each
+update. Use \code{\link[=dbn_dynamic]{dbn_dynamic()}} when sender or receiver influence
+evolves over time.
 }
 \examples{
 \donttest{
@@ -57,4 +94,7 @@ fit <- dbn_static(sim$Y, nscan = 200, burn = 100, verbose = FALSE)
 }
 \seealso{
 \code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

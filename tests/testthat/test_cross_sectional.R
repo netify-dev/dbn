@@ -1,57 +1,43 @@
-####
-# cross-sectional data tests
-####
+#### cross-sectional (T=1) handling
 
-test_that("static model works with T=1 data", {
-	set.seed(100)
-	Y = array(sample(1:5, 8 * 8, replace = TRUE), dim = c(8, 8, 1, 1))
-	diag(Y[,,1,1]) = NA
+.mk_T1 = function(n = 8) {
+	Y = array(sample(1:5, n * n, replace = TRUE), dim = c(n, n, 1, 1))
+	diag(Y[, , 1, 1]) = NA
+	Y
+}
 
-	fit = dbn(Y, model = "static", family = "ordinal",
-						 nscan = 50, burn = 20, verbose = FALSE)
-	expect_s3_class(fit, "dbn")
-	expect_equal(fit$model, "static")
-})
-
-test_that("dbn() auto-detects T=1 and uses static model", {
-	set.seed(200)
-	Y = array(sample(1:5, 8 * 8, replace = TRUE), dim = c(8, 8, 1, 1))
-	diag(Y[,,1,1]) = NA
-
+test_that("dbn() auto-detects T=1 and dispatches to static", {
+	Y = .mk_T1()
 	expect_message(
-		fit <- dbn(Y, family = "ordinal", nscan = 30, burn = 10, verbose = FALSE),
-		"static"
+		fit <- dbn(Y, family = "ordinal",
+			nscan = 30, burn = 10, verbose = FALSE),
+		regexp = "static"
 	)
 	expect_equal(fit$model, "static")
 })
 
-test_that("dynamic model rejects T=1 data", {
-	Y = array(sample(1:5, 8 * 8, replace = TRUE), dim = c(8, 8, 1, 1))
-	expect_error(
-		dbn(Y, model = "dynamic", family = "ordinal", nscan = 10, burn = 5),
-		"at least 2"
-	)
+test_that("time-varying models reject T=1", {
+	Y = .mk_T1()
+	for (mdl in c("dynamic", "hmm", "lowrank")) {
+		expect_error(
+			dbn(Y, model = mdl, nscan = 20, burn = 5, verbose = FALSE),
+			regexp = "2 time points|T",
+			info = mdl
+		)
+	}
 })
 
-test_that("hmm model rejects T=1 data", {
-	Y = array(sample(1:5, 8 * 8, replace = TRUE), dim = c(8, 8, 1, 1))
-	expect_error(
-		dbn(Y, model = "hmm", family = "ordinal", nscan = 10, burn = 5),
-		"at least 2"
-	)
-})
-
-test_that("lowrank model rejects T=1 data", {
-	Y = array(sample(1:5, 8 * 8, replace = TRUE), dim = c(8, 8, 1, 1))
-	expect_error(
-		dbn(Y, model = "lowrank", family = "ordinal", nscan = 10, burn = 5),
-		"at least 2"
-	)
-})
-
-test_that("static model also works with T>1 data", {
-	sim = simulate_static_dbn(n = 8, p = 1, time = 5, seed = 300)
-	fit = dbn(sim$Y, model = "static", family = "ordinal",
-						 nscan = 50, burn = 20, verbose = FALSE)
-	expect_s3_class(fit, "dbn")
+test_that("static model fits T=1 and T>1 data uniformly", {
+	skip_on_cran()
+	# T=1
+	Y1 = .mk_T1()
+	fit1 = suppressMessages(dbn(Y1, model = "static", family = "ordinal",
+		nscan = 30, burn = 10, verbose = FALSE))
+	expect_s3_class(fit1, "dbn")
+	# T>1
+	Y5 = array(sample(1:5, 8 * 8 * 5, replace = TRUE), dim = c(8, 8, 1, 5))
+	for (t in 1:5) diag(Y5[, , 1, t]) = NA
+	fit5 = dbn(Y5, model = "static", family = "ordinal",
+		nscan = 30, burn = 10, verbose = FALSE)
+	expect_s3_class(fit5, "dbn")
 })

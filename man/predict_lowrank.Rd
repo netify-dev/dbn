@@ -4,7 +4,13 @@
 \alias{predict_lowrank}
 \title{Predict from Low-Rank Fit}
 \usage{
-predict_lowrank(object, H = 1, draws = 100, summary = c("mean", "none"))
+predict_lowrank(
+  object,
+  H = 1,
+  draws = 100,
+  summary = c("mean", "none"),
+  seed = NULL
+)
 }
 \arguments{
 \item{object}{A dbn object with model="lowrank"}

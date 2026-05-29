@@ -14,3 +14,6 @@
 \description{
 Print method for derived quantities
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

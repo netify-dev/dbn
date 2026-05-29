@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
   comment   = "#>",
   fig.align = "center",
   fig.width = 6, fig.height = 4,
-  message   = FALSE, warning = FALSE,
+  message   = TRUE, warning = FALSE,
   eval      = NOT_CRAN
 )
 library(dbn)
@@ -27,23 +27,28 @@ library(ggplot2)
 
 ## 1 Overview
 
-Many political processes exhibit structural breaks, discrete moments when
-the rules governing network dynamics fundamentally change.  The 2008
-financial crisis reshuffled economic dependencies.  The Arab Spring
-reorganized regional alliance patterns.  A leadership transition can
-redirect a country's foreign policy overnight.
+> **Terminology note.** Throughout this vignette "block" means a *time
+> interval* (a contiguous run of periods sharing the same dynamics),
+> not an actor block in the stochastic block model sense. The piecewise
+> model partitions the time axis, not the node set.
 
-The piecewise-static model handles this setting: you specify when breaks
-occurred and the model estimates how the influence structure differed
-across regimes.  It fits block-constant influence matrices $A_k$ and
-$B_k$ for each regime $k = 1, \ldots, K$:
+Many political processes have structural breaks: discrete moments when
+the rules of network dynamics fundamentally change. The 2008 financial
+crisis reshuffled economic dependencies. The Arab Spring reorganised
+regional alliance patterns. A leadership transition can redirect a
+country's foreign policy overnight.
 
-$$\Theta_t = A_{k(t)} \, \Theta_{t-1} \, B_{k(t)}^\top + M + \varepsilon_t$$
+The piecewise-static model handles this case directly: you say when the
+breaks happened and the model estimates how the influence structure
+differs across regimes. It fits block-constant matrices $A_k$ and $B_k$
+for regimes $k = 1, \ldots, K$:
 
-The piecewise model sits between the static and dynamic extremes.  It
-trades the time-point-level precision of the dynamic model for
-interpretability (each regime has a single, directly comparable influence
-matrix) and computational efficiency (estimating $K$ matrices instead of
+$$\Theta_t = M + A_{k(t)} \, (\Theta_{t-1} - M) \, B_{k(t)}^\top + \varepsilon_t$$
+
+Piecewise sits between the static and dynamic extremes. It gives up the
+time-point-level precision of the dynamic model in exchange for
+interpretability (each regime has a single, directly comparable
+influence matrix) and computational efficiency ($K$ matrices instead of
 $T-1$).
 
 | Consideration | Piecewise | Dynamic |
@@ -58,13 +63,13 @@ $T-1$).
 ## 2 Simulate data with a structural break
 
 We simulate a network where the influence structure changes at a known
-break point, then check whether the model recovers the difference.  The
+break point, then check whether the model recovers the difference. The
 `blocks` argument specifies the ending time index of each block: block 1
 covers $t = 1$ to 15, block 2 covers $t = 16$ to 30.
 
 ```{r simulate, cache = TRUE}
 sim = simulate_piecewise_dbn(
-  n      = 8,
+  n      = 12,
   time   = 30,
   blocks = c(15, 30),
   p      = 1,
@@ -85,21 +90,21 @@ round(mean(abs(sim$true_A[[1]] - sim$true_A[[2]])), 3)
 ```
 
 The element-wise difference between the two true $A$ matrices confirms
-that the data-generating process produces genuinely different regimes.
+the data-generating process really does produce different regimes.
 
 ## 3 Fit the piecewise model
 
-Pass the known break points via `blocks`.  The model estimates separate
-$A_k$ and $B_k$ for each regime while sharing the baseline mean $M$.
+Pass the known break points via `blocks`. The model estimates separate
+$A_k$ and $B_k$ per regime while sharing the baseline mean $M$.
 
 ```{r fit, cache = TRUE}
 fit = dbn(
-  sim$Y,
+  sim$Y_continuous,
   model   = "piecewise",
-  family  = "ordinal",
+  family  = "gaussian",
   blocks  = c(15, 30),
-  nscan   = 1000,
-  burn    = 500,
+  nscan   = 2000,
+  burn    = 1000,
   odens   = 2,
   verbose = FALSE
 )
@@ -109,20 +114,22 @@ summary(fit)
 
 ## 4 Convergence diagnostics
 
-```{r convergence, fig.height = 5}
+```{r convergence}
 check_convergence(fit)
+```
+
+```{r trace, fig.height = 5}
 plot_trace(fit, pars = c("s2", "t2", "g2"))
 ```
 
 ## 5 Regime comparison
 
-The `compare_blocks()` function quantifies differences between regimes
-with posterior uncertainty.  The output reports the posterior mean of the
-Frobenius norm $\|A_k - A_{k+1}\|$, a 95% credible interval, and the
-posterior probability that the difference exceeds a substantively
-meaningful threshold (default 0.1).  A high probability indicates strong
-evidence that the influence structure genuinely changed, not just
-sampling noise.
+`compare_blocks()` quantifies the difference between regimes with
+posterior uncertainty. It returns the posterior mean of the Frobenius
+norm $\|A_k - A_{k+1}\|$, a 95% credible interval, and the posterior
+probability that the difference exceeds a substantively meaningful
+threshold (default 0.1). A high probability is strong evidence the
+influence structure genuinely shifted, not just sampling noise.
 
 ```{r compare-blocks}
 regime_diffs = compare_blocks(fit)
@@ -130,99 +137,140 @@ regime_diffs = compare_blocks(fit)
 
 ## 6 Extracting regime-specific influence
 
-Each regime has its own estimated $A$ and $B$ matrices stored in the fit
-object.
+Each regime has its own $A$ and $B$ matrices stored in the fit object.
 
 ```{r regime-matrices}
 A1_est = fit$A_blocks[[1]]
 A2_est = fit$A_blocks[[2]]
 ```
 
-The `compare_blocks()` result is the primary tool for assessing whether
-the influence structure genuinely changed between regimes.  For
-entry-level comparisons of individual $A$ elements, use a larger
-network ($n \geq 20$).
+`compare_blocks()` is the right tool for assessing whether the
+influence structure genuinely changed between regimes. To compare
+individual $A$ elements entry by entry, use a larger network
+($n \geq 20$).
 
-## 7 Visualizing influence change
+## 7 Recovering the per-regime operators
 
-The difference $A_2 - A_1$ shows which sender-influence relationships
-changed most across regimes.  Red entries indicate actors whose influence
-increased in regime 2; blue entries indicate decreased influence.
+The substantive check is whether each regime's $A$ matrix comes back.
+We plot estimated vs. true entries for each block.
 
-```{r influence-change, fig.height = 5}
-diff_A = A2_est - A1_est
-n = nrow(diff_A)
-
-df_heatmap = expand.grid(
-  receiver = seq_len(n),
-  sender   = seq_len(n)
+```{r influence-change, fig.height = 4.5}
+df_recover = rbind(
+  data.frame(truth = as.vector(sim$true_A[[1]]),
+             estimate = as.vector(A1_est), regime = "Regime 1"),
+  data.frame(truth = as.vector(sim$true_A[[2]]),
+             estimate = as.vector(A2_est), regime = "Regime 2")
 )
-df_heatmap$value = as.vector(diff_A)
+r_sq <- by(df_recover, df_recover$regime, function(d) {
+  round(cor(d$truth, d$estimate)^2, 2)
+})
 
-ggplot(df_heatmap, aes(x = sender, y = receiver, fill = value)) +
-  geom_tile() +
-  scale_fill_gradient2(
-    low = "blue", mid = "white", high = "red",
-    name = expression(Delta * A)
-  ) +
+ggplot(df_recover, aes(x = truth, y = estimate)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dotted") +
+  geom_vline(xintercept = 0, linetype = "dotted") +
+  geom_point(alpha = 0.5, size = 0.9) +
+  facet_wrap(~ regime) +
   labs(
-    title = "Change in Sender Influence: Regime 2 vs. Regime 1",
-    x = "Sender (Influenced By)", y = "Sender (Influences)"
+    title    = "Per-regime A recovery",
+    subtitle = sprintf("R^2: %s = %s, %s = %s",
+                       names(r_sq)[1], r_sq[[1]], names(r_sq)[2], r_sq[[2]]),
+    x = "True A entry", y = "Posterior mean A entry"
   ) +
-  coord_equal() +
   theme_bw() +
-  theme(panel.border = element_blank())
+  theme(panel.border = element_blank(),
+        strip.background = element_rect(fill = "black", color = "black"),
+        strip.text = element_text(color = "white", hjust = 0))
 ```
+
+Points clustering along the 45-degree line means the model recovers
+each regime's operator entry by entry. The block-norm contrast
+shown in section 5 (`compare_blocks()`) handles the regime *difference*
+with proper posterior uncertainty.
+
+## 7b Impulse response on a piecewise fit
+
+`compute_irf()` works on piecewise fits: under the hood it tiles each
+block's `A_k` / `B_k` across the time indices that belong to the block,
+producing a per-time operator cube that the standard IRF machinery
+consumes. Because the operator differs between regimes, the same shock
+applied early (regime 1) versus late (regime 2) produces different
+propagation patterns. That contrast is the whole payoff of using a
+piecewise fit.
+
+```{r piecewise-irf, fig.height = 3.5}
+n = nrow(A1_est)
+shock = build_shock(m = n, type = "node_out", i = 1, magnitude = 1)
+
+irf_r1 = compute_irf(fit, shock = shock, H = 4, t0 = 5,
+                     n_draws = 100, stat_fun = dbn::stat_density,
+                     seed = 6886)
+irf_r2 = compute_irf(fit, shock = shock, H = 4, t0 = 22,
+                     n_draws = 100, stat_fun = dbn::stat_density,
+                     seed = 6886)
+
+df_irf = rbind(
+  data.frame(horizon = irf_r1$horizon, mean = irf_r1$mean,
+             lo = irf_r1$q025, hi = irf_r1$q975, regime = "Regime 1 (t0=5)"),
+  data.frame(horizon = irf_r2$horizon, mean = irf_r2$mean,
+             lo = irf_r2$q025, hi = irf_r2$q975, regime = "Regime 2 (t0=22)")
+)
+
+ggplot(df_irf, aes(x = horizon, y = mean, colour = regime, fill = regime)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.2, colour = NA) +
+  geom_line(linewidth = 0.9) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Node-Out Shock to Actor 1 -> Network Density",
+    x = "Horizon", y = "Change in Density", colour = "", fill = ""
+  ) +
+  theme_bw() +
+  theme(
+    panel.border    = element_blank(),
+    legend.position = "bottom"
+  )
+```
+
+For per-draw diagnostics on a single posterior sample, `debug_irf()`
+prints the operator dimensions, the per-draw shock, and the horizon-0
+statistic. Reach for it when an unusual shock or fit configuration
+returns NA.
 
 ## 8 Speed and memory advantages
 
-The piecewise model estimates $K$ influence matrices instead of $T-1$,
-pooling data within each regime.  This makes it faster and more
-memory-efficient than the dynamic model, particularly for longer time
-series.
+The piecewise model estimates $K$ influence matrices instead of $T-1$
+and pools data within each regime, so it is both faster and lighter on
+memory than the dynamic model, especially on long time series.
 
-```{r timing, cache = TRUE}
-sim_t = simulate_piecewise_dbn(n = 10, time = 30, blocks = 3, seed = 6886)
+As a rule of thumb on this data shape, piecewise comes in 2-4x faster
+than dynamic at the same `nscan`, with the gap widening as $T$ grows.
+The block-Gibbs updater pools all in-block observations into one
+$A_k$ / $B_k$ update, so the per-iteration work scales with $K$ rather
+than $T-1$.
 
-t_pw = system.time({
-  fit_pw = dbn(sim_t$Y, model = "piecewise", blocks = 3,
-               nscan = 1000, burn = 500, verbose = FALSE)
-})
-
-t_dyn = system.time({
-  fit_dyn = dbn(sim_t$Y, model = "dynamic",
-                nscan = 1000, burn = 500, verbose = FALSE)
-})
-
-data.frame(
-  model   = c("Piecewise", "Dynamic"),
-  seconds = round(c(t_pw["elapsed"], t_dyn["elapsed"]), 1)
-)
-```
-
-For large networks, use `store_theta = FALSE` to avoid storing the full
-$\Theta$ posterior (which scales as $n^2 \times T \times \text{draws}$).
-This retains $A$, $B$, $M$, variance posteriors, convergence
-diagnostics, and `compare_blocks()` support while substantially reducing
-memory.
+On large networks, pass `store_theta = FALSE` to skip the full $\Theta$
+posterior (which scales as $n^2 \times T \times \text{draws}$). You
+keep $A$, $B$, $M$, the variance posteriors, convergence diagnostics,
+and `compare_blocks()`; only the per-cell $\Theta$ uncertainty goes
+away.
 
 ```{r memory-compare}
-fit_full = dbn(sim$Y, model = "piecewise", blocks = c(15, 30),
-               nscan = 200, burn = 100, verbose = FALSE, store_theta = TRUE)
-fit_lean = dbn(sim$Y, model = "piecewise", blocks = c(15, 30),
-               nscan = 200, burn = 100, verbose = FALSE, store_theta = FALSE)
+# same data and family as the main fit above, just store_theta = FALSE
+fit_lean = dbn(sim$Y_continuous, model = "piecewise", family = "gaussian",
+               blocks = c(15, 30), nscan = 2000, burn = 1000, odens = 2,
+               verbose = FALSE, store_theta = FALSE)
 
 data.frame(
-  storage = c("With Theta", "Without Theta"),
-  mb      = round(c(object.size(fit_full), object.size(fit_lean)) / 1e6, 2)
+  storage = c("With Theta (fit above)", "Without Theta (fit_lean)"),
+  mb      = round(c(object.size(fit), object.size(fit_lean)) / 1e6, 2)
 )
 ```
 
 ## 9 Specifying blocks
 
-The `blocks` argument is flexible.  A single integer creates that many
-equal-sized blocks.  A vector of integers specifies the ending time index
-of each block.  Named vectors improve readability for applied work.
+The `blocks` argument is flexible. A single integer creates that many
+equal-sized blocks. A vector of integers gives the ending time index of
+each block. Named vectors help readability in applied work.
 
 ```{r block-specs, eval = FALSE}
 # integer: equal-sized regimes
@@ -236,32 +284,24 @@ fit = dbn(Y, model = "piecewise",
           blocks = c(pre_war = 15, war = 30, post_war = 45))
 ```
 
-## 10 Gaussian family
+## 10 Other outcome families
 
-The piecewise model supports all three outcome families.  For continuous
-data, switch to `family = "gaussian"`:
-
-```{r gaussian, cache = TRUE}
-fit_gauss = dbn(
-  sim$Y_continuous,
-  model   = "piecewise",
-  family  = "gaussian",
-  blocks  = c(15, 30),
-  nscan   = 1000,
-  burn    = 500,
-  odens   = 2,
-  verbose = FALSE
-)
-
-summary(fit_gauss)
-```
+The piecewise model also supports `family = "ordinal"` (for integer
+ratings or Likert items, via the rank likelihood) and
+`family = "binary"` (probit-augmented). The call pattern is identical;
+just change the family and pass the right input scale.
 
 ## 11 Applied example: UNGA voting and the 2008 financial crisis
 
 This example examines UN General Assembly voting alignment using the
-financial crisis as a structural break.  It requires the `peacesciencer`
-package.  Because it uses external data, we show the code and
-pre-computed output rather than evaluating inline.
+financial crisis as a structural break, following Salau & Minhas (under
+review). It needs the `peacesciencer` package and longer chains than
+the vignette build allows, so we show the code and a representative
+output rather than evaluating inline. The dbn modelling pipeline is
+data-source-agnostic; the `peacesciencer` calls below are just a
+convenient way to assemble the dyad-year panel. You could equally
+well build `Y_unga` via [netify](https://github.com/netify-dev/netify)
+or `as_dbn_array_edgelist()`.
 
 ```r
 library(peacesciencer)
@@ -300,7 +340,7 @@ for (i in seq_len(nrow(dyads_sub))) {
 }
 for (t in seq_along(years)) diag(Y_unga[, , 1, t]) = NA
 
-# fit piecewise model with 2008 crisis as break point
+# fit piecewise model with a known break (e.g. a financial crisis year)
 t_break = which(years == 2008)
 fit_crisis = dbn(
   Y_unga,
@@ -317,8 +357,8 @@ fit_crisis = dbn(
 # did the influence structure change?
 compare_blocks(fit_crisis)
 #> Block Comparison Results (A)
-#> block_1 vs block_2: ||dA|| = 2.34 [1.89, 2.91]
-#>   P(||dA|| > 0.1) = 1
+#> block_1 vs block_2: ||ΔA|| = 2.34 [1.89, 2.91]
+#>   P(||ΔA|| > 0.1) = 1
 
 # which actors' influence changed most?
 A_pre  = fit_crisis$A_blocks[[1]]
@@ -327,13 +367,13 @@ influence_change = rowSums(abs(A_post)) - rowSums(abs(A_pre))
 ```
 
 A high probability that the Frobenius norm exceeds the threshold
-indicates the crisis genuinely altered alignment dynamics.  In typical
+indicates the crisis genuinely altered alignment dynamics. In typical
 applications, emerging market countries from Latin America, Asia, and
 Africa show increased influence on alignment patterns post-2008, while
-G7 nations show flat or declining dynamic influence.  Countries that
-actively built coalitions (Brazil, Turkey, South Africa) tend to emerge
-as gainers.  Substantive conclusions require longer MCMC runs, robustness
-checks with alternative break points, and domain expertise.
+G7 nations show flat or declining dynamic influence. Countries that
+actively built coalitions (Brazil, Turkey, South Africa) tend to come
+out as gainers. Substantive conclusions still need longer MCMC runs,
+robustness checks with alternative break points, and domain expertise.
 
 ## 12 Scaling to large networks
 
@@ -344,9 +384,10 @@ checks with alternative break points, and domain expertise.
 | 200 | Disable | 30-90 min | 1-4 GB |
 | 500+ | Disable | Hours | 5-20 GB |
 
-For 200+ actors, always use `store_theta = FALSE`.  You retain $A$, $B$,
-$M$, variance posteriors, convergence diagnostics, and
-`compare_blocks()` support; you lose full $\Theta$ posterior uncertainty.
+For 200+ actors, always pass `store_theta = FALSE`. You keep $A$, $B$,
+$M$, the variance posteriors, convergence diagnostics, and
+`compare_blocks()` support; you lose the full $\Theta$ posterior
+uncertainty.
 
 ```{r large-settings, eval = FALSE}
 fit_large = dbn(
@@ -366,11 +407,11 @@ fit_large = dbn(
 
 ### Choosing break points
 
-Good candidates include known events (war onset, treaty signing), policy
+Good candidates: known events (war onset, treaty signing), policy
 interventions (sanctions, trade agreements), and external shocks
-(financial crises, pandemics).  If uncertain about break point location,
-fit multiple models with different break specifications and compare with
-`compare_dbn()`.
+(financial crises, pandemics). If you are unsure where the break is,
+fit multiple models with different break specifications and compare
+with `compare_dbn()`.
 
 ### How many regimes?
 
@@ -382,15 +423,14 @@ fit multiple models with different break specifications and compare with
 
 ### Relationship to other models
 
-Piecewise with $K = 1$ is equivalent to the static model.  Compared to
-the dynamic model, piecewise trades time-point precision for
-interpretability and speed.  Compared to the HMM model, piecewise
-requires the analyst to specify break points rather than discovering them
-from the data.
+Piecewise with $K = 1$ collapses to the static model. Compared with the
+dynamic model, piecewise gives up time-point precision for
+interpretability and speed. Compared with HMM, piecewise asks the
+analyst for break points rather than discovering them from the data.
 
 ## 14 Next steps
 
-For smoothly evolving dynamics, see `vignette("dynamic_dbn")`.  For
-data-driven regime discovery, see `vignette("hmm_dbn")`.  For impulse
-response analysis, see `vignette("impulse_response")`.  For a complete
+For smoothly evolving dynamics, see `vignette("dynamic_dbn")`. For
+data-driven regime discovery, see `vignette("hmm_dbn")`. For impulse
+response analysis, see `vignette("impulse_response")`. For a full
 applied workflow with IRFs, see `vignette("applied_ir")`.

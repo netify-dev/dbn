@@ -14,3 +14,6 @@
 \description{
 Print method for posterior predictive distribution
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

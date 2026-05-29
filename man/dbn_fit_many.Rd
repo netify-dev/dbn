@@ -67,3 +67,6 @@ fits <- dbn_fit_many(sims, model = "dynamic", family = "gaussian",
 \seealso{
 \code{\link[=dbn]{dbn()}}, \code{\link[=set_dbn_threads]{set_dbn_threads()}}, \code{\link[=estimate_memory]{estimate_memory()}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

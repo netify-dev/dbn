@@ -12,49 +12,58 @@ vignette: >
 ---
 
 ```{r setup, include = FALSE}
+NOT_CRAN <- identical(tolower(Sys.getenv("NOT_CRAN")), "true")
+HAS_PS   <- requireNamespace("peacesciencer", quietly = TRUE)
 knitr::opts_chunk$set(
   collapse  = TRUE,
   comment   = "#>",
   fig.align = "center",
   fig.width = 6, fig.height = 4,
-  message   = FALSE, warning = FALSE,
-  eval      = FALSE,
+  message   = TRUE, warning = TRUE,
+  eval      = NOT_CRAN && HAS_PS,
   purl      = FALSE
 )
 ```
 
 ## 1 Overview
 
-This vignette walks through a complete `dbn` workflow on real data,
-fitting a dynamic model to foreign policy alignment among 12 major powers
-(G7 + BRICS) and using impulse response functions (IRFs) to study how
-shocks propagate through the network.
+This vignette walks through a complete `dbn` workflow on real data. We
+fit a dynamic model to foreign policy alignment among 12 major powers
+(G7 + BRICS) and use impulse response functions (IRFs) to study how
+shocks propagate through the network. See `vignette("methodology")` for
+the formal framework.
 
-We use UNGA voting similarity scores from the `peacesciencer` package.
-The DBN model captures both the time-varying latent structure of the
-alignment network and the transition dynamics that govern how it evolves.
-IRFs then allow us to ask counterfactual questions that standard dyadic
-approaches cannot address, such as what happens to the broader network
-if USA-Russia alignment suddenly improves.
+The data here are UNGA voting similarity scores pulled from the
+`peacesciencer` package, used purely as a convenient source. The dbn
+modelling pipeline is data-source-agnostic: you can build the same
+`[n, n, 1, T]` array from any dyad-year frame, for example via
+[netify](https://github.com/netify-dev/netify) or
+`as_dbn_array_edgelist()`. The DBN model captures both the time-varying
+latent structure of the alignment network and the transition dynamics
+that govern how it evolves. IRFs then let us ask counterfactual
+questions that standard dyadic approaches cannot address, such as what
+happens to the broader network if USA-Russia alignment suddenly
+improves.
 
-**Requirements:** This vignette requires the `peacesciencer` package and
-its external data.  Install with:
+**Requirements.** This vignette needs the `peacesciencer` package and
+its external data:
 
 ```r
 install.packages("peacesciencer")
 peacesciencer::download_extdata()
 ```
 
-The code below is shown but not evaluated during the vignette build.  To
-reproduce the results, copy the code blocks into an R session with
-`peacesciencer` installed.
+When `peacesciencer` is installed the chunks below evaluate during the
+vignette build; otherwise they are skipped and rendered as code only.
 
 ## 2 Data preparation
 
 We use the `kappavv` measure from `peacesciencer::add_fpsim()`, which
-captures pairwise agreement in UNGA voting.  It is continuous, symmetric
+captures pairwise agreement in UNGA voting. It is continuous, symmetric
 ($\kappa(i,j) = \kappa(j,i)$), and ranges from $-1$ (systematic
-disagreement) to $+1$ (perfect agreement).
+disagreement) to $+1$ (perfect agreement). We then build the 4D array
+by hand with the standard pattern (loop over rows of the dyad-year
+frame); that is the same operation any data source would need.
 
 ```{r data-prep}
 library(dbn)
@@ -84,12 +93,13 @@ dyads_sub = dyads[dyads$ccode1 %in% actor_codes &
 years = sort(unique(dyads_sub$year))
 Tt = length(years)
 
-# build [n, n, 1, T] array
+# build [n, n, 1, T] array: loop over rows of the dyad-year frame.
+# this is the canonical pattern for any tidy edgelist source;
+# `as_dbn_array_edgelist()` or `netify` would do the same work.
 code_to_idx = setNames(seq_along(actor_codes), actor_codes)
 Y = array(NA_real_, dim = c(n, n, 1, Tt),
           dimnames = list(actor_labels, actor_labels, "unga",
                           as.character(years)))
-
 for (i in seq_len(nrow(dyads_sub))) {
   row_i = code_to_idx[as.character(dyads_sub$ccode1[i])]
   col_j = code_to_idx[as.character(dyads_sub$ccode2[i])]
@@ -101,28 +111,33 @@ for (t in 1:Tt) diag(Y[, , 1, t]) = NA
 
 ## 3 Fit the dynamic model
 
-Since `kappavv` is symmetric, we set `symmetric = TRUE` to constrain
-$B_t = A_t$, halving the parameter count.  This is appropriate because
-the sender-receiver distinction is not meaningful for undirected voting
-similarity.
+`kappavv` is symmetric, so we set `symmetric = TRUE` to constrain
+$B_t = A_t$ and halve the parameter count. The sender-receiver
+distinction has no meaning for undirected voting similarity.
 
 ```{r fit-model}
+# vignette settings keep the build short. raise nscan to 20000 and burn
+# to 10000 for longer chains. ar1 = TRUE adds a mean-reversion parameter
+# to the random walk on A_t so the posterior lag operator stays
+# contractive over the horizons we forecast.
 fit = dbn(
-  data      = Y,
-  model     = "dynamic",
-  family    = "gaussian",
-  symmetric = TRUE,
-  nscan     = 10000,
-  burn      = 5000,
-  odens     = 5,
-  verbose   = FALSE
+  data       = Y,
+  model      = "dynamic",
+  family     = "gaussian",
+  symmetric  = TRUE,
+  ar1        = TRUE,
+  update_rho = TRUE,
+  nscan      = 3000,
+  burn       = 1500,
+  odens      = 5,
+  verbose    = FALSE
 )
 ```
 
 ### Convergence
 
-Always check convergence before interpreting results.  Well-behaved
-traces show stationary fluctuation around a stable mean.  Under the
+Always check convergence before interpreting results. Well-behaved
+traces show stationary fluctuation around a stable mean. Under the
 symmetric constraint, `tau_A2` and `tau_B2` should be identical.
 
 ```{r convergence}
@@ -133,9 +148,9 @@ plot_trace(fit)
 ## 4 Posterior alignment scores
 
 The model estimates a time-varying $\Theta_t$ and a static baseline $M$.
-Summing them gives smoothed alignment trajectories for each dyad,
-filtering out observation noise to reveal the underlying relational
-dynamics.
+Their sum gives smoothed alignment trajectories for each dyad,
+filtering out observation noise so the underlying relational dynamics
+come through.
 
 ```{r alignment}
 Theta_mean = apply(fit$Theta, 1:4, mean)
@@ -179,18 +194,20 @@ ggplot(df_align, aes(x = year, y = alignment, colour = dyad)) +
   )
 ```
 
-The model should recover patterns consistent with well-known geopolitical
-structures.  China-Russia alignment is expected to be positive and
-stable, while USA-China and USA-Russia should remain negative, reflecting
-systematic disagreement on UNGA votes.  Western allied dyads (USA-UK)
-should cluster at positive values.
+The model recovers patterns consistent with well-known geopolitical
+structures. China-Russia, India-China, and the Western allied dyad
+USA-UK sit at positive alignment throughout the panel, while USA-China,
+USA-Russia, and Brazil-USA stay negative or near zero, reflecting
+systematic disagreement on UNGA votes. Within-dyad trends (USA-UK
+drifting upward as the panel matures, for instance) are the kind of
+dynamic structure this model exists to surface.
 
 ## 5 Impulse response: edge shock
 
-How does a bilateral shock propagate through the broader network?  We
+How does a bilateral shock propagate through the broader network? We
 simulate a positive shock to USA-Russia alignment and track network
-density.  Because the data are symmetric, the shock matrix is
-symmetrized to maintain consistency.
+density. Because the data are symmetric, the shock matrix is
+symmetrised so it stays consistent with the fit.
 
 ```{r irf-edge}
 S_edge = build_shock(m = n, type = "unit_edge",
@@ -202,7 +219,8 @@ irf_density = compute_irf(
   shock    = S_edge,
   H        = 5,
   t0       = 3,
-  stat_fun = dbn::stat_density
+  stat_fun = dbn::stat_density,
+  n_draws  = 100
 )
 
 plot(irf_density, ci_level = 0.90,
@@ -210,15 +228,15 @@ plot(irf_density, ci_level = 0.90,
 print(irf_density)
 ```
 
-At horizon 0, the effect is exact: $2 \times 0.5 / 132 \approx 0.0076$.
-At subsequent horizons, credible intervals widen reflecting posterior
+At horizon 0 the effect is exact: $2 \times 0.5 / 132 \approx 0.0076$.
+At later horizons the credible intervals widen, reflecting posterior
 uncertainty in $A_t$.
 
 ## 6 Impulse response: node shock
 
-What if China shifts alignment toward all partners at once?  We apply a
-node-out shock and track both network density and China's out-degree to
-see whether the effect remains localized or propagates.
+What if China shifts alignment toward all partners at once? We apply a
+node-out shock and track both network density and China's out-degree
+to see whether the effect stays localised or propagates.
 
 ```{r irf-node}
 S_node = build_shock(m = n, type = "node_out",
@@ -228,12 +246,14 @@ S_node = S_node + t(S_node)
 
 irf_china_dens = compute_irf(
   fit, shock = S_node, H = 5, t0 = 3,
-  stat_fun = dbn::stat_density
+  stat_fun = dbn::stat_density,
+  n_draws  = 100
 )
 
 irf_china_outdeg = compute_irf(
   fit, shock = S_node, H = 5, t0 = 3,
-  stat_fun = function(X) dbn::stat_out_degree(X)[china_idx]
+  stat_fun = function(X) dbn::stat_out_degree(X)[china_idx],
+  n_draws  = 100
 )
 
 df_irfs = rbind(
@@ -260,11 +280,11 @@ ggplot(df_irfs, aes(x = horizon, y = mean)) +
 
 ## 7 Comparative IRF: G7 node shocks
 
-Which country's engagement shift produces the largest ripple?  We apply
+Which country's engagement shift produces the largest ripple? We apply
 identical outward shocks from each G7 member and compare the resulting
-density trajectories.  All countries produce the same effect at horizon 0
-by construction; differences at subsequent horizons reflect each
-country's structural position in the estimated dynamics.
+density trajectories. All countries produce the same horizon-0 effect
+by construction; differences at later horizons reflect each country's
+structural position in the estimated dynamics.
 
 ```{r irf-compare}
 g7 = c("USA", "Canada", "UK", "France", "Germany", "Italy", "Japan")
@@ -275,7 +295,7 @@ irf_list = lapply(setNames(g7, g7), function(country) {
   diag(S) = 0
   S = S + t(S)
   compute_irf(fit, shock = S, H = 5, t0 = 3,
-              stat_fun = dbn::stat_density)
+              stat_fun = dbn::stat_density, n_draws = 80)
 })
 
 df_compare = do.call(rbind, lapply(names(irf_list), function(nm) {
@@ -302,38 +322,56 @@ ggplot(df_compare, aes(x = horizon, y = mean, colour = country)) +
 ```
 
 Posterior uncertainty (omitted for visual clarity) is typically large
-relative to between-country differences, so these comparisons should be
-interpreted as suggestive rather than definitive without longer chains.
+relative to the between-country differences, so read these comparisons
+as suggestive rather than definitive without longer chains.
 
-## 8 Reciprocity analysis
+## 8 Clustering analysis
 
-Nonlinear statistics like reciprocity interact with the baseline network,
-producing posterior uncertainty even at horizon 0.
+Reciprocity is uninformative under the symmetric constraint
+$B_t = A_t$: every $\Theta_t$ is symmetric by construction, so there is
+no directional asymmetry to measure and `stat_reciprocity()` returns
+`NA` by design. Transitivity (the clustering coefficient)
+is the substantive nonlinear summary for symmetric alignment data: it
+captures whether a shock between two countries propagates into closed
+triangles, the hallmark of bloc formation.
 
-```{r irf-recip}
+```{r irf-trans}
 S_usachn = build_shock(m = n, type = "unit_edge",
                        i = usa_idx, j = china_idx, magnitude = 0.5)
 S_usachn = S_usachn + t(S_usachn)
 
-irf_recip = compute_irf(
+# kappavv is continuous; we threshold each posterior network slice at
+# the off-diagonal median of |alignment| so roughly half the dyads count
+# as "ties". This keeps the network dense enough that a single
+# perturbed edge can close triangles and the IRF stays informative.
+align_off_diag = c(alignment[, , 1, ])
+align_off_diag = align_off_diag[!is.na(align_off_diag)]
+align_median = median(abs(align_off_diag))
+
+irf_trans = compute_irf(
   fit, shock = S_usachn, H = 5, t0 = 3,
-  stat_fun = dbn::stat_reciprocity
+  stat_fun = function(X) dbn::stat_transitivity(X, threshold = align_median),
+  n_draws = 100
 )
 
-plot(irf_recip, ci_level = 0.90,
-     title = "USA-China Alignment Thaw (+0.5) -> Network Reciprocity")
+plot(irf_trans, ci_level = 0.90,
+     title = "USA-China Alignment Thaw (+0.5) -> Network Transitivity")
 ```
 
 ## 9 Practical guidance
 
 ### Model settings
 
-For publication-quality results, use longer chains to ensure stable
-credible intervals:
+For stable credible intervals, use longer chains:
 
-```{r pub-settings}
-fit = dbn(Y, model = "dynamic", family = "gaussian",
-          symmetric = TRUE, nscan = 10000, burn = 5000, odens = 5)
+```{r pub-settings, eval = FALSE}
+# not evaluated in the vignette build (10000 iters takes several minutes
+# on a 12-actor x 11-time-point panel). the demo fit above (nscan = 3000)
+# already gives stable point estimates; these longer chains tighten the
+# CIs. keep ar1 = TRUE to match the demo fit.
+fit_long = dbn(Y, model = "dynamic", family = "gaussian",
+               symmetric = TRUE, ar1 = TRUE, update_rho = TRUE,
+               nscan = 10000, burn = 5000, odens = 5)
 ```
 
 ### Runtime expectations
@@ -347,21 +385,24 @@ fit = dbn(Y, model = "dynamic", family = "gaussian",
 
 ### Interpreting IRFs
 
-Horizon 0 captures the mechanical consequence of the shock.  For linear
+Horizon 0 captures the mechanical consequence of the shock. For linear
 statistics (density, degree), the horizon-0 effect is exact; for
-nonlinear statistics (reciprocity, transitivity), it is uncertain even at
-horizon 0.  The decay rate is governed by the spectral radius of $A$, and
-the credible intervals reflect posterior uncertainty in model parameters.
-IRFs are counterfactual scenarios that assume transition dynamics are
-invariant to the shock.
+nonlinear statistics (transitivity, reciprocity on directed data), it
+is uncertain even at horizon 0. The decay rate at later horizons is
+set by the spectral radius of the Kronecker operator $B_t \otimes A_t$
+(under the symmetric constraint, this reduces to $\rho(A_t)^2$). The
+credible intervals reflect posterior uncertainty in the model
+parameters, not innovation noise. IRFs are counterfactual scenarios
+that inject a reduced-form perturbation of the latent state $\Theta_t$
+and assume the transition dynamics are invariant to the shock.
 
 ### Symmetric networks
 
-For undirected data, two choices must be made consistently.  First, set
-`symmetric = TRUE` in `dbn()` to constrain $B_t = A_t$.  Second,
-symmetrize any shock matrix after construction: `S = S + t(S)`.
+Undirected data needs two consistent choices. First, set
+`symmetric = TRUE` in `dbn()` to constrain $B_t = A_t$. Second,
+symmetrise any shock matrix after construction: `S = S + t(S)`.
 
 ### Time-thinned models
 
 When `time_thin > 1`, stored arrays correspond to a subset of the time
-series.  Map back to original years with `years[fit$time_kept]`.
+series. Map back to original years with `years[fit$time_kept]`.

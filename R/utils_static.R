@@ -41,11 +41,15 @@ update_B_tucker <- function(Y, X, B, s2, t2, K = length(B)) {
 		YXk <- tcrossprod(Yk, Xk)
 		XXk <- tcrossprod(Xk)
 
-		# posterior precision and mean
+		# posterior precision and mean. The fallback is a deliberate
+		# ridge-on-singular ladder: the bare solve() is preferable when it
+		# works, but a near-singular Gram makes it fail; adding a tiny
+		# diagonal recovers a well-defined posterior precision. Silent here
+		# because the ridge is the canonical numerical-stability remedy and
+		# does not change the statistical meaning of the update.
 		Vk <- tryCatch(
 			solve(XXk / s2 + diag(d[k]) / t2),
 			error = function(e) {
-				# regularize if singular
 				solve(XXk / s2 + diag(d[k]) / t2 + diag(d[k]) * 1e-6)
 			}
 		)

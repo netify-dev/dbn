@@ -6,7 +6,7 @@
 \usage{
 net_snapshot(
   fit,
-  t,
+  time,
   rel = 1,
   sparse = NULL,
   eps = 1e-04,
@@ -17,7 +17,7 @@ net_snapshot(
 \arguments{
 \item{fit}{Dynamic dbn object}
 
-\item{t}{Time point}
+\item{time}{Time point}
 
 \item{rel}{Relation index (default: 1)}
 
@@ -30,7 +30,7 @@ net_snapshot(
 \item{cred_level}{Credible level for significance (default corresponds to 95\% CI)}
 }
 \value{
-ggplot2 object or base R plot
+A \code{ggplot} object.
 }
 \description{
 Heat map of Theta at given time (posterior mean)
@@ -39,10 +39,13 @@ Heat map of Theta at given time (posterior mean)
 \donttest{
 sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
 fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-net_snapshot(fit, t = 5)
+net_snapshot(fit, time = 5)
 }
 }
 \seealso{
 \code{\link{dbn}}, \code{\link{dyad_path}},
 \code{\link{theta_summary}}, \code{\link{role_trajectory}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

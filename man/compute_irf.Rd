@@ -12,6 +12,7 @@ compute_irf(
   stat_fun = stat_density,
   n_draws = NULL,
   shock_pars = list(),
+  seed = NULL,
   ...
 )
 }
@@ -20,9 +21,13 @@ compute_irf(
 
 \item{shock}{Shock matrix or shock type (see \code{\link{build_shock}})}
 
-\item{H}{Number of horizons to compute}
+\item{H}{Number of horizons to compute. For a dynamic fit the response is
+propagated through the estimated operators within the observed series, so
+\code{t0 + H} must not exceed the number of time points \code{T}.}
 
-\item{t0}{Shock time for dynamic models}
+\item{t0}{Shock time for dynamic models (1-based). Must satisfy
+\code{t0 + H <= T}. The \code{horizon = 0} row of the result is the shock itself
+(the statistic of the unpropagated perturbation), not a response.}
 
 \item{stat_fun}{Network statistic function (default: \code{\link{stat_density}}).
 Must accept a matrix and return a scalar. When \code{ggplot2} is loaded,
@@ -32,6 +37,8 @@ use \code{dbn::stat_density} explicitly to avoid name masking.}
 
 \item{shock_pars}{List of parameters for \code{\link{build_shock}} if
 \code{shock} is a character string}
+
+\item{seed}{Optional integer seed for reproducible per-draw sampling.}
 
 \item{...}{Additional arguments}
 }
@@ -58,4 +65,7 @@ print(irf)
 \seealso{
 \code{\link{build_shock}}, \code{\link{plot.dbn_irf}},
 \code{\link{print.dbn_irf}}, \code{\link{stat_density}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

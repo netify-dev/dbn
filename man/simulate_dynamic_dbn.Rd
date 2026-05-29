@@ -18,7 +18,10 @@ simulate_dynamic_dbn(
   K = 5,
   return_truth = TRUE,
   seed = NULL,
-  symmetric = FALSE
+  symmetric = FALSE,
+  tau_A2 = NULL,
+  tau_B2 = NULL,
+  stabilize_operator = TRUE
 )
 }
 \arguments{
@@ -30,7 +33,13 @@ simulate_dynamic_dbn(
 
 \item{time}{Number of time periods to simulate}
 
-\item{sigma2}{Process noise variance}
+\item{sigma2}{Innovation variance of the simulated continuous series \code{Z}:
+each period adds Gaussian noise of variance \code{sigma2} to the one-step mean.
+Note this is a property of the generated series, not of the fitted model:
+a dynamic \code{\link[=dbn]{dbn()}} fit separates a latent process variance from an
+observation variance, so its posterior \code{sigma2} is a different
+parametrization and will not numerically match this value. Judge recovery
+on the operators \code{A}, \code{B}, and \verb{W_t = A_t B_t^T}, not on \code{sigma2}.}
 
 \item{tauA2}{Innovation variance for A (how fast sender influence changes).
 Larger values produce more volatile influence dynamics.}
@@ -51,13 +60,26 @@ Values near 1 produce slowly changing influence.}
 
 \item{seed}{Random seed for reproducibility}
 
-\item{symmetric}{If TRUE, set B = A at each time point.}
+\item{symmetric}{If TRUE, generate a symmetric (undirected) network: the
+operator (\code{B_t = A_t}, both symmetric), the baseline, and the noise are
+all symmetrized, so \code{Z}, \code{Theta}, and \code{Y} are symmetric at every time
+point.}
+
+\item{tau_A2, tau_B2}{Underscore-form aliases for \code{tauA2} / \code{tauB2}. If
+both forms are supplied, the underscore form wins.}
+
+\item{stabilize_operator}{If \code{TRUE} (default), rescale per-period
+operator draws to keep the bilinear lag operator inside the unit
+circle, which keeps simulated trajectories bounded.}
 }
 \value{
 A list containing:
 \item{Y}{Observed ordinal data array \verb{[n_row, n_col, p, time]}}
-\item{Z}{Continuous latent values (use with \code{family = "gaussian"})}
-\item{Theta}{True latent network state at each time point}
+\item{Z}{Continuous observed series (use with \code{family = "gaussian"})}
+\item{Theta}{Noise-free one-step conditional mean of \code{Z} at each time
+point (\verb{M + A_t (Z_\{t-1\} - M) B_t^T}). This is the predicted mean, not
+a separately-noised latent state; a fitted \code{\link[=dbn]{dbn()}} object's \code{Theta} is
+the model's latent state and is a different quantity.}
 \item{A}{True time-varying sender influence \verb{[n_row, n_row, time]}}
 \item{B}{True time-varying receiver influence \verb{[n_col, n_col, time]}}
 \item{M}{True baseline mean array}
@@ -77,4 +99,7 @@ dim(sim$A)    # true A matrices [n, n, time]
 \seealso{
 \code{\link[=dbn]{dbn()}} for model fitting, \code{\link[=simulate_static_dbn]{simulate_static_dbn()}} for
 fixed-influence version
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

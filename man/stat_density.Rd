@@ -28,3 +28,6 @@ dbn::stat_density(X)
 \code{\link{stat_in_degree}}, \code{\link{stat_out_degree}},
 \code{\link{stat_reciprocity}}, \code{\link{stat_transitivity}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

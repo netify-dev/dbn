@@ -7,7 +7,7 @@
 plot_piecewise(
   x,
   type = c("trace", "blocks", "stability", "influence"),
-  block = NULL,
+  block = 1,
   ...
 )
 }
@@ -16,14 +16,17 @@ plot_piecewise(
 
 \item{type}{plot type: "trace", "blocks", "stability", "influence"}
 
-\item{block}{which block to plot (for block-specific plots)}
+\item{block}{which block to plot (for \code{type = "influence"})}
 
 \item{...}{additional arguments}
 }
 \value{
-plot object (invisibly)
+A \code{ggplot} (or \code{gridExtra::arrangeGrob}) object.
 }
 \description{
-diagnostic plots for piecewise-static model
+ggplot-based diagnostic plots for the piecewise-static
+model. Selects between four panel types: variance traces, pairwise
+block-difference heatmaps, per-block influence-norm dotplot, or a
+single-block influence heatmap.
 }
 \keyword{internal}

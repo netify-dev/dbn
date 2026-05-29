@@ -27,7 +27,9 @@ number of senders.}
 
 \item{time}{Number of time periods to simulate}
 
-\item{sigma2}{Process noise variance. Larger values produce noisier networks.}
+\item{sigma2}{Innovation variance of the simulated continuous series \code{Z}.
+This is a property of the generated data, not of the fitted model; judge
+recovery on the operators \code{A} and \code{B} rather than on \code{sigma2}.}
 
 \item{tau2}{Prior variance for A and B deviations from the identity matrix.
 Larger values produce stronger cross-actor influence.}
@@ -40,7 +42,9 @@ in a \verb{$truth} sub-list for validation.}
 
 \item{seed}{Random seed for reproducibility}
 
-\item{symmetric}{If TRUE, set B = A for symmetric/undirected networks.}
+\item{symmetric}{If TRUE, generate a symmetric (undirected) network: the
+operator (\code{B = A}, symmetric), baseline, and noise are all symmetrized so
+\code{Z}, \code{Theta}, and \code{Y} are symmetric.}
 }
 \value{
 A list containing:
@@ -66,4 +70,7 @@ dim(sim$A)    # true sender influence matrix
 \seealso{
 \code{\link[=dbn]{dbn()}} for model fitting, \code{\link[=simulate_dynamic_dbn]{simulate_dynamic_dbn()}} for
 time-varying version, \code{\link[=simulate_test_data]{simulate_test_data()}} for quick test data
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

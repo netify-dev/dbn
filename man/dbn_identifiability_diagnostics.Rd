@@ -51,7 +51,7 @@ posterior at the fitted $A$ is locally well-posed.
 }
 \examples{
 \donttest{
-sim <- simulate_dynamic_dbn(n = 8, time = 12, symmetric = TRUE, seed = 1)
+sim <- simulate_dynamic_dbn(n = 8, p = 1, time = 12, symmetric = TRUE, seed = 1)
 Y <- sim$Z[, , 1, , drop = FALSE]
 fit <- dbn_dynamic(Y, family = "gaussian", symmetric = TRUE,
   nscan = 200, burn = 100, verbose = FALSE)
@@ -63,4 +63,7 @@ diag_out$jacobian_sym$smallest_sv
 \seealso{
 \code{\link[=dbn_compute_snr]{dbn_compute_snr()}}, \code{\link[=dbn_coupling_rank_probs]{dbn_coupling_rank_probs()}},
 \code{\link[=dbn_dynamic]{dbn_dynamic()}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

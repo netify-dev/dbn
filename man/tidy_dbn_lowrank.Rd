@@ -38,3 +38,6 @@ head(df_alpha)
 \code{\link[=dbn]{dbn()}} with \code{model = "lowrank"}, \code{\link[=plot.dbn]{plot.dbn()}} for built-in
 diagnostic plots
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

@@ -21,6 +21,11 @@ NULL
 #' @param draw_indices Optional integer vector of specific posterior draw
 #'   indices to use. When supplied, overrides `draws` (number replicated is
 #'   set to `length(draw_indices)`).
+#' @param simplify Logical. If `TRUE`, collapse the list of replicated
+#'   arrays into a single array with the draw axis appended. Default
+#'   `FALSE`.
+#' @param ... Reserved for forward compatibility (e.g. `ndraws` from
+#'   `brms`-style callers).
 #' @return A list of replicated data arrays, each with the same dimensions
 #'   as the original data. Has class `"dbn_ppd"`.
 #' @seealso \code{\link{plot_ppc_ecdf}}, \code{\link{plot_ppc_density}}, \code{\link{param_summary}}
@@ -30,13 +35,67 @@ NULL
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' ppd <- posterior_predict_dbn(fit, draws = 5)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
-posterior_predict_dbn <- function(fit, draws = 100, seed = NULL, draw_indices = NULL) {
-	if (!is.null(seed)) set.seed(seed)
+posterior_predict_dbn <- function(fit, draws = 100, seed = NULL, draw_indices = NULL, simplify = FALSE, ...) {
+	# accept brms's `ndraws =` as an alias for `draws =`
+	dots_pp <- list(...)
+	if ("ndraws" %in% names(dots_pp) && missing(draws)) {
+		draws <- dots_pp$ndraws
+	}
+	if (length(setdiff(names(dots_pp), "ndraws")) > 0L) {
+		cli::cli_warn(c(
+			"Ignoring unrecognized argument{?s} to {.fun posterior_predict_dbn}: {.arg {setdiff(names(dots_pp), 'ndraws')}}.",
+			"i" = "Allowed: {.arg fit}, {.arg draws} (or {.arg ndraws}), {.arg seed}, {.arg draw_indices}, {.arg simplify}."
+		))
+	}
+	if (length(draws) != 1L || !is.numeric(draws) || !is.finite(draws) ||
+	    draws < 1 || draws != round(draws)) {
+		cli::cli_abort(c(
+			"{.arg draws} must be a single positive integer.",
+			"x" = "Got {.val {draws}}."
+		))
+	}
+	if (!is.null(seed)) {
+		if (length(seed) != 1L || !is.numeric(seed) || !is.finite(seed)) {
+			cli::cli_abort(c(
+				"{.arg seed} must be a single finite number (or {.code NULL}).",
+				"x" = "Got {.val {seed}}."
+			))
+		}
+		set.seed(seed)
+	}
 
 	fam <- get_family(fit)
 	if (is.null(fam)) {
 		cli::cli_abort("Model fit does not contain family information.")
+	}
+
+	# ALS fits without bootstrap have only a point estimate -- refuse.
+	# ALS fits WITH bootstrap have per-replicate (A, B, M); expand them
+	# via .bootstrap_expand so the dynamic-path code below sees R draws
+	# of Theta reconstructed under the per-rep operators.
+	su <- fit$meta$sampler_used
+	is_als <- length(su) == 1L && !is.na(su) && su %in% c("als", "als_tv")
+	if (is_als) {
+		if (is.null(fit$bootstrap)) {
+			cli::cli_abort(c(
+				"{.fun posterior_predict_dbn} requires uncertainty over the operators.",
+				"x" = "This fit was produced by {.fun dbn_als} with {.code bootstrap = 0} -- ALS gives only a point estimate.",
+				"i" = "Refit with {.code dbn_als(..., bootstrap = N)} for N >= 30 to enable posterior-predictive replication, or use {.fun dbn} for full MCMC."
+			))
+		}
+		if (!isTRUE(fit$meta$bootstrap_expanded)) {
+			fit <- .bootstrap_expand(fit)
+		}
+	}
+	if (isFALSE(fit$meta$uncertainty_available)) {
+		cli::cli_abort(c(
+			"{.fun posterior_predict_dbn} requires a fit with uncertainty information.",
+			"x" = "{.field meta$uncertainty_available} is FALSE for this fit.",
+			"i" = "{.field fit$meta$approximation_note}: {fit$meta$approximation_note %||% 'no uncertainty available'}",
+			"i" = "Refit with {.fun dbn} to get posterior draws."
+		))
 	}
 
 	# pick which draws to use
@@ -120,6 +179,16 @@ posterior_predict_dbn <- function(fit, draws = 100, seed = NULL, draw_indices = 
 			}
 
 		} else if (fit$model == "static") {
+
+			# compute_theta_static reuses one operator on both sides
+			# (M + B Z B^T), which is only valid when n_row == n_col.
+			if (isTRUE(fit$dims$is_bipartite)) {
+				cli::cli_abort(c(
+					"{.fun posterior_predict_dbn} on a {.val static} model does not yet support bipartite (rectangular) networks.",
+					"x" = "Got dimensions {.val {fit$dims$n_row}} x {.val {fit$dims$n_col}}.",
+					"i" = "Use {.code model = \"dynamic\"} for bipartite posterior-predictive replication."
+				))
+			}
 
 			if (is.null(fit$draws$misc$B) || is.null(fit$draws$misc$M)) {
 				cli::cli_abort(c(
@@ -267,6 +336,55 @@ posterior_predict_dbn <- function(fit, draws = 100, seed = NULL, draw_indices = 
 		Yrep[[d]] <- fam$rgen_obs(th, misc)
 	}
 
+	# preserve the observed-data NA mask (self-ties etc.) in every
+	# replicate so PPC degree comparisons match: stat_in_degree(Y) and
+	# stat_in_degree(Yrep[[s]]) both ignore the same cells.
+	if (!is.null(fit$Y) && is.array(fit$Y) &&
+	    length(dim(fit$Y)) == length(dim(Yrep[[1]])) &&
+	    all(dim(fit$Y) == dim(Yrep[[1]]))) {
+		na_mask <- is.na(fit$Y)
+		if (any(na_mask)) {
+			for (d in seq_along(Yrep)) Yrep[[d]][na_mask] <- NA
+		}
+	}
+	# enforce symmetry on symmetric fits: independent per-cell draws would
+	# break statistics like reciprocity that are by construction = 1 for
+	# symmetric data. for gaussian / binary, mirror the upper triangle to
+	# the lower; for binary use the upper-triangle draw on both sides.
+	if (isTRUE(fit$dims$is_symmetric)) {
+		fam_name <- if (is.list(fit$family)) fit$family$name else fit$family
+		for (d in seq_along(Yrep)) {
+			arr <- Yrep[[d]]
+			da <- dim(arr)
+			# expect [n, n, p, T]
+			if (length(da) == 4L && da[1] == da[2]) {
+				for (r in seq_len(da[3])) {
+					for (t in seq_len(da[4])) {
+						M <- arr[, , r, t]
+						up <- upper.tri(M)
+						M[lower.tri(M)] <- 0
+						M[up] <- M[up]
+						# mirror the upper triangle onto the lower
+						M_sym <- M + t(M) - diag(diag(M))
+						# for binary, the diag is NA anyway; preserve NA
+						diag(M_sym) <- diag(M)
+						arr[, , r, t] <- M_sym
+					}
+				}
+				Yrep[[d]] <- arr
+			}
+		}
+	}
+
+	# bayesplot::ppc_* expects a [draws x n_obs] matrix, not a list of
+	# arrays. the default keeps the rich list for stat-by-stat custom
+	# PPCs; simplify = TRUE returns the flat matrix.
+	if (isTRUE(simplify)) {
+		yrep_mat <- t(vapply(Yrep, as.numeric, numeric(length(Yrep[[1L]]))))
+		attr(yrep_mat, "family") <- fam$name
+		attr(yrep_mat, "dims") <- fit$meta$dims %||% fit$dims
+		return(yrep_mat)
+	}
 	structure(Yrep,
 		class = "dbn_ppd",
 		family = fam$name,
@@ -279,6 +397,7 @@ posterior_predict_dbn <- function(fit, draws = 100, seed = NULL, draw_indices = 
 #' Print method for posterior predictive distribution
 #' @param x An object of class "dbn_ppd"
 #' @param ... Additional arguments (currently unused)
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 print.dbn_ppd <- function(x, ...) {
 	cat("Posterior predictive distribution\n")
@@ -363,15 +482,34 @@ get_family <- function(fit) {
 #' ppd <- posterior_predict_dbn(fit, draws = 5)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) plot_ppc_ecdf(fit, ppd, Y_obs = sim$Y)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 plot_ppc_ecdf <- function(fit, ppd = NULL, n_show = 20,
 						  alpha = 0.3, rel = 1, time = NULL, Y_obs = NULL) {
+	# guard against passing a dbn_ppd as the fit argument
+	if (inherits(fit, "dbn_ppd") && is.null(ppd)) {
+		cli::cli_abort(c(
+			"{.arg fit} is a {.cls dbn_ppd} (posterior predictive draws), not a fitted model.",
+			"i" = "Call {.code plot_ppc_ecdf(fit, ppd = pp)} where {.var fit} is the model fit and {.var pp} is the {.cls dbn_ppd}."
+		))
+	}
 	if (is.null(ppd)) {
 		ppd <- posterior_predict_dbn(fit, draws = n_show)
 	}
 
+	# default Y_obs to fit$Y; coerce 3D to 4D
 	if (is.null(Y_obs)) {
-		cli::cli_abort("Observed data {.arg Y_obs} must be provided.")
+		Y_obs <- fit$Y
+		if (is.null(Y_obs)) {
+			cli::cli_abort(c(
+				"Observed data {.arg Y_obs} must be provided.",
+				"i" = "{.code fit$Y} is also {.code NULL}; pass the original data array explicitly."
+			))
+		}
+	}
+	if (is.array(Y_obs) && length(dim(Y_obs)) == 3L) {
+		d3 <- dim(Y_obs)
+		Y_obs <- array(Y_obs, dim = c(d3[1], d3[2], 1L, d3[3]))
 	}
 
 	dims <- fit$meta$dims %||% fit$dims
@@ -446,7 +584,8 @@ plot_ppc_ecdf <- function(fit, ppd = NULL, n_show = 20,
 			ggplot2::theme_bw() +
 			ggplot2::theme(
 				panel.border = ggplot2::element_blank(),
-				legend.position = "bottom"
+				axis.ticks = ggplot2::element_blank(),
+				legend.position = "top"
 			)
 
 		return(p)
@@ -492,14 +631,26 @@ plot_ppc_ecdf <- function(fit, ppd = NULL, n_show = 20,
 #' ppd <- posterior_predict_dbn(fit, draws = 5)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) plot_ppc_density(fit, ppd, Y_obs = sim$Y)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 plot_ppc_density <- function(fit, ppd = NULL, rel = 1, time = NULL, Y_obs = NULL) {
 	if (is.null(ppd)) {
 		ppd <- posterior_predict_dbn(fit, draws = 50)
 	}
 
+	# default Y_obs to fit$Y
 	if (is.null(Y_obs)) {
-		cli::cli_abort("Observed data {.arg Y_obs} must be provided.")
+		Y_obs <- fit$Y
+		if (is.null(Y_obs)) {
+			cli::cli_abort(c(
+				"Observed data {.arg Y_obs} must be provided.",
+				"i" = "{.code fit$Y} is also {.code NULL}; pass the original data array explicitly."
+			))
+		}
+	}
+	if (is.array(Y_obs) && length(dim(Y_obs)) == 3L) {
+		d3 <- dim(Y_obs)
+		Y_obs <- array(Y_obs, dim = c(d3[1], d3[2], 1L, d3[3]))
 	}
 	dims <- fit$meta$dims %||% fit$dims
 
@@ -539,7 +690,7 @@ plot_ppc_density <- function(fit, ppd = NULL, rel = 1, time = NULL, Y_obs = NULL
 				x = "Y", y = "Density", fill = NULL
 			) +
 			ggplot2::theme_bw() +
-			ggplot2::theme(panel.border = ggplot2::element_blank())
+			ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 
 		return(p)
 	}
@@ -636,7 +787,7 @@ plot_ppc_bars <- function(fit, ppd, rel = 1, time = NULL, Y_obs = NULL) {
 				x = "Y", y = "Frequency", fill = NULL
 			) +
 			ggplot2::theme_bw() +
-			ggplot2::theme(panel.border = ggplot2::element_blank())
+			ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 
 		return(p)
 	}
@@ -657,3 +808,24 @@ plot_ppc_bars <- function(fit, ppd, rel = 1, time = NULL, Y_obs = NULL) {
 	####
 }
 ####
+
+####
+#' bayesplot / brms compatible posterior_predict for dbn fits
+#'
+#' @description S3 method that returns posterior predictive draws as a
+#'   `[draws x n_obs]` matrix (the shape `bayesplot::ppc_*` expects),
+#'   thin-wrapping [posterior_predict_dbn()] with `simplify = TRUE`.
+#'   Makes `bayesplot::pp_check(fit)` and `brms::pp_check(fit)` work
+#'   without hand-flattening.
+#'
+#' @param object A fitted `dbn` object.
+#' @param ndraws Integer number of posterior predictive draws to return.
+#'   Default `20`.
+#' @param ... Forwarded to [posterior_predict_dbn()].
+#' @return A numeric matrix of dimension `[ndraws x n_obs]`, with
+#'   `family` and `dims` attributes attached.
+#' @author Tosin Salau and Shahryar Minhas
+#' @export
+posterior_predict.dbn <- function(object, ndraws = 20, ...) {
+	posterior_predict_dbn(object, draws = ndraws, simplify = TRUE, ...)
+}

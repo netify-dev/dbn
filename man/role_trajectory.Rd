@@ -2,31 +2,50 @@
 % Please edit documentation in R/post_methods.R
 \name{role_trajectory}
 \alias{role_trajectory}
-\title{Track Role Evolution}
+\title{Per-actor singular-vector trajectory}
 \usage{
-role_trajectory(fit, mat = c("A", "B"), comp = 1)
+role_trajectory(fit, mat = c("A", "B"), comp = 1, plot = TRUE)
 }
 \arguments{
 \item{fit}{Dynamic dbn object}
 
-\item{mat}{"A" or "B"}
+\item{mat}{"A" (senders) or "B" (receivers)}
 
-\item{comp}{Component index (default: 1)}
+\item{comp}{Singular vector index to track (default: 1)}
+
+\item{plot}{Logical. If \code{TRUE} (default), also draw the trajectory
+plot via \code{\link[ggplot2:ggplot]{ggplot2::ggplot()}} and return the result invisibly;
+if \code{FALSE}, return the underlying data frame without plotting.}
 }
 \value{
-Base R plot (invisible NULL)
+A data frame of class \code{dbn_role_trajectory} with columns
+\code{time}, \code{actor}, \code{score}, with attributes \code{mat} and \code{comp}. A
+companion \code{plot()} method renders it as a ggplot.
 }
 \description{
-Tracks first left/right singular vector of A_t or B_t
+At each time point, take the posterior-mean operator
+(\code{A_t} for senders, \code{B_t} for receivers), run its SVD, and read off
+the \code{comp}-th singular vector. This gives one coordinate per actor
+per time, tracing how the leading singular direction of the
+operator rotates over the panel.
+
+This is a low-dimensional summary of how the operator's row (or
+column) space moves; it is not actor influence or coupling. For
+per-actor coupling with credible bands, use
+\code{\link[=coupling_trajectory]{coupling_trajectory()}}.
 }
 \examples{
 \donttest{
 sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
 fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-role_trajectory(fit, mat = "A", comp = 1)
+rt <- role_trajectory(fit, mat = "A", comp = 1, plot = FALSE)
+plot(rt)
 }
 }
 \seealso{
-\code{\link{dbn}}, \code{\link{dyad_path}},
-\code{\link{net_snapshot}}
+\code{\link[=coupling_trajectory]{coupling_trajectory()}} for per-actor coupling with bands;
+\code{\link[=actor_embedding]{actor_embedding()}} for a single-shot per-actor coordinate.
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

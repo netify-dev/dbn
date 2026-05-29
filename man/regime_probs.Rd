@@ -25,3 +25,6 @@ rp <- regime_probs(fit)
 \seealso{
 \code{\link{plot_regime_probs}}, \code{\link{param_summary}}, \code{\link{dbn_hmm}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

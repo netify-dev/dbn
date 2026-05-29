@@ -19,7 +19,7 @@ NULL
 #' @param odens output density (save every odens-th iteration)
 #' @param seed random seed
 #' @param verbose show progress
-#' @param symmetric enforce B = A (symmetric networks)
+#' @param symmetric Logical. If TRUE, enforce B = A. Default: FALSE.
 #' @param previous previous fit to continue from
 #' @param store_theta Logical. Store full Theta trajectory draws (default TRUE).
 #'   \strong{For large networks (100+ actors), set to FALSE.} Theta storage scales as
@@ -29,14 +29,15 @@ NULL
 #'   \code{theta_summary()}, and \code{posterior_predict_dbn()} with uncertainty.
 #' @return list containing MCMC results
 #' @seealso \code{\link{dbn}} for main dispatcher
-#' @keywords internal
+#' @author Tosin Salau and Shahryar Minhas
+#' @export
 dbn_piecewise <- function(Y,
 						  family = c("ordinal", "gaussian", "binary"),
 						  blocks = 4,
 						  nscan = 10000,
 						  burn = 1000,
 						  odens = 1,
-						  seed = 6886,
+						  seed = NULL,
 						  verbose = TRUE,
 						  symmetric = FALSE,
 						  previous = NULL,
@@ -52,7 +53,8 @@ dbn_piecewise <- function(Y,
 		binary = family_binary()
 	)
 
-	set.seed(seed)
+	.dbn_restore_seed <- .use_seed_locally(seed)
+	on.exit(.dbn_restore_seed(), add = TRUE)
 
 	pre <- shared_preprocess(Y, family = family)
 	Z <- pre$Z
@@ -137,7 +139,7 @@ dbn_piecewise <- function(Y,
 	A_store <- vector("list", n_keep)
 	B_store <- vector("list", n_keep)
 
-	# Theta storage for actor position inference (optional for memory savings)
+	# theta storage for actor position inference (optional for memory savings)
 	if (store_theta) {
 		Theta_store <- vector("list", n_keep)
 	}
@@ -312,10 +314,24 @@ dbn_piecewise <- function(Y,
 						}
 					}
 
-					# posterior for A_k
+					# posterior for A_k. solve() can fail when sum_XX is
+					# singular (e.g. a degenerate block with all-equal entries);
+					# add an explicit ridge as fallback and warn once so the
+					# silent numerical-stability bump doesn't mask an upstream
+					# NaN in s2 / t2.
 					V_A <- tryCatch(
 						solve(sum_XX / s2 + diag(n_row) / t2),
-						error = function(e) solve(sum_XX / s2 + diag(n_row) / t2 + diag(n_row) * 1e-6)
+						error = function(e) {
+							if (!isTRUE(getOption("dbn.piecewise_ridge_warned", FALSE))) {
+								cli::cli_warn(c(
+									"Piecewise A_k posterior precision singular at block {k}; adding 1e-6 ridge.",
+									"i" = "If this persists across blocks, check that {.code s2} and {.code t2} are finite.",
+									"i" = "Suppress via {.code options(dbn.piecewise_ridge_warned = TRUE)}."
+								))
+								options(dbn.piecewise_ridge_warned = TRUE)
+							}
+							solve(sum_XX / s2 + diag(n_row) / t2 + diag(n_row) * 1e-6)
+						}
 					)
 					E_A <- diag(n_row) * rnorm(1, mean(diag(A_k)), sqrt(1 / (n_row / t2 + 1)))
 					A_new <- (sum_YX / s2 + E_A / t2) %*% V_A + rsan(c(n_row, n_row)) %*% chol(V_A)
@@ -340,7 +356,16 @@ dbn_piecewise <- function(Y,
 
 						V_B <- tryCatch(
 							solve(sum_XX_B / s2 + diag(n_col) / t2),
-							error = function(e) solve(sum_XX_B / s2 + diag(n_col) / t2 + diag(n_col) * 1e-6)
+							error = function(e) {
+								if (!isTRUE(getOption("dbn.piecewise_ridge_warned", FALSE))) {
+									cli::cli_warn(c(
+										"Piecewise B_k posterior precision singular at block {k}; adding 1e-6 ridge.",
+										"i" = "Suppress via {.code options(dbn.piecewise_ridge_warned = TRUE)}."
+									))
+									options(dbn.piecewise_ridge_warned = TRUE)
+								}
+								solve(sum_XX_B / s2 + diag(n_col) / t2 + diag(n_col) * 1e-6)
+							}
 						)
 						E_B <- diag(n_col) * rnorm(1, mean(diag(B_k)), sqrt(1 / (n_col / t2 + 1)))
 						B_new <- (sum_YX_B / s2 + E_B / t2) %*% V_B + rsan(c(n_col, n_col)) %*% chol(V_B)
@@ -410,12 +435,24 @@ dbn_piecewise <- function(Y,
 		misc_list$Theta <- Theta_store
 	}
 
+	# 4d arrays for posterior workflow: n_draws x K x n_row x n_row
+	A_blocks_4d <- array(0, dim = c(n_keep, K_blocks, n_row, n_row))
+	B_blocks_4d <- array(0, dim = c(n_keep, K_blocks, n_col, n_col))
+	for (d in seq_len(n_keep)) {
+		for (k in seq_len(K_blocks)) {
+			A_blocks_4d[d, k, , ] <- A_store[[d]][[k]]
+			B_blocks_4d[d, k, , ] <- B_store[[d]][[k]]
+		}
+	}
+
 	draws <- list(
 		pars = data.frame(
 			s2 = param_samples[, "s2"],
 			t2 = param_samples[, "t2"],
 			g2 = param_samples[, "g2"]
 		),
+		A_blocks = A_blocks_4d,
+		B_blocks = B_blocks_4d,
 		misc = misc_list
 	)
 
@@ -462,23 +499,38 @@ dbn_piecewise <- function(Y,
 #'
 #' @description generates synthetic data from piecewise-static model
 #' @param n number of actors
+#' @param n_col number of receivers; must equal `n` (piecewise simulation is
+#'   unipartite only). Present for signature consistency with the other
+#'   `simulate_*_dbn` functions.
 #' @param time number of time points
 #' @param blocks block specification
 #' @param p number of relations
 #' @param sigma2 observation variance
 #' @param tau2 A/B prior variance
 #' @param seed random seed
-#' @return list with Y, true_A, true_B, true_M, block_info
+#' @return A list with `Y` (ordinal observed array), `Z` (continuous observed
+#'   array), `Theta`, the block operators `A`/`B` and baseline `M`, and
+#'   `block_info`. `Y_continuous`/`true_A`/`true_B`/`true_M` are also
+#'   provided as aliases for `Z`/`A`/`B`/`M`.
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 #' @examples
 #' \donttest{
 #' sim <- simulate_piecewise_dbn(n = 10, time = 40, blocks = c(15, 30, 40))
 #' dim(sim$Y)
 #' }
-simulate_piecewise_dbn <- function(n = 20, time = 50, blocks = 4,
+simulate_piecewise_dbn <- function(n = 20, n_col = n, time = 50, blocks = 4,
 								   p = 1, sigma2 = 1, tau2 = 0.5,
 								   seed = NULL) {
+	validate_sim_args(n, n_col, p, time, list(sigma2 = sigma2, tau2 = tau2))
 	if (!is.null(seed)) set.seed(seed)
+	if (n_col != n) {
+		cli::cli_abort(c(
+			"{.fun simulate_piecewise_dbn} supports unipartite networks only.",
+			"x" = "Got n = {n}, n_col = {n_col}.",
+			"i" = "Use {.fun simulate_dynamic_dbn} for bipartite (rectangular) networks."
+		))
+	}
 
 	# parse blocks
 	block_info <- parse_blocks(blocks, time, n)
@@ -539,10 +591,26 @@ simulate_piecewise_dbn <- function(n = 20, time = 50, blocks = 4,
 		)
 	}
 
+	# mask self-loops (unipartite): the model does not model self-ties, so the
+	# diagonal is NA across the observed, latent, and state arrays alike
+	for (j in 1:p) {
+		for (t in 1:time) {
+			diag(Y_ord[, , j, t]) <- NA
+			diag(Y[, , j, t])     <- NA
+			diag(Theta[, , j, t]) <- NA
+		}
+	}
+
 	list(
 		Y = Y_ord,
+		# Z / A / B / M match the other simulate_*_dbn return shape;
+		# Y_continuous / true_* are provided as aliases.
+		Z = Y,
 		Y_continuous = Y,
 		Theta = Theta,
+		A = true_A,
+		B = true_B,
+		M = true_M,
 		true_A = true_A,
 		true_B = true_B,
 		true_M = true_M,

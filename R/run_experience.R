@@ -1,12 +1,10 @@
 ####
-# Run-experience helpers: honest status reporting for long MCMC fits.
-#
-# A dynamic DBN fit can run for hours. These helpers make the package
-# communicate that run honestly. A pre-flight panel states the plan and cost
-# before the loop; a log-safe heartbeat reports measured progress and ETA
-# during the loop (surviving non-interactive or redirected output, where an
-# animated cli progress bar does not render); a closing summary reports the
-# actual wall time and object size.
+# run-experience helpers: honest status reporting for long mcmc fits.
+# a pre-flight panel states the plan and cost before the loop, a log-safe
+# heartbeat reports measured progress and ETA during the loop (surviving
+# non-interactive or redirected output where animated progress bars do not
+# render), and a closing summary reports the actual wall time and object
+# size.
 ####
 
 #' Format a duration in seconds as a compact human-readable string
@@ -99,10 +97,40 @@
 	invisible()
 }
 
+#' Maximum cross-time asymmetry magnitude of a square 3D/4D array
+#'
+#' Returns the max over sampled slices of `max(abs(Y_t - t(Y_t)))`, ignoring
+#' NA. Used by [.dbn_data_looks_undirected] and the `symmetric = TRUE`
+#' directed-data warning in `dbn_dynamic`. NA when the input is not a
+#' square 3D/4D numeric array.
+#' @keywords internal
+#' @noRd
+.dbn_asymmetry_magnitude <- function(Y, n_row, n_col) {
+	if (n_row != n_col || is.null(Y) || !is.numeric(Y)) return(NA_real_)
+	d <- dim(Y)
+	if (is.null(d) || length(d) < 2L || d[1] != n_row || d[2] != n_col) {
+		return(NA_real_)
+	}
+	n_slice <- if (length(d) <= 2L) 1L else as.integer(prod(d[-(1:2)]))
+	if (is.na(n_slice) || n_slice < 1L) return(NA_real_)
+	Y_arr <- Y
+	dim(Y_arr) <- c(n_row, n_col, n_slice)
+	take <- unique(round(seq(1, n_slice, length.out = min(6L, n_slice))))
+	worst <- 0
+	for (k in take) {
+		M <- Y_arr[, , k]
+		off <- suppressWarnings(max(abs(M - t(M)), na.rm = TRUE))
+		if (is.finite(off) && off > worst) worst <- off
+	}
+	worst
+}
+
 #' Heuristic: does a square network's data look undirected (symmetric)?
 #'
-#' Used to nudge a user who set `symmetric = FALSE` on data that is in fact
-#' symmetric. Returns FALSE (no nudge) for anything it cannot cleanly check.
+#' Returns TRUE when the input arrays look symmetric to numerical precision;
+#' a caller uses this to nudge users who set `symmetric = FALSE` on data
+#' that is in fact symmetric. Returns FALSE for anything it cannot cleanly
+#' check.
 #' @keywords internal
 #' @noRd
 .dbn_data_looks_undirected <- function(Y, n_row, n_col) {

@@ -42,7 +42,7 @@ plot_hmm <- function(x) {
 		ggplot2::scale_fill_gradient(low = "white", high = "steelblue") +
 		ggplot2::labs(title = "Posterior regime probabilities", x = "Time", y = "Regime") +
 		ggplot2::theme_bw() +
-		ggplot2::theme(panel.border = ggplot2::element_blank())
+		ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 	####
 
 	# transition matrix
@@ -63,29 +63,29 @@ plot_hmm <- function(x) {
 		ggplot2::geom_text(ggplot2::aes(label = sprintf("%.2f", prob)), size = 3) +
 		ggplot2::labs(title = "Posterior mean transition matrix Pi", x = "From", y = "To") +
 		ggplot2::theme_bw() +
-		ggplot2::theme(panel.border = ggplot2::element_blank())
+		ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 	####
 
-	# parameter trace plots
-	trace <- data.frame(
-		iter = seq_along(x$sigma2),
-		sigma2 = x$sigma2,
-		tau_A2 = x$tau_A2,
-		tau_B2 = x$tau_B2,
-		g2 = x$g2
+	# parameter trace plots -- collect whichever scalar chains are present.
+	# the HMM model stores process variance as `sigma2_proc` (not `sigma2`),
+	# and only the gaussian family carries `sigma2_obs`; build the trace from
+	# the chains that actually exist so the plot works for every family.
+	cand <- list(
+		sigma2_proc = x$sigma2_proc, sigma2_obs = x$sigma2_obs,
+		tau_A2 = x$tau_A2, tau_B2 = x$tau_B2, g2 = x$g2
 	)
-
-	tl <- data.frame()
-	for (var in c("sigma2", "tau_A2", "tau_B2", "g2")) {
-		tl <- rbind(tl, data.frame(iter = trace$iter, variable = var, value = trace[[var]]))
-	}
+	niter <- max(lengths(cand), 0L)
+	cand <- cand[vapply(cand, function(v) length(v) == niter && niter > 0L, logical(1))]
+	tl <- do.call(rbind, lapply(names(cand), function(v)
+		data.frame(iter = seq_len(niter), variable = v, value = cand[[v]])))
 
 	p_trace <- ggplot2::ggplot(tl, ggplot2::aes(iter, value)) +
-		ggplot2::geom_line(colour = "darkgreen") +
+		ggplot2::geom_line() +
 		ggplot2::facet_wrap(~variable, scales = "free_y", ncol = 1) +
 		ggplot2::theme_bw() +
 		ggplot2::theme(
 			panel.border = ggplot2::element_blank(),
+			axis.ticks = ggplot2::element_blank(),
 			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
 		) +
@@ -126,8 +126,13 @@ summary_hmm <- function(object, digits = 3, ...) {
 		formatC(c(mean(x, na.rm = TRUE), quantile(x, c(.025, .975), na.rm = TRUE)),
 			digits = digits, format = "f")
 	}
-	sm <- rbind(sigma2 = ss(object$sigma2), tau_A2 = ss(object$tau_A2),
+	# the HMM model stores process variance as `sigma2_proc`, not `sigma2`
+	sm <- rbind(sigma2 = ss(object$sigma2 %||% object$sigma2_proc),
+		tau_A2 = ss(object$tau_A2),
 		tau_B2 = ss(object$tau_B2), g2 = ss(object$g2))
+	if (!is.null(object$sigma2_obs)) {
+		sm <- rbind(sm, sigma2_obs = ss(object$sigma2_obs))
+	}
 	colnames(sm) <- c("mean", "2.5%", "97.5%")
 	print(sm, quote = FALSE)
 
@@ -148,8 +153,9 @@ summary_hmm <- function(object, digits = 3, ...) {
 #' @return Prediction array
 #' @keywords internal
 predict_hmm <- function(object, H = 1, draws = 100,
-						summary = c("mean", "none")) {
+						summary = c("mean", "none"), seed = NULL) {
 	if (object$model != "hmm") cli::cli_abort("Not an HMM fit.")
+	if (!is.null(seed)) set.seed(seed)
 	summary <- match.arg(summary)
 
 	n_row <- object$dims$n_row
@@ -161,6 +167,15 @@ predict_hmm <- function(object, H = 1, draws = 100,
 
 	Theta_pred <- array(0, c(n_row, n_col, p, H, draws))
 
+	# seed the forecast from the last estimated latent state, not from zero
+	# (a zero seed makes the h = 1 step A %*% 0 %*% B' = pure noise). HMM
+	# stores per-draw latent draws in $draws$theta and per-draw baselines in
+	# $draws$misc$M; fall back to the observed last slice / zero baseline.
+	theta_draws <- object$draws$theta
+	M_draws <- object$draws$misc$M
+	Tt <- object$dims$Tt
+	Y_last <- if (!is.null(object$Y)) object$Y[, , , Tt, drop = FALSE] else NULL
+
 	for (d in seq_len(draws)) {
 		s <- pick[d]
 		A_list <- object$A[[s]]
@@ -168,21 +183,39 @@ predict_hmm <- function(object, H = 1, draws = 100,
 		Pi <- object$Pi[[s]]
 		sigma2 <- (object$sigma2 %||% object$sigma2_proc)[s]
 
-		regime <- sample(R, 1, prob = colMeans(Pi))
+		# per-draw baseline mean
+		M_s <- array(0, c(n_row, n_col, p))
+		if (is.list(M_draws) && length(M_draws) >= s && !is.null(M_draws[[s]])) {
+			M_s <- array(M_draws[[s]], dim = c(n_row, n_col, p))
+		}
+		# lag-0 latent state: last stored Theta draw, else last observed slice
 		Theta_now <- array(0, c(n_row, n_col, p))
+		if (is.list(theta_draws) && length(theta_draws) >= s &&
+		    !is.null(theta_draws[[s]]) && length(dim(theta_draws[[s]])) == 4L) {
+			Theta_now <- array(theta_draws[[s]][, , , Tt], dim = c(n_row, n_col, p))
+		} else if (!is.null(Y_last)) {
+			yl <- Y_last; yl[!is.finite(yl)] <- 0
+			Theta_now <- array(yl, dim = c(n_row, n_col, p))
+		}
+
+		regime <- sample(R, 1, prob = colMeans(Pi))
 
 		for (h in seq_len(H)) {
 			regime <- sample(R, 1, prob = Pi[regime, ])
 			A_t <- A_list[, , regime]
 			B_t <- B_list[, , regime]
+			Theta_next <- array(0, c(n_row, n_col, p))
 			for (rel in seq_len(p)) {
-				Theta_now[, , rel] <- A_t %*% Theta_now[, , rel] %*% t(B_t) +
+				dev <- Theta_now[, , rel] - M_s[, , rel]
+				Theta_next[, , rel] <- M_s[, , rel] +
+					A_t %*% dev %*% t(B_t) +
 					matrix(rnorm(n_row * n_col, 0, sqrt(sigma2)), n_row, n_col)
 			}
-			Theta_pred[, , , h, d] <- Theta_now
+			Theta_pred[, , , h, d] <- Theta_next
+			Theta_now <- Theta_next
 		}
 	}
 
-	if (summary == "mean") apply(Theta_pred, 1:4, mean) else Theta_pred
+	if (identical(summary, "mean")) apply(Theta_pred, 1:4, mean) else Theta_pred
 }
 ####

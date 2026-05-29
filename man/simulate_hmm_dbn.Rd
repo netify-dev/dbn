@@ -61,3 +61,6 @@ table(sim$S)
 \seealso{
 \code{\link{dbn}} for model fitting, \code{\link{simulate_test_data}} for quick test data
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

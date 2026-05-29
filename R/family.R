@@ -22,6 +22,40 @@ NULL
 #' @keywords internal
 dbn_make_family <- function(name, draw_latent, ffbs_wrapper, loglik,
 							linkinv, rgen_obs, init_pars = list()) {
+	# pin closure environments to the package namespace and strip srcref so
+	# the family list is identical across consecutive calls and survives a
+	# saveRDS/readRDS round-trip under identical(). without this, each
+	# family_*() call captures a fresh enclosing frame and the srcref
+	# attribute carries a non-roundtrippable srcfile env, so identical()
+	# always returns FALSE even on functionally-equivalent fits.
+	stable_env <- topenv()
+	.strip_src <- function(x) {
+		# walk language objects and strip srcref-related attributes everywhere
+		# they hide. R attaches these at parse time on nested { } blocks too,
+		# and they carry a non-roundtrippable srcfile env that breaks
+		# identical() after saveRDS/readRDS.
+		if (is.call(x) || is.pairlist(x)) {
+			attr(x, "srcref") <- NULL
+			attr(x, "srcfile") <- NULL
+			attr(x, "wholeSrcref") <- NULL
+			for (i in seq_along(x)) {
+				if (!is.null(x[[i]])) x[[i]] <- .strip_src(x[[i]])
+			}
+		}
+		x
+	}
+	.stabilize <- function(f) {
+		if (!is.function(f)) return(f)
+		environment(f) <- stable_env
+		attr(f, "srcref") <- NULL
+		body(f) <- .strip_src(body(f))
+		f
+	}
+	draw_latent  <- .stabilize(draw_latent)
+	ffbs_wrapper <- .stabilize(ffbs_wrapper)
+	loglik       <- .stabilize(loglik)
+	linkinv      <- .stabilize(linkinv)
+	rgen_obs     <- .stabilize(rgen_obs)
 	structure(
 		list(
 			name = name,

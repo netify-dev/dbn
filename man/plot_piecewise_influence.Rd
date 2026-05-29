@@ -11,9 +11,12 @@ plot_piecewise_influence(x, block = 1, ...)
 
 \item{block}{block index or name}
 
-\item{...}{additional arguments}
+\item{...}{unused}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
-heatmap of A matrix for specified block
+Heatmap of the posterior mean A for a single block.
 }
 \keyword{internal}

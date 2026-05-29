@@ -4,7 +4,7 @@
 \alias{forecast_gain}
 \title{Actor-level forecast gain from a fitted dynamic bilinear model}
 \usage{
-forecast_gain(fit, Y, window = NULL, relation = 1L)
+forecast_gain(fit, Y = NULL, window = NULL, relation = 1L, ...)
 }
 \arguments{
 \item{fit}{A \code{dbn_dynamic} fit (or compatible posterior list). Must
@@ -18,6 +18,10 @@ the fit object may store only kept time slices.}
 all t >= 2 (forecast gain is undefined at t = 1).}
 
 \item{relation}{Index of the relation (p dimension) to use. Default 1.}
+
+\item{...}{Reserved. Passing \code{H = ...} here triggers a directive
+pointer to \code{predict(fit, H = ...)} instead, since \code{forecast_gain()}
+is an in-sample predictive-gain measure, not a multi-step forecast.}
 }
 \value{
 A list with \code{per_actor} (n x M matrix of per-draw gains,
@@ -34,13 +38,15 @@ ordinal / rank likelihood it uses log score.
 \details{
 For each posterior draw m and each time t in window E:
 \itemize{
-\item predicted Y under the dynamic model is M + A_t Theta_{t-1} A_t'
-\item predicted Y under the baseline is M alone
+\item predicted Theta under the dynamic model is
+\verb{M + A_t (Theta_\{t-1\} - M) B_t'} (the one-step state prediction
+under the bilinear AR; the FFBS sampler centers the state on M);
+\item predicted Theta under the baseline is M alone.
 Per-dyad gain at (i, j, t):
 G_{ij,t}^{(m)} = (Y_{ij,t} - M_{ij}^{(m)})^2
-- (Y_{ij,t} - M_{ij}^{(m)} - (A_t^{(m)} Theta_{t-1}^{(m)} A_t^{(m)'})\emph{{ij})^2
+- (Y_{ij,t} - pred_dyn_{ij,t}^{(m)})^2
 Per-actor gain (Gaussian, MSE-form):
-G_i^{(m)}(E) = sum}{t in E} sum_{j != i} G_{ij,t}^{(m)}
+G_i^{(m)}(E) = sum_{t in E} sum_{j != i} G_{ij,t}^{(m)}
 }
 
 Returns one posterior summary per actor plus the per-draw matrix
@@ -55,4 +61,7 @@ fit <- dbn_dynamic(sim$Y, family = "gaussian",
 fg <- forecast_gain(fit, sim$Y, window = 8:10, relation = 1)
 head(fg$summary)
 }
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

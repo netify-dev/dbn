@@ -11,7 +11,7 @@ dbn_piecewise(
   nscan = 10000,
   burn = 1000,
   odens = 1,
-  seed = 6886,
+  seed = NULL,
   verbose = TRUE,
   symmetric = FALSE,
   previous = NULL,
@@ -35,7 +35,7 @@ dbn_piecewise(
 
 \item{verbose}{show progress}
 
-\item{symmetric}{enforce B = A (symmetric networks)}
+\item{symmetric}{Logical. If TRUE, enforce B = A. Default: FALSE.}
 
 \item{previous}{previous fit to continue from}
 
@@ -55,4 +55,6 @@ fits DBN model with block-constant influence matrices
 \seealso{
 \code{\link{dbn}} for main dispatcher
 }
-\keyword{internal}
+\author{
+Tosin Salau and Shahryar Minhas
+}

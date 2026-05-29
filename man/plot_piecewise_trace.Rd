@@ -9,9 +9,12 @@ plot_piecewise_trace(x, ...)
 \arguments{
 \item{x}{piecewise dbn fit}
 
-\item{...}{additional arguments}
+\item{...}{unused}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
-plots MCMC traces for variance parameters
+ggplot panel of variance-parameter MCMC traces.
 }
 \keyword{internal}

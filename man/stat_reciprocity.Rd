@@ -13,7 +13,12 @@ stat_reciprocity(X)
 Scalar reciprocity value
 }
 \description{
-Correlation between X[i,j] and X[j,i].
+Edgewise matched-edge ratio
+\eqn{\sum_{i \ne j} X_{ij} X_{ji} / \sum_{i \ne j} X_{ij}^2}, which
+equals 1 for a fully symmetric network and 0 for a fully
+antisymmetric one. Matches \code{igraph::reciprocity(mode = "default")}
+and \code{sna::grecip(g, measure = "edgewise")}; differs from the
+dyad-census reciprocity (\code{sna::grecip(g, measure = "dyadic")}).
 Only defined for square (unipartite) networks. For bipartite networks,
 use \code{\link{stat_density}}, \code{\link{stat_in_degree}}, or
 \code{\link{stat_out_degree}} instead.
@@ -22,7 +27,16 @@ use \code{\link{stat_density}}, \code{\link{stat_in_degree}}, or
 X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)
 stat_reciprocity(X)
 }
+\references{
+Garlaschelli, D., & Loffredo, M. I. (2004). Patterns of
+link reciprocity in directed networks. \emph{Physical Review
+Letters}, 93(26), 268701.
+}
 \seealso{
-\code{\link{compute_irf}}, \code{\link{build_shock}},
+\code{\link{stat_reciprocity_cor}} for the triangle-correlation
+form; \code{\link{compute_irf}}, \code{\link{build_shock}},
 \code{\link{stat_density}}, \code{\link{stat_transitivity}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

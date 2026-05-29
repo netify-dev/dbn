@@ -4,25 +4,52 @@
 \alias{stat_transitivity}
 \title{Network Statistic: Transitivity}
 \usage{
-stat_transitivity(X)
+stat_transitivity(X, threshold = 0)
 }
 \arguments{
-\item{X}{Square network matrix}
+\item{X}{Square network matrix.}
+
+\item{threshold}{Numeric scalar: an edge is recorded when
+\code{abs(X) > threshold}. Defaults to \code{0} for a binary input
+(i.e., any non-zero is treated as an edge). For continuous inputs, pass
+an explicit threshold (e.g., the off-diagonal median, or a domain-derived
+value); the default of 0 would otherwise binarize every non-zero entry
+into an edge and return 1 trivially.}
 }
 \value{
-Scalar transitivity value
+Scalar transitivity value in \verb{[0, 1]}.
 }
 \description{
 Clustering coefficient (fraction of closed triangles).
 Only defined for square (unipartite) networks. For bipartite networks,
 use \code{\link{stat_density}}, \code{\link{stat_in_degree}}, or
 \code{\link{stat_out_degree}} instead.
+
+Implementation note: the input matrix is binarised at \code{threshold}
+and then symmetrised by \code{X_bin <- pmax(X_bin, t(X_bin))} before
+the clustering coefficient is computed. This is the standard
+undirected definition (3 x triangles / connected-triples). It will
+not match \code{sna::gtrans(..., measure = "weak"/"strong")} or
+\code{ergm::ttriple}, which use directed-triangle definitions on the
+un-symmetrised graph.
+
+Transitivity is a property of a binary graph. Continuous-valued latent
+states (e.g. \code{Theta} from a Gaussian fit) must be thresholded into edges
+before transitivity is defined. Pass \code{threshold} (the cut for
+"this is an edge") or pre-binarize the input.
 }
 \examples{
 X <- matrix(c(0, 1, 0, 1, 0, 1, 0, 0, 0), 3, 3)
 stat_transitivity(X)
+# continuous input: choose a threshold
+set.seed(1)
+Y <- matrix(rnorm(36), 6, 6); diag(Y) <- 0
+stat_transitivity(Y, threshold = quantile(abs(Y), 0.7))
 }
 \seealso{
 \code{\link{compute_irf}}, \code{\link{build_shock}},
 \code{\link{stat_density}}, \code{\link{stat_reciprocity}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

@@ -39,6 +39,7 @@ plot_static <- function(results, alpha = 0.01) {
 		ggplot2::theme_bw() +
 		ggplot2::theme(
 			panel.border = ggplot2::element_blank(),
+			axis.ticks = ggplot2::element_blank(),
 			legend.position = "none",
 			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
@@ -49,19 +50,19 @@ plot_static <- function(results, alpha = 0.01) {
 		ggplot2::geom_histogram(bins = 30) +
 		ggplot2::labs(title = "s2 Posterior", x = "s2", y = "Count") +
 		ggplot2::theme_bw() +
-		ggplot2::theme(panel.border = ggplot2::element_blank())
+		ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 
 	p_hist_t2 <- ggplot2::ggplot(params_df, ggplot2::aes(x = t2)) +
 		ggplot2::geom_histogram(bins = 30) +
 		ggplot2::labs(title = "t2 Posterior", x = "t2", y = "Count") +
 		ggplot2::theme_bw() +
-		ggplot2::theme(panel.border = ggplot2::element_blank())
+		ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 
 	p_hist_g2 <- ggplot2::ggplot(params_df, ggplot2::aes(x = g2)) +
 		ggplot2::geom_histogram(bins = 30) +
 		ggplot2::labs(title = "g2 Posterior", x = "g2", y = "Count") +
 		ggplot2::theme_bw() +
-		ggplot2::theme(panel.border = ggplot2::element_blank())
+		ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 
 	# network plot of the first B matrix
 	if (length(results$B) >= 1 && !is.null(results$B[[1]])) {
@@ -123,6 +124,7 @@ plot_static <- function(results, alpha = 0.01) {
 				ggplot2::theme_bw() +
 				ggplot2::theme(
 					panel.border = ggplot2::element_blank(),
+					axis.ticks = ggplot2::element_blank(),
 					axis.text = ggplot2::element_blank(),
 					axis.title = ggplot2::element_blank(),
 					panel.grid = ggplot2::element_blank()
@@ -232,12 +234,13 @@ plot_dynamic <- function(results, time_points = NULL) {
 	}
 
 	p_traces <- ggplot2::ggplot(trace_long, ggplot2::aes(x = iteration, y = value)) +
-		ggplot2::geom_line(color = "steelblue") +
+		ggplot2::geom_line() +
 		ggplot2::facet_wrap(~parameter, scales = "free_y", ncol = 1) +
 		ggplot2::labs(title = "Parameter Traces", x = "Iteration", y = "Value") +
 		ggplot2::theme_bw() +
 		ggplot2::theme(
 			panel.border = ggplot2::element_blank(),
+			axis.ticks = ggplot2::element_blank(),
 			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
 		)
@@ -277,6 +280,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 		ggplot2::theme_bw() +
 		ggplot2::theme(
 			panel.border = ggplot2::element_blank(),
+			axis.ticks = ggplot2::element_blank(),
 			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
 		)
@@ -303,6 +307,7 @@ plot_dynamic <- function(results, time_points = NULL) {
 			ggplot2::theme_bw() +
 			ggplot2::theme(
 				panel.border = ggplot2::element_blank(),
+				axis.ticks = ggplot2::element_blank(),
 				legend.position = "none",
 				strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 				strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
@@ -312,19 +317,19 @@ plot_dynamic <- function(results, time_points = NULL) {
 			data.frame(iteration = trace_df$iteration, rhoA = trace_df$rhoA),
 			ggplot2::aes(x = iteration, y = rhoA)
 		) +
-			ggplot2::geom_line(color = "darkblue") +
+			ggplot2::geom_line() +
 			ggplot2::labs(title = "AR(1) Parameter - rhoA", x = "Iteration", y = "rhoA") +
 			ggplot2::theme_bw() +
-			ggplot2::theme(panel.border = ggplot2::element_blank())
+			ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 	} else if ("rhoB" %in% names(trace_df)) {
 		p_rho <- ggplot2::ggplot(
 			data.frame(iteration = trace_df$iteration, rhoB = trace_df$rhoB),
 			ggplot2::aes(x = iteration, y = rhoB)
 		) +
-			ggplot2::geom_line(color = "darkred") +
+			ggplot2::geom_line() +
 			ggplot2::labs(title = "AR(1) Parameter - rhoB", x = "Iteration", y = "rhoB") +
 			ggplot2::theme_bw() +
-			ggplot2::theme(panel.border = ggplot2::element_blank())
+			ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 	} else {
 		p_rho <- NULL
 	}
@@ -336,10 +341,10 @@ plot_dynamic <- function(results, time_points = NULL) {
 			data.frame(iteration = trace_df$iteration, g2 = trace_df$g2),
 			ggplot2::aes(x = iteration, y = g2)
 		) +
-			ggplot2::geom_line(color = "darkred") +
+			ggplot2::geom_line() +
 			ggplot2::labs(title = "g^2 (tau_mu^2) Trace", x = "Iteration", y = "g^2") +
 			ggplot2::theme_bw() +
-			ggplot2::theme(panel.border = ggplot2::element_blank())
+			ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 	} else {
 		p_g2 <- NULL
 	}
@@ -361,12 +366,45 @@ plot_dynamic <- function(results, time_points = NULL) {
 ####
 #' Summary for static DBN fits
 #'
-#' @description Prints summary statistics for static DBN model results
+#' Append a plain-language label to a scalar-parameter name
+#'
+#' @description Maps cryptic parameter names (`s2`, `tau_A2`, ...) used in
+#'   `summary()` output to a `name (description)` display string, so a reader
+#'   need not memorise the abbreviations.
+#' @param par Character scalar parameter name.
+#' @return Character display string.
+#' @keywords internal
+#' @noRd
+.dbn_param_disp <- function(par, model = NULL) {
+	# `t2` carries no innovations in the static model (A, B are time-invariant)
+	# -- relabel it accordingly. Same for tau_A2 / tau_B2 in non-time-varying
+	# variants. The dynamic / hmm / lowrank / piecewise variants do have
+	# time-varying operators and the "innovation variance" label is correct.
+	is_static <- identical(model, "static")
+	lbl <- switch(par,
+		s2 = , sigma2 = , sigma2_proc = "process variance",
+		t2 = , tau2 = if (is_static) "A/B prior variance" else "operator innovation variance",
+		tau_A2 = if (is_static) "A prior variance" else "A innovation variance",
+		tau_B2 = if (is_static) "B prior variance" else "B innovation variance",
+		g2 = "baseline-mean variance",
+		sigma2_obs = "observation-noise variance",
+		rhoA = , rho_A = "A persistence",
+		rhoB = , rho_B = "B persistence",
+		NULL
+	)
+	if (is.null(lbl)) par else paste0(par, " (", lbl, ")")
+}
+
+#' Print summary for a static DBN fit
+#'
+#' Internal helper invoked by `summary.dbn()` when `fit$model == "static"`.
+#'
 #' @param object Object of class "dbn" with model="static"
 #' @param digits Number of digits to display
 #' @param ... Additional arguments (ignored)
 #' @return Invisible object
 #' @keywords internal
+#' @noRd
 summary_static <- function(object, digits = 3, ...) {
 	if (object$model != "static") cli::cli_abort("This function requires a static model, but got {.val {object$model}}.")
 
@@ -386,7 +424,7 @@ summary_static <- function(object, digits = 3, ...) {
 		param_df <- param_summary(object, probs = c(0.025, 0.975))
 		if (!is.null(param_df)) {
 			for (i in seq_len(nrow(param_df))) {
-				par <- param_df$parameter[i]
+				par <- .dbn_param_disp(param_df$parameter[i], model = "static")
 				if ("q2.5" %in% names(param_df)) {
 					cli::cli_inform("  {par}: {round(param_df$mean[i], digits)} [{round(param_df$q2.5[i], digits)}, {round(param_df$q97.5[i], digits)}]")
 				} else if ("q5" %in% names(param_df)) {
@@ -407,10 +445,22 @@ summary_static <- function(object, digits = 3, ...) {
 	}
 
 	cli::cli_h3("Settings")
-	settings <- object$meta %||% object$settings
+	# prefer the inner `settings` block (flat scalars) over the meta wrapper,
+	# which contains nested dims/settings lists. plain {x} interpolation on
+	# a list collapses to a comma-string.
+	settings <- if (!is.null(object$settings)) object$settings
+				else if (!is.null(object$meta$settings)) object$meta$settings
+				else object$meta
 	for (s in names(settings)) {
-		if (s != "dims") {
-			cli::cli_inform("  {s}: {settings[[s]]}")
+		v <- settings[[s]]
+		if (is.null(v) || s == "dims") next
+		if (is.list(v) || length(v) > 1L) {
+			cli::cli_inform("  {s}:")
+			for (sn in names(v)) {
+				if (length(v[[sn]]) == 1L) cli::cli_inform("    {sn}: {v[[sn]]}")
+			}
+		} else {
+			cli::cli_inform("  {s}: {v}")
 		}
 	}
 
@@ -440,14 +490,23 @@ summary_dynamic <- function(object, digits = 3, ...) {
 		" " = "Time points: {dims$Tt}"
 	))
 
-	cli::cli_h3("Parameter estimates (mean [95% CI])")
+	# A point-estimate fit (ALS) carries a single pseudo-draw of the scalar
+	# parameters, so a "95% CI" on them would collapse to [point, point].
+	# bootstrap covers A/B/M but does not produce scalar-parameter draws,
+	# so it also reports point estimates here. The bootstrap is advertised
+	# separately below.
+	su <- object$meta$sampler_used; is_als <- length(su) == 1L && !is.na(su) && su %in% c("als", "als_tv")
+	has_unc <- !isFALSE(object$meta$uncertainty_available) && !is_als
+	cli::cli_h3(if (has_unc) "Parameter estimates (mean [95% CI])" else "Parameter estimates (point estimate, no credible intervals)")
 
 	if (exists("param_summary")) {
 		param_df <- param_summary(object, probs = c(0.025, 0.975))
 		if (!is.null(param_df)) {
 			for (i in seq_len(nrow(param_df))) {
-				par <- param_df$parameter[i]
-				if ("q2.5" %in% names(param_df)) {
+				par <- .dbn_param_disp(param_df$parameter[i])
+				if (!has_unc) {
+					cli::cli_inform("  {par}: {round(param_df$mean[i], digits)}")
+				} else if ("q2.5" %in% names(param_df)) {
 					cli::cli_inform("  {par}: {round(param_df$mean[i], digits)} [{round(param_df$q2.5[i], digits)}, {round(param_df$q97.5[i], digits)}]")
 				} else if ("q5" %in% names(param_df)) {
 					cli::cli_inform("  {par}: {round(param_df$mean[i], digits)} [{round(param_df$q5[i], digits)}, {round(param_df$q95[i], digits)}]")
@@ -462,7 +521,11 @@ summary_dynamic <- function(object, digits = 3, ...) {
 		for (par in c("sigma2", "tau_A2", "tau_B2", "g2")) {
 			if (!is.null(object[[par]])) {
 				vals <- object[[par]]
-				cli::cli_inform("  {par}: {round(mean(vals, na.rm = TRUE), digits)} [{round(quantile(vals, 0.025, na.rm = TRUE), digits)}, {round(quantile(vals, 0.975, na.rm = TRUE), digits)}]")
+				if (!has_unc) {
+					cli::cli_inform("  {par}: {round(mean(vals, na.rm = TRUE), digits)}")
+				} else {
+					cli::cli_inform("  {par}: {round(mean(vals, na.rm = TRUE), digits)} [{round(quantile(vals, 0.025, na.rm = TRUE), digits)}, {round(quantile(vals, 0.975, na.rm = TRUE), digits)}]")
+				}
 			}
 		}
 
@@ -472,11 +535,31 @@ summary_dynamic <- function(object, digits = 3, ...) {
 		}
 	}
 
+	# bootstrap advertisement: when an ALS fit was run with `bootstrap = N`,
+	# point the user at the dbn_boot object that carries A/B/M CIs.
+	if (is_als && !is.null(object$bootstrap) && inherits(object$bootstrap, "dbn_boot")) {
+		cli::cli_h3("Bootstrap")
+		cli::cli_inform("  {object$bootstrap$n_valid}/{object$bootstrap$n_total} valid {object$bootstrap$type}-bootstrap replicates")
+		cli::cli_inform("  CIs for A, B, M available via {.code fit$bootstrap} (try {.fun print} or {.fun summary} on it)")
+	}
+
 	cli::cli_h3("Settings")
-	settings <- object$meta %||% object$settings
+	# prefer the inner `settings` block (flat scalars) over the meta
+	# wrapper, which contains nested dims/settings/tv lists. plain {x}
+	# interpolation on a list collapses to a comma-string.
+	settings <- if (!is.null(object$settings)) object$settings
+				else if (!is.null(object$meta$settings)) object$meta$settings
+				else object$meta
 	for (s in names(settings)) {
-		if (s != "dims") {
-			cli::cli_inform("  {s}: {settings[[s]]}")
+		v <- settings[[s]]
+		if (is.null(v) || s == "dims") next
+		if (is.list(v) || length(v) > 1L) {
+			cli::cli_inform("  {s}:")
+			for (sn in names(v)) {
+				if (length(v[[sn]]) == 1L) cli::cli_inform("    {sn}: {v[[sn]]}")
+			}
+		} else {
+			cli::cli_inform("  {s}: {v}")
 		}
 	}
 
@@ -504,8 +587,20 @@ summary_dynamic <- function(object, digits = 3, ...) {
 #'
 #' For visual diagnostics, use [plot_trace()] to inspect trace plots.
 #'
+#' \strong{Note on Rhat:} `dbn()` runs a single-chain conjugate Gibbs
+#' sampler, so there is no between-chain variance to compute Rhat against.
+#' This routine instead reports per-parameter Geweke z-scores (comparing
+#' the first 10% to the last 50% of the chain) and effective sample size
+#' from the chain's autocorrelation function. For multi-chain inference,
+#' run `dbn()` several times with different `seed` values and compare the
+#' resulting posterior summaries manually.
+#'
 #' @param results Output from [dbn()]
-#' @return Invisible NULL (diagnostics are printed to console)
+#' @return Invisibly, a data frame with one row per sampled parameter and
+#'   columns `parameter`, `ess`, `geweke_z`, `ess_ok` (ESS >= 200), and
+#'   `geweke_ok` (|Geweke z| <= 2). Diagnostics are also printed to the
+#'   console, with threshold violations flagged. Returns `NULL` invisibly when
+#'   there are no sampled parameters to diagnose.
 #' @seealso \code{\link{dbn}}, \code{\link{compare_dbn}},
 #'   \code{\link{param_summary}}
 #' @examples
@@ -514,8 +609,29 @@ summary_dynamic <- function(object, digits = 3, ...) {
 #' fit <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
 #' check_convergence(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 check_convergence <- function(results) {
+	# dispatch onto dbn_multichain by computing cross-chain Rhat/ESS on
+	# the scalar variances; fall through to single-chain logic otherwise.
+	if (inherits(results, "dbn_multichain")) {
+		return(.check_convergence_multichain(results))
+	}
+	if (!inherits(results, "dbn")) {
+		cli::cli_abort(c(
+			"{.arg results} must be a {.cls dbn} object returned by {.fun dbn}.",
+			"i" = "For multi-chain diagnostics, pass a {.cls dbn_multichain} (from {.fun dbn_multichain}).",
+			"x" = "Got {.obj_type_friendly {results}}."
+		))
+	}
+	if (isTRUE(results$meta$sampler_used %in% c("als", "als_tv")) ||
+		isFALSE(results$meta$uncertainty_available)) {
+		cli::cli_abort(c(
+			"Convergence diagnostics require a posterior MCMC chain.",
+			"x" = "This is a point-estimate fit from {.fun dbn_als} -- there is no chain to diagnose.",
+			"i" = "Refit with {.fun dbn} for full MCMC inference."
+		))
+	}
 	if (!requireNamespace("coda", quietly = TRUE)) {
 		cli::cli_inform(c(
 			"!" = "Package 'coda' is required for full convergence diagnostics.",
@@ -528,7 +644,7 @@ check_convergence <- function(results) {
 			params <- results$params
 		} else {
 			params <- cbind(
-				sigma2 = results$sigma2,
+				sigma2 = results$sigma2 %||% results$sigma2_proc,
 				tau_A2 = results$tau_A2 %||% results$tauA2,
 				tau_B2 = results$tau_B2 %||% results$tauB2
 			)
@@ -561,6 +677,26 @@ check_convergence <- function(results) {
 		if (!is.null(results$g2)) {
 			params_df <- cbind(params_df, g2 = results$g2)
 		}
+		# low-rank fits carry the factor-strength innovation variance
+		# tau_alpha2 -- the defining parameter of the model. include it so it
+		# is not silently omitted from the diagnostic.
+		if (!is.null(results$tau_alpha2) && length(results$tau_alpha2) == nrow(params_df)) {
+			params_df <- cbind(params_df, tau_alpha2 = results$tau_alpha2)
+		}
+		if (!is.null(results$sigma2_obs)) {
+			params_df <- cbind(params_df, sigma2_obs = results$sigma2_obs)
+		}
+		# include AR(1) persistence parameters when present (`ar1 = TRUE`).
+		# without these, a user with poor rho mixing would see "all parameters
+		# converged" and never know.
+		rhoA_draws <- results$rhoA %||% results$rho_A
+		rhoB_draws <- results$rhoB %||% results$rho_B
+		if (!is.null(rhoA_draws) && length(rhoA_draws) == nrow(params_df)) {
+			params_df <- cbind(params_df, rhoA = rhoA_draws)
+		}
+		if (!is.null(rhoB_draws) && length(rhoB_draws) == nrow(params_df)) {
+			params_df <- cbind(params_df, rhoB = rhoB_draws)
+		}
 		params_mcmc <- coda::mcmc(params_df)
 	}
 
@@ -579,11 +715,29 @@ check_convergence <- function(results) {
 		}
 	}
 
-	cli::cli_h3("Effective Sample Sizes")
-	print(coda::effectiveSize(varying_mcmc))
+	ess <- coda::effectiveSize(varying_mcmc)
+	gew <- coda::geweke.diag(varying_mcmc)$z
+	gew <- gew[names(ess)]
 
-	cli::cli_h3("Geweke Diagnostic")
-	print(coda::geweke.diag(varying_mcmc))
+	cli::cli_h3("Effective Sample Sizes")
+	print(round(ess, 1))
+
+	cli::cli_h3("Geweke Diagnostic (z-scores)")
+	print(round(gew, 3))
+
+	# flag parameters that fail the documented thresholds (ESS >= 200,
+	# |Geweke z| <= 2) instead of leaving the reader to check by eye
+	low_ess <- names(ess)[ess < 200]
+	bad_gew <- names(gew)[is.finite(gew) & abs(gew) > 2]
+	if (length(low_ess) > 0) {
+		cli::cli_alert_warning("Low effective sample size (< 200): {.val {low_ess}}. Increase {.arg nscan} (raising {.arg odens} alone reduces the stored draws and will not help).")
+	}
+	if (length(bad_gew) > 0) {
+		cli::cli_alert_warning("Geweke |z| > 2: {.val {bad_gew}}. The chain may not have converged.")
+	}
+	if (length(low_ess) == 0 && length(bad_gew) == 0) {
+		cli::cli_alert_success("All sampled parameters pass ESS >= 200 and |Geweke z| <= 2.")
+	}
 
 	n_pars <- ncol(as.matrix(varying_mcmc))
 	if (n_pars > 0) {
@@ -591,96 +745,390 @@ check_convergence <- function(results) {
 		coda::autocorr.plot(varying_mcmc, auto.layout = FALSE)
 	}
 
-	invisible(NULL)
+	invisible(data.frame(
+		parameter = names(ess),
+		ess       = as.numeric(ess),
+		geweke_z  = as.numeric(gew),
+		ess_ok    = as.numeric(ess) >= 200,
+		geweke_ok = !(is.finite(gew) & abs(gew) > 2),
+		row.names = NULL, stringsAsFactors = FALSE
+	))
 }
 ####
 
 ####
-#' Compare Multiple DBN Models
+#' Compare fitted DBN models with information criteria
 #'
-#' @description Creates side-by-side trace plots of scalar variance parameters
-#'   from two or more fitted DBN models. Useful for comparing convergence
-#'   behavior across different model specifications (e.g., static vs. dynamic,
-#'   different ranks, different families).
-#' @param ... Two or more fitted `dbn` objects to compare. Objects are
-#'   labeled "Model 1", "Model 2", etc. in the plot legend.
-#' @return A ggplot2 object showing overlaid trace plots, faceted by
-#'   parameter.
+#' Compare two or more fitted \pkg{dbn} models using WAIC, AIC, and BIC.
+#' The returned object is a data frame ordered by the criterion selected in
+#' \code{type}. Smaller WAIC/AIC/BIC values are preferred. Delta columns are
+#' criterion differences from the best model under that criterion, and weight
+#' columns are normalized \code{exp(-0.5 * delta)} weights.
+#'
+#' @param ... Two or more fitted objects of class \code{"dbn"}, or a single
+#'   list of fitted \code{"dbn"} objects.
+#' @param type Character string selecting the criterion used to order rows:
+#'   \code{"waic"}, \code{"aic"}, or \code{"bic"}. All available criteria are
+#'   still returned as columns.
+#' @param names Optional character vector of display names. Must have the same
+#'   length as the number of fitted models.
+#'
+#' @return A data frame with class \code{c("dbn_compare", "data.frame")} and
+#'   columns \code{model}, \code{elpd_waic}, \code{se_waic}, \code{p_waic},
+#'   \code{waic}, \code{aic}, \code{bic}, \code{delta_waic},
+#'   \code{delta_aic}, \code{delta_bic}, \code{weight_waic},
+#'   \code{weight_aic}, and \code{weight_bic}.
+#'
 #' @seealso \code{\link{dbn}}, \code{\link{check_convergence}},
-#'   \code{\link{param_summary}}
+#'   \code{\link{compute_waic_dbn}}
+#'
 #' @examples
-#' \donttest{
-#' sim <- simulate_static_dbn(n = 6, time = 10, seed = 1)
-#' fit1 <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
-#' fit2 <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
-#' compare_dbn(fit1, fit2)
+#' \dontrun{
+#' fit_dyn <- dbn(Y, model = "dynamic", family = "gaussian")
+#' fit_static <- dbn(Y, model = "static", family = "gaussian")
+#' compare_dbn(dynamic = fit_dyn, static = fit_static)
+#' compare_dbn(list(fit_dyn, fit_static), names = c("dynamic", "static"),
+#'     type = "aic")
 #' }
+#'
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
-compare_dbn <- function(...) {
-	if (!requireNamespace("ggplot2", quietly = TRUE)) cli::cli_abort(c("Package {.pkg ggplot2} is required for this function.", "i" = "Install with {.code install.packages(\"ggplot2\")}"))
-	# suppress R CMD check notes for NSE variables
-	iteration <- value <- model <- NULL
+compare_dbn <- function(..., type = c("waic", "aic", "bic"), names = NULL) {
+	type <- match.arg(type)
 
-	results_list <- list(...)
-	n_models <- length(results_list)
-
-	if (n_models < 2) {
-		cli::cli_abort("Need at least 2 models to compare")
+	args <- list(...)
+	if (length(args) == 0L) {
+		cli::cli_abort(c(
+			"At least two fitted {.cls dbn} objects are required.",
+			"i" = "Use {.code compare_dbn(fit_a, fit_b)} or {.code compare_dbn(list(fit_a, fit_b))}."
+		))
 	}
 
-	compare_df <- data.frame()
-
-	for (i in 1:n_models) {
-		res <- results_list[[i]]
-
-		if (res$model == "static") {
-			temp_df <- data.frame(
-				iteration = seq_len(nrow(res$params)),
-				value = res$params[, "s2"],
-				parameter = "s2",
-				model = paste("Model", i)
-			)
-		} else {
-			temp_df <- data.frame(
-				iteration = seq_along(res$sigma2),
-				value = res$sigma2,
-				parameter = "sigma^2",
-				model = paste("Model", i)
-			)
+	dot_names <- base::names(args)
+	if (length(args) == 1L && is.list(args[[1L]]) && !inherits(args[[1L]], "dbn")) {
+		fits <- args[[1L]]
+		if (is.null(names)) {
+			dot_names <- base::names(fits)
 		}
-
-		compare_df <- rbind(compare_df, temp_df)
-	}
-
-	# overlay parameter traces across models
-	p_compare <- ggplot2::ggplot(compare_df, ggplot2::aes(x = iteration, y = value, color = model)) +
-		ggplot2::geom_line() +
-		ggplot2::facet_wrap(~parameter, scales = "free") +
-		ggplot2::labs(title = "Model Comparison", x = "Iteration", y = "Value", color = "Model") +
-		ggplot2::theme_bw() +
-		ggplot2::theme(
-			panel.border = ggplot2::element_blank(),
-			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
-			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
-		)
-
-	# overlay posterior densities across models
-	p_density <- ggplot2::ggplot(compare_df, ggplot2::aes(x = value, fill = model)) +
-		ggplot2::geom_density(alpha = 0.5) +
-		ggplot2::facet_wrap(~parameter, scales = "free") +
-		ggplot2::labs(title = "Parameter Distributions", x = "Value", y = "Density", fill = "Model") +
-		ggplot2::theme_bw() +
-		ggplot2::theme(
-			panel.border = ggplot2::element_blank(),
-			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
-			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
-		)
-
-	if (requireNamespace("gridExtra", quietly = TRUE)) {
-		gridExtra::grid.arrange(p_compare, p_density, ncol = 1)
 	} else {
-		list(traces = p_compare, density = p_density)
+		fits <- args
 	}
+
+	if (length(fits) < 2L) {
+		cli::cli_abort(c(
+			"At least two fitted {.cls dbn} objects are required.",
+			"i" = "A single fit cannot be compared to itself."
+		))
+	}
+
+	bad <- which(!vapply(fits, .dbn_compare_is_dbn, logical(1L)))
+	if (length(bad) > 0L) {
+		cli::cli_abort(c(
+			"Every object supplied to {.fn compare_dbn} must be a fitted {.cls dbn} object.",
+			"x" = paste0("Non-dbn object positions: ", paste(bad, collapse = ", "), ".")
+		))
+	}
+
+	model_names <- .dbn_compare_names(fits, dot_names = dot_names, names = names)
+
+	results <- lapply(seq_along(fits), function(i) {
+		.dbn_compare_one_fit(fits[[i]], model_name = model_names[[i]])
+	})
+	out <- do.call(rbind, results)
+
+	out$delta_waic <- .dbn_compare_delta(out$waic)
+	out$delta_aic <- .dbn_compare_delta(out$aic)
+	out$delta_bic <- .dbn_compare_delta(out$bic)
+
+	out$weight_waic <- .dbn_compare_weights(out$delta_waic)
+	out$weight_aic <- .dbn_compare_weights(out$delta_aic)
+	out$weight_bic <- .dbn_compare_weights(out$delta_bic)
+
+	sort_col <- switch(type, waic = "waic", aic = "aic", bic = "bic")
+
+	if (!any(is.finite(out[[sort_col]]))) {
+		cli::cli_abort(c(
+			"Cannot rank models by {.val {type}} because no finite values were available.",
+			"i" = "Check that each fit supports the selected information criterion.",
+			"i" = "For ALS or other point-estimate paths without WAIC, try {.code type = \"aic\"} or {.code type = \"bic\"}."
+		))
+	}
+
+	out <- out[order(out[[sort_col]], na.last = TRUE), , drop = FALSE]
+	rownames(out) <- NULL
+
+	class(out) <- c("dbn_compare", "data.frame")
+	attr(out, "criterion") <- type
+	attr(out, "n_models") <- nrow(out)
+
+	out
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_is_dbn <- function(x) {
+	inherits(x, "dbn")
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_names <- function(fits, dot_names = NULL, names = NULL) {
+	if (!is.null(names)) {
+		if (!is.character(names)) {
+			cli::cli_abort(c(
+				"{.arg names} must be a character vector.",
+				"x" = paste0("Got {.cls ", class(names)[[1L]], "}.")
+			))
+		}
+		if (length(names) != length(fits)) {
+			cli::cli_abort(c(
+				"{.arg names} must have one entry per fitted model.",
+				"x" = paste0("Got ", length(names), " names for ", length(fits), " fits.")
+			))
+		}
+		if (anyNA(names) || any(!nzchar(names))) {
+			cli::cli_abort(c(
+				"{.arg names} must not contain missing or empty values.",
+				"i" = "Use explicit labels such as {.code names = c(\"dynamic\", \"static\")}."
+			))
+		}
+		return(make.unique(names, sep = "_"))
+	}
+
+	if (is.null(dot_names)) {
+		dot_names <- rep("", length(fits))
+	}
+	if (length(dot_names) != length(fits)) {
+		dot_names <- rep("", length(fits))
+	}
+
+	out <- dot_names
+	empty <- is.na(out) | !nzchar(out)
+	if (any(empty)) {
+		out[empty] <- vapply(which(empty), function(i) {
+			.dbn_compare_default_name(fits[[i]], i)
+		}, character(1L))
+	}
+
+	make.unique(out, sep = "_")
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_default_name <- function(fit, i) {
+	label <- NULL
+	if (!is.null(fit$model)) label <- fit$model
+	if (is.null(label) && !is.null(fit$meta) && !is.null(fit$meta$model))
+		label <- fit$meta$model
+	if (is.null(label) && !is.null(fit$meta) && !is.null(fit$meta$sampler_used))
+		label <- fit$meta$sampler_used
+
+	if (is.null(label) || length(label) == 0L || is.na(label[[1L]]) ||
+			!nzchar(as.character(label[[1L]]))) {
+		return(paste0("dbn_", i))
+	}
+	paste0(as.character(label[[1L]]), "_", i)
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_one_fit <- function(fit, model_name) {
+	waic_vals <- .dbn_compare_waic_values(fit, model_name = model_name)
+	data.frame(
+		model = model_name,
+		elpd_waic = waic_vals[["elpd_waic"]],
+		se_waic = waic_vals[["se_waic"]],
+		p_waic = waic_vals[["p_waic"]],
+		waic = waic_vals[["waic"]],
+		aic = .dbn_compare_ic_value(fit, criterion = "AIC", model_name = model_name),
+		bic = .dbn_compare_ic_value(fit, criterion = "BIC", model_name = model_name),
+		stringsAsFactors = FALSE
+	)
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_waic_values <- function(fit, model_name) {
+	na_vals <- c(elpd_waic = NA_real_, se_waic = NA_real_,
+				 p_waic = NA_real_, waic = NA_real_)
+
+	res <- tryCatch(compute_waic_dbn(fit), error = function(e) e)
+	if (inherits(res, "error")) {
+		cli::cli_warn(c(
+			"Could not compute WAIC for one DBN fit.",
+			"x" = paste0("Model ", shQuote(model_name), ": ", conditionMessage(res)),
+			"i" = "WAIC columns are set to NA for this model."
+		))
+		return(na_vals)
+	}
+
+	vals <- tryCatch(.dbn_compare_extract_waic(res), error = function(e) e)
+	if (inherits(vals, "error")) {
+		cli::cli_warn(c(
+			"Could not parse the WAIC object returned by {.fn compute_waic_dbn}.",
+			"x" = paste0("Model ", shQuote(model_name), ": ", conditionMessage(vals)),
+			"i" = "WAIC columns are set to NA for this model."
+		))
+		return(na_vals)
+	}
+	vals
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_extract_waic <- function(waic_obj) {
+	if (is.list(waic_obj) && !is.null(waic_obj$estimates)) {
+		est <- waic_obj$estimates
+	} else {
+		est <- waic_obj
+	}
+	if (is.data.frame(est)) est <- as.matrix(est)
+
+	if (!is.matrix(est)) {
+		cli::cli_abort(c(
+			"WAIC result does not contain an estimates matrix.",
+			"i" = "Expected a {.pkg loo}-style object with {.field estimates}."
+		))
+	}
+
+	required_rows <- c("elpd_waic", "p_waic", "waic")
+	missing_rows <- setdiff(required_rows, rownames(est))
+	if (length(missing_rows) > 0L) {
+		cli::cli_abort(c(
+			"WAIC estimates matrix is missing required rows.",
+			"x" = paste0("Missing: ", paste(missing_rows, collapse = ", "), ".")
+		))
+	}
+
+	estimate_col <- if ("Estimate" %in% colnames(est)) "Estimate" else 1L
+	se_col <- if ("SE" %in% colnames(est)) "SE" else if ("se" %in% colnames(est)) "se" else NA
+
+	out <- c(
+		elpd_waic = as.numeric(est["elpd_waic", estimate_col]),
+		se_waic = NA_real_,
+		p_waic = as.numeric(est["p_waic", estimate_col]),
+		waic = as.numeric(est["waic", estimate_col])
+	)
+	if (!is.na(se_col)) out[["se_waic"]] <- as.numeric(est["waic", se_col])
+	out
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_ic_value <- function(fit, criterion = c("AIC", "BIC"), model_name) {
+	criterion <- match.arg(criterion)
+	fun <- switch(criterion, AIC = stats::AIC, BIC = stats::BIC)
+
+	res <- tryCatch(fun(fit), error = function(e) e)
+	if (inherits(res, "error")) {
+		cli::cli_warn(c(
+			paste0("Could not compute ", criterion, " for one DBN fit."),
+			"x" = paste0("Model ", shQuote(model_name), ": ", conditionMessage(res)),
+			"i" = paste0(criterion, " is set to NA for this model.")
+		))
+		return(NA_real_)
+	}
+
+	if (is.data.frame(res)) {
+		if (criterion %in% colnames(res)) return(as.numeric(res[[criterion]][[1L]]))
+		num_cols <- vapply(res, is.numeric, logical(1L))
+		if (any(num_cols)) return(as.numeric(res[[which(num_cols)[[1L]]]][[1L]]))
+		return(NA_real_)
+	}
+
+	val <- suppressWarnings(as.numeric(res))
+	if (length(val) == 0L) return(NA_real_)
+	val[[1L]]
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_delta <- function(x) {
+	delta <- rep(NA_real_, length(x))
+	ok <- is.finite(x)
+	if (!any(ok)) return(delta)
+	delta[ok] <- x[ok] - min(x[ok])
+	delta
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_weights <- function(delta) {
+	weights <- rep(NA_real_, length(delta))
+	ok <- is.finite(delta)
+	if (!any(ok)) return(weights)
+	raw <- exp(-0.5 * delta[ok])
+	denom <- sum(raw)
+	if (!is.finite(denom) || denom <= 0) return(weights)
+	weights[ok] <- raw / denom
+	weights
+}
+
+#' Print a DBN model-comparison table
+#'
+#' @param x An object returned by \code{\link{compare_dbn}}.
+#' @param ... Unused.
+#' @param digits Number of significant digits to display.
+#'
+#' @return Invisibly returns \code{x}.
+#'
+#' @author Tosin Salau and Shahryar Minhas
+#' @export
+print.dbn_compare <- function(x, ..., digits = 3) {
+	criterion <- attr(x, "criterion")
+	if (is.null(criterion) || !nzchar(criterion)) criterion <- "waic"
+
+	cli::cli_h3("DBN model comparison")
+	cli::cli_inform(paste0(
+		"Ranked by ", toupper(criterion),
+		"; smaller information-criterion values are preferred."
+	))
+
+	cols <- c("model", "elpd_waic", "se_waic", "p_waic", "waic", "aic", "bic",
+			  "delta_waic", "delta_aic", "delta_bic",
+			  "weight_waic", "weight_aic", "weight_bic")
+	cols <- intersect(cols, colnames(x))
+	display <- x[, cols, drop = FALSE]
+
+	num_cols <- vapply(display, is.numeric, logical(1L))
+	display[num_cols] <- lapply(display[num_cols], .dbn_compare_format_number,
+		digits = digits)
+
+	# strip the dbn_compare class on `display` so this print() dispatches to
+	# base R's print.data.frame instead of recursing into print.dbn_compare.
+	class(display) <- "data.frame"
+	print(display, row.names = FALSE, right = TRUE)
+
+	if (anyNA(x$waic)) {
+		cli::cli_inform(c(
+			"i" = "At least one WAIC value is NA. This usually means the fit does not expose a pointwise posterior log-likelihood."
+		))
+	}
+
+	invisible(x)
+}
+
+#' @keywords internal
+#' @noRd
+.dbn_compare_format_number <- function(x, digits = 3) {
+	out <- rep(NA_character_, length(x))
+	ok <- !is.na(x)
+	if (any(ok)) {
+		# use scientific notation when the magnitude is < 1e-3 or >= 1e6;
+		# otherwise fixed. Avoids 2.7e-21 printing as 20 leading zeros.
+		v <- signif(x[ok], digits = digits)
+		mag <- abs(v)
+		use_sci <- mag > 0 & (mag < 1e-3 | mag >= 1e6)
+		fmt <- character(length(v))
+		if (any(use_sci)) {
+			fmt[use_sci] <- format(v[use_sci], trim = TRUE, scientific = TRUE, digits = digits)
+		}
+		if (any(!use_sci)) {
+			fmt[!use_sci] <- format(v[!use_sci], trim = TRUE, scientific = FALSE)
+		}
+		out[ok] <- fmt
+	}
+	out
 }
 ####
 
@@ -705,7 +1153,7 @@ ppc_ecdf <- function(fit, n_rep = 20) {
 		cli::cli_abort("tprod function not found. Please load the dbn package.")
 	}
 
-	y_orig <- fit$R
+	y_orig <- fit$Y %||% fit$R
 	ecdf_orig <- ecdf(c(y_orig))
 	stat_orig <- ecdf_orig(sort(unique(c(y_orig))))
 
@@ -723,10 +1171,13 @@ ppc_ecdf <- function(fit, n_rep = 20) {
 			ncl <- fit$dims$n_col
 			Theta <- array(0, dim = c(nr, ncl, fit$dims$p, dim(A)[3]))
 			Theta[, , , 1] <- 0
+			# safe sigma2 index: bootstrap-expanded fits have length-1 sigma2
+			sig2_draw <- if (length(fit$sigma2) >= idx) fit$sigma2[idx] else fit$sigma2[1]
+			if (!is.finite(sig2_draw)) sig2_draw <- 1
 			for (t in 2:dim(Theta)[4]) {
 				for (rel in 1:fit$dims$p) {
 					Theta[, , rel, t] <- A[, , t] %*% Theta[, , rel, t - 1] %*% t(B[, , t]) +
-						sqrt(fit$sigma2[idx]) * matrix(rnorm(nr * ncl), nr, ncl)
+						sqrt(sig2_draw) * matrix(rnorm(nr * ncl), nr, ncl)
 				}
 			}
 			M_draw <- if (length(dim(fit$M)) == 4) fit$M[, , , idx] else fit$M[[idx]]
@@ -757,7 +1208,7 @@ ppc_ecdf <- function(fit, n_rep = 20) {
 			x = "Ordinal category", y = "ECDF"
 		) +
 		ggplot2::theme_bw() +
-		ggplot2::theme(panel.border = ggplot2::element_blank())
+		ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 }
 ####
 
@@ -780,6 +1231,7 @@ ppc_ecdf <- function(fit, n_rep = 20) {
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' dyad_path(fit, i = 1, j = 2)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 dyad_path <- function(fit, i, j, rel = NULL, facet = TRUE, cred = c(0.025, 0.975)) {
 	if (!requireNamespace("ggplot2", quietly = TRUE)) cli::cli_abort(c("Package {.pkg ggplot2} is required for this function.", "i" = "Install with {.code install.packages(\"ggplot2\")}"))
@@ -791,47 +1243,77 @@ dyad_path <- function(fit, i, j, rel = NULL, facet = TRUE, cred = c(0.025, 0.975
 	if (is.null(rel)) {
 		rel <- seq_len(p)
 	}
+	# validate `rel` as integer indices into the relation axis; an
+	# out-of-range value would otherwise plot relation 1's draws under the
+	# wrong facet label.
+	if (!all(is.numeric(rel)) || any(rel < 1) || any(rel > p) || any(rel != as.integer(rel))) {
+		cli::cli_abort(c(
+			"{.arg rel} must be (an integer or integer vector of) relation indices in {.code 1:p}.",
+			"x" = "Got {.val {rel}}; fit has {.code p = {p}} relation{?s}."
+		))
+	}
+	rel <- as.integer(rel)
+	# read the latent-state draws directly from fit$Theta, which is what
+	# the function name and the y-axis label promise (the lag operator
+	# (A_t B_t^T)[i,j] would be a different quantity).
+	#
+	# different model variants store theta differently:
+	#  * dynamic / piecewise: fit$Theta (5D top-level cube)
+	#  * hmm / lowrank: fit$draws$theta (list of [n_row, n_col, p, T] arrays)
+	# fall back to the list-of-arrays form so dyad_path works on hmm fits.
+	Theta <- fit$Theta
+	if (is.null(Theta) && !is.null(fit$draws$theta) && is.list(fit$draws$theta) &&
+		length(fit$draws$theta) > 0L && length(dim(fit$draws$theta[[1]])) == 4L) {
+		# stack list -> 5D array [n_row, n_col, p, T, draws]
+		d4 <- dim(fit$draws$theta[[1]])
+		Theta <- array(unlist(fit$draws$theta),
+			dim = c(d4, length(fit$draws$theta)))
+	}
+	if (is.null(Theta) || length(dim(Theta)) != 5L) {
+		cli::cli_abort(c(
+			"{.fun dyad_path} requires the latent-state draws.",
+			"x" = "Neither {.code fit$Theta} (5D array) nor {.code fit$draws$theta} (list of 4D arrays) is available.",
+			"i" = "The fit may have been produced with {.code keep = ...} that dropped Theta. Refit without that exclusion."
+		))
+	}
+	dim_Theta <- dim(Theta)  # [n_row, n_col, p, T, draws]
+	n_row <- dim_Theta[1]; n_col <- dim_Theta[2]
+	# accept character actor names against dimnames(fit$Y), so substantive
+	# users can write dyad_path(fit, "USA", "China") instead of guessing
+	# integer indices.
+	actor_names_row <- dimnames(fit$Y)[[1L]]
+	actor_names_col <- dimnames(fit$Y)[[2L]]
+	i_label <- if (is.character(i)) i else NULL
+	j_label <- if (is.character(j)) j else NULL
+	if (is.character(i)) {
+		if (is.null(actor_names_row))
+			cli::cli_abort("{.arg i} is a character name but {.code dimnames(fit$Y)[[1]]} is NULL.")
+		idx <- match(i, actor_names_row)
+		if (length(idx) != 1L || is.na(idx))
+			cli::cli_abort(c("{.arg i} actor name not found.", "x" = "Got {.val {i}}; available: {.val {head(actor_names_row, 6)}}"))
+		i <- idx
+	}
+	if (is.character(j)) {
+		if (is.null(actor_names_col))
+			cli::cli_abort("{.arg j} is a character name but {.code dimnames(fit$Y)[[2]]} is NULL.")
+		idx <- match(j, actor_names_col)
+		if (length(idx) != 1L || is.na(idx))
+			cli::cli_abort(c("{.arg j} actor name not found.", "x" = "Got {.val {j}}; available: {.val {head(actor_names_col, 6)}}"))
+		j <- idx
+	}
+	if (!is.numeric(i) || length(i) != 1L || i < 1 || i > n_row || i != as.integer(i))
+		cli::cli_abort("{.arg i} must be a single integer in {.code 1:{n_row}} (or a character name).")
+	if (!is.numeric(j) || length(j) != 1L || j < 1 || j > n_col || j != as.integer(j))
+		cli::cli_abort("{.arg j} must be a single integer in {.code 1:{n_col}} (or a character name).")
+	i <- as.integer(i); j <- as.integer(j)
+	# fall back to dimnames if labels weren't supplied as characters
+	if (is.null(i_label) && !is.null(actor_names_row)) i_label <- actor_names_row[i]
+	if (is.null(j_label) && !is.null(actor_names_col)) j_label <- actor_names_col[j]
 
-	# posterior trajectory for one relation
+	# posterior trajectory for one relation -- read theta_{i,j,r,t,s} directly
 	compute_trajectory <- function(r) {
-		if (fit$model == "dynamic") {
-			n_keep <- length(fit$A)
-			Tt <- dim(fit$A[[1]])[3]
-			thetas <- matrix(NA, n_keep, Tt)
-
-			for (s in seq_len(n_keep)) {
-				for (t in seq_len(Tt)) {
-					thetas[s, t] <- sum(fit$A[[s]][i, , t] * fit$B[[s]][j, , t])
-				}
-			}
-		} else if (fit$model == "lowrank") {
-			n_keep <- length(fit$U)
-			Tt <- ncol(fit$alpha[[1]])
-			thetas <- matrix(NA, n_keep, Tt)
-
-			for (s in seq_len(n_keep)) {
-				for (t in seq_len(Tt)) {
-					U_s <- fit$U[[s]]
-					alpha_s <- fit$alpha[[s]][, t]
-					A_s <- U_s %*% diag(alpha_s, nrow = length(alpha_s)) %*% t(U_s)
-					B_s <- fit$B[[s]][, , t]
-					thetas[s, t] <- sum(A_s[i, ] * B_s[j, ])
-				}
-			}
-		} else if (fit$model == "hmm") {
-			n_keep <- length(fit$S)
-			Tt <- length(fit$S[[1]])
-			thetas <- matrix(NA, n_keep, Tt)
-
-			for (s in seq_len(n_keep)) {
-				for (t in seq_len(Tt)) {
-					regime <- fit$S[[s]][t]
-					A_s <- fit$A[[s]][, , regime]
-					B_s <- fit$B[[s]][, , regime]
-					thetas[s, t] <- sum(A_s[i, ] * B_s[j, ])
-				}
-			}
-		}
+		thetas <- t(Theta[i, j, r, , ])  # [draws, T]
+		Tt <- ncol(thetas)
 
 		# convert stored indices to original time scale
 		time_vals <- 1:Tt
@@ -851,16 +1333,22 @@ dyad_path <- function(fit, i, j, rel = NULL, facet = TRUE, cred = c(0.025, 0.975
 
 	df_all <- do.call(rbind, lapply(rel, compute_trajectory))
 
+	title_str <- if (!is.null(i_label) && !is.null(j_label)) {
+		sprintf("Dyad (%s, %s) trajectory", i_label, j_label)
+	} else {
+		sprintf("Dyad (%d,%d) trajectory", i, j)
+	}
 	g <- ggplot2::ggplot(df_all, ggplot2::aes(time, mean)) +
 		ggplot2::geom_ribbon(ggplot2::aes(ymin = lo, ymax = hi), fill = "grey80") +
 		ggplot2::geom_line(linewidth = 0.7) +
 		ggplot2::labs(
 			x = "Time", y = expression(theta[list(i, j, t)]),
-			title = sprintf("Dyad (%d,%d) trajectory", i, j)
+			title = title_str
 		) +
 		ggplot2::theme_bw() +
 		ggplot2::theme(
 			panel.border = ggplot2::element_blank(),
+			axis.ticks = ggplot2::element_blank(),
 			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
 		)
@@ -874,49 +1362,96 @@ dyad_path <- function(fit, i, j, rel = NULL, facet = TRUE, cred = c(0.025, 0.975
 ####
 
 ####
-#' Track Role Evolution
+#' Per-actor singular-vector trajectory
 #'
-#' @description Tracks first left/right singular vector of A_t or B_t
+#' @description At each time point, take the posterior-mean operator
+#'   (`A_t` for senders, `B_t` for receivers), run its SVD, and read off
+#'   the `comp`-th singular vector. This gives one coordinate per actor
+#'   per time, tracing how the leading singular direction of the
+#'   operator rotates over the panel.
+#'
+#'   This is a low-dimensional summary of how the operator's row (or
+#'   column) space moves; it is not actor influence or coupling. For
+#'   per-actor coupling with credible bands, use
+#'   [coupling_trajectory()].
+#'
 #' @param fit Dynamic dbn object
-#' @param mat "A" or "B"
-#' @param comp Component index (default: 1)
-#' @return Base R plot (invisible NULL)
-#' @seealso \code{\link{dbn}}, \code{\link{dyad_path}},
-#'   \code{\link{net_snapshot}}
+#' @param mat "A" (senders) or "B" (receivers)
+#' @param comp Singular vector index to track (default: 1)
+#' @param plot Logical. If `TRUE` (default), also draw the trajectory
+#'   plot via [ggplot2::ggplot()] and return the result invisibly;
+#'   if `FALSE`, return the underlying data frame without plotting.
+#' @return A data frame of class `dbn_role_trajectory` with columns
+#'   `time`, `actor`, `score`, with attributes `mat` and `comp`. A
+#'   companion `plot()` method renders it as a ggplot.
+#' @seealso [coupling_trajectory()] for per-actor coupling with bands;
+#'   [actor_embedding()] for a single-shot per-actor coordinate.
 #' @examples
 #' \donttest{
 #' sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-#' role_trajectory(fit, mat = "A", comp = 1)
+#' rt <- role_trajectory(fit, mat = "A", comp = 1, plot = FALSE)
+#' plot(rt)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
-role_trajectory <- function(fit, mat = c("A", "B"), comp = 1) {
+role_trajectory <- function(fit, mat = c("A", "B"), comp = 1, plot = TRUE) {
 	mat <- match.arg(mat)
 	n_keep <- length(fit[[mat]])
 	Tt <- dim(fit[[mat]][[1]])[3]
-	# A indexes n_row, B indexes n_col
-	m <- if (mat == "A") {
-		fit$dims$n_row
-	} else {
-		fit$dims$n_col
-	}
-	scores <- matrix(NA, Tt, m)
-
-	# compute posterior mean SVD at each time point
-	for (t in 1:Tt) {
+	m <- if (mat == "A") fit$dims$n_row else fit$dims$n_col
+	scores <- matrix(NA_real_, Tt, m)
+	for (t in seq_len(Tt)) {
 		Mbar <- Reduce(`+`, lapply(fit[[mat]], function(M) M[, , t])) / n_keep
 		sv <- svd(Mbar)
 		scores[t, ] <- if (mat == "A") sv$u[, comp] else sv$v[, comp]
 	}
-
-	matplot(1:Tt, scores,
-		type = "l", lty = 1, col = 1:m,
-		main = sprintf("%s_t singular vector %d", mat, comp),
-		xlab = "Time", ylab = "Coordinate"
+	actor_names <- if (mat == "A") {
+		dimnames(fit$Y)[[1L]] %||% paste0("actor_", seq_len(m))
+	} else {
+		dimnames(fit$Y)[[2L]] %||% paste0("actor_", seq_len(m))
+	}
+	out <- data.frame(
+		time = rep(seq_len(Tt), times = m),
+		actor = factor(rep(actor_names, each = Tt), levels = actor_names),
+		score = as.vector(scores),
+		stringsAsFactors = FALSE
 	)
-	legend("topright", legend = 1:m, col = 1:m, lty = 1, cex = 0.6, ncol = 2)
+	attr(out, "mat") <- mat
+	attr(out, "comp") <- comp
+	class(out) <- c("dbn_role_trajectory", "data.frame")
+	if (isTRUE(plot)) {
+		p <- plot(out)
+		print(p)
+		return(invisible(out))
+	}
+	out
+}
+####
 
-	invisible(NULL)
+####
+#' Plot method for `dbn_role_trajectory`
+#'
+#' @param x A `dbn_role_trajectory` object from [role_trajectory()].
+#' @param ... Unused.
+#' @return A `ggplot` object.
+#' @author Tosin Salau and Shahryar Minhas
+#' @export
+plot.dbn_role_trajectory <- function(x, ...) {
+	if (!requireNamespace("ggplot2", quietly = TRUE))
+		cli::cli_abort("{.pkg ggplot2} is required for plotting role trajectories.")
+	mat <- attr(x, "mat") %||% "A"
+	comp <- attr(x, "comp") %||% 1
+	ggplot2::ggplot(x, ggplot2::aes(x = .data$time, y = .data$score,
+	                                colour = .data$actor, group = .data$actor)) +
+		ggplot2::geom_line(linewidth = 0.7) +
+		ggplot2::labs(
+			title = sprintf("%s_t singular vector %d", mat, comp),
+			subtitle = "Per-actor coordinate in the leading singular direction over time",
+			x = "Time", y = "Singular-vector coordinate", colour = "Actor"
+		) +
+		ggplot2::theme_bw() +
+		ggplot2::theme(panel.border = ggplot2::element_blank())
 }
 ####
 
@@ -925,27 +1460,43 @@ role_trajectory <- function(fit, mat = c("A", "B"), comp = 1) {
 #'
 #' @description Heat map of Theta at given time (posterior mean)
 #' @param fit Dynamic dbn object
-#' @param t Time point
+#' @param time Time point
 #' @param rel Relation index (default: 1)
 #' @param sparse Auto-switch to sparse visualization for large networks
 #' @param eps Threshold for sparse plotting
 #' @param show_significant Logical, whether to show only significant effects (default: FALSE)
 #' @param cred_level Credible level for significance (default corresponds to 95% CI)
-#' @return ggplot2 object or base R plot
+#' @return A `ggplot` object.
 #' @seealso \code{\link{dbn}}, \code{\link{dyad_path}},
 #'   \code{\link{theta_summary}}, \code{\link{role_trajectory}}
 #' @examples
 #' \donttest{
 #' sim <- simulate_dynamic_dbn(n = 6, time = 10, seed = 1)
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
-#' net_snapshot(fit, t = 5)
+#' net_snapshot(fit, time = 5)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
-net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
+net_snapshot <- function(fit, time, rel = 1, sparse = NULL, eps = 1e-4,
 						show_significant = FALSE, cred_level = 0.025) {
+	if (!inherits(fit, "dbn")) {
+		cli::cli_abort(c(
+			"{.fun net_snapshot} expects a fitted {.cls dbn} object.",
+			"x" = "Got {.cls {class(fit)[1]}}.",
+			"i" = "For raw-data snapshots, use {.code Y[, , rel, t]} directly."
+		))
+	}
 	if (!requireNamespace("ggplot2", quietly = TRUE)) cli::cli_abort(c("Package {.pkg ggplot2} is required for this function.", "i" = "Install with {.code install.packages(\"ggplot2\")}"))
 	if (!fit$model %in% c("dynamic", "lowrank", "hmm")) {
 		cli::cli_abort("This function requires a time-varying model (dynamic, lowrank, or hmm)")
+	}
+	Tt_fit <- fit$dims$Tt
+	if (length(time) != 1L || !is.numeric(time) || !is.finite(time) || time < 1 ||
+	    time != round(time) || time > Tt_fit) {
+		cli::cli_abort(c(
+			"{.arg time} must be a single whole number between 1 and {Tt_fit}.",
+			"x" = "Got {.val {time}}."
+		))
 	}
 	n_row <- fit$dims$n_row
 	n_col <- fit$dims$n_col
@@ -961,25 +1512,47 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 	}
 
 	# adjust index for time thinning
-	t_idx <- t
+	t_idx <- time
 	if (!is.null(fit$settings$time_thin) && fit$settings$time_thin > 1) {
-		t_idx <- ceiling(t / fit$settings$time_thin)
+		t_idx <- ceiling(time / fit$settings$time_thin)
 	}
 
 	# average Theta across posterior draws, model-specific computation
 	if (fit$model == "dynamic") {
-		n_keep <- length(fit$A)
-		if (t_idx > dim(fit$A[[1]])[3]) {
-			cli::cli_abort("Time {t} not available (time_thin={fit$settings$time_thin})")
-		}
-		for (s in seq_len(n_keep)) {
-			Th_s <- fit$A[[s]][, , t_idx] %*% t(fit$B[[s]][, , t_idx])
-			if (show_significant) {
-				Th_all[, , s] <- Th_s
+		# prefer the stored Theta when present (handles bipartite correctly:
+		# `A_t %*% t(B_t)` requires n_row == n_col, but Theta_t has the right
+		# n_row x n_col shape regardless of topology). fall back to the
+		# `A %*% t(B)` reconstruction when Theta is absent.
+		if (!is.null(fit$Theta) && length(dim(fit$Theta)) == 5L) {
+			d <- dim(fit$Theta)
+			n_keep <- d[5]
+			if (t_idx > d[4]) {
+				cli::cli_abort("Time {time} not available (time_thin={fit$settings$time_thin})")
 			}
-			Th <- Th + Th_s
+			for (s in seq_len(n_keep)) {
+				Th_s <- fit$Theta[, , rel, t_idx, s]
+				if (show_significant) Th_all[, , s] <- Th_s
+				Th <- Th + Th_s
+			}
+			Th <- Th / n_keep
+		} else {
+			n_keep <- length(fit$A)
+			if (t_idx > dim(fit$A[[1]])[3]) {
+				cli::cli_abort("Time {time} not available (time_thin={fit$settings$time_thin})")
+			}
+			if (n_row != n_col) {
+				cli::cli_abort(c(
+					"{.fun net_snapshot} on a bipartite fit needs {.code fit$Theta} to be stored.",
+					"i" = "Refit with default settings ({.code keep} including Theta) to enable this view."
+				))
+			}
+			for (s in seq_len(n_keep)) {
+				Th_s <- fit$A[[s]][, , t_idx] %*% t(fit$B[[s]][, , t_idx])
+				if (show_significant) Th_all[, , s] <- Th_s
+				Th <- Th + Th_s
+			}
+			Th <- Th / n_keep
 		}
-		Th <- Th / n_keep
 	} else if (fit$model == "lowrank") {
 		n_keep <- length(fit$U)
 		for (s in seq_len(n_keep)) {
@@ -1067,12 +1640,12 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 			ggplot2::scale_y_reverse() +
 			ggplot2::coord_equal() +
 			ggplot2::labs(
-				title = paste("Network snapshot at t =", t),
+				title = paste("Network snapshot at t =", time),
 				subtitle = paste("Relation", rel, "- Sparse view"),
 				x = "Actor i", y = "Actor j"
 			) +
 			ggplot2::theme_bw() +
-			ggplot2::theme(panel.border = ggplot2::element_blank())
+			ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 	} else {
 		# tile heatmap for smaller networks
 		df <- expand.grid(i = 1:n_row, j = 1:n_col)
@@ -1089,12 +1662,12 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 			ggplot2::scale_y_reverse() +
 			ggplot2::coord_equal() +
 			ggplot2::labs(
-				title = paste("Network snapshot at t =", t),
+				title = paste("Network snapshot at t =", time),
 				subtitle = paste("Relation", rel),
 				x = "Actor i", y = "Actor j"
 			) +
 			ggplot2::theme_bw() +
-			ggplot2::theme(panel.border = ggplot2::element_blank())
+			ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 	}
 	####
 }
@@ -1108,9 +1681,28 @@ net_snapshot <- function(fit, t, rel = 1, sparse = NULL, eps = 1e-4,
 #' @param what Components to extract
 #' @param time_subset Time points to include (dynamic model)
 #' @return List of posterior mean arrays
-#' @keywords internal
+#' @seealso [tidy_dbn_lowrank()], [param_summary()], [theta_summary()]
+#' @author Tosin Salau and Shahryar Minhas
+#' @export
 tidy_dbn <- function(fit, what = c("A", "B", "Theta"), time_subset = NULL) {
 	what <- match.arg(what, several.ok = TRUE)
+
+	# piecewise stores per-block 2D operators in fit$A_blocks / fit$B_blocks;
+	# the downstream reduction below assumes a 3D time-indexed array. return
+	# the block-level posterior means directly to sidestep the dim mismatch.
+	if (fit$model == "piecewise") {
+		out <- list()
+		if ("A" %in% what && !is.null(fit$A_blocks)) out$A <- fit$A_blocks
+		if ("B" %in% what && !is.null(fit$B_blocks)) out$B <- fit$B_blocks
+		if ("Theta" %in% what) {
+			if (!is.null(fit$Theta)) {
+				out$Theta <- if (length(dim(fit$Theta)) == 5L)
+					apply(fit$Theta, 1:4, mean) else fit$Theta
+			}
+		}
+		return(out)
+	}
+
 	n_keep <- ifelse(fit$model == "static", dim(fit$B[[1]])[3], length(fit$A))
 
 	if (is.null(time_subset)) {
@@ -1149,6 +1741,17 @@ tidy_dbn <- function(fit, what = c("A", "B", "Theta"), time_subset = NULL) {
 	if ("Theta" %in% what) {
 		if (fit$model == "static") {
 			out$Theta <- fit$M
+		} else if (!is.null(fit$Theta) && length(dim(fit$Theta)) == 5L) {
+			# prefer the stored latent-state draws when available -- the
+			# reconstruction below uses `A %*% t(B)`, which is non-conformable
+			# for bipartite (n_row != n_col) and is anyway a different quantity
+			# (the lag operator) from the latent state Theta
+			out$Theta <- apply(fit$Theta, 1:4, mean)
+		} else if (isTRUE(fit$dims$is_bipartite)) {
+			cli::cli_abort(c(
+				"{.fun tidy_dbn} cannot reconstruct {.code Theta} for bipartite fits without {.code fit$Theta}.",
+				"i" = "Refit without dropping {.code \"Theta\"} from {.arg keep}, or read {.code fit$A} / {.code fit$B} directly."
+			))
 		} else {
 			time_idx <- time_subset
 			if (!is.null(fit$settings$time_thin) && fit$settings$time_thin > 1) {
@@ -1188,6 +1791,7 @@ tidy_dbn <- function(fit, what = c("A", "B", "Theta"), time_subset = NULL) {
 #' @return A ggplot2 object
 #' @seealso \code{\link{get_group_influence}},
 #'   \code{\link{compare_group_influence}}, \code{\link{dbn}}
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 #' @examples
 #' \donttest{
@@ -1276,7 +1880,7 @@ plot_group_influence <- function(fit,
 
 	ggplot2::ggplot(df, ggplot2::aes(time, med)) +
 		ggplot2::geom_ribbon(ggplot2::aes(ymin = lo, ymax = hi), fill = "grey80") +
-		ggplot2::geom_line(linewidth = 0.8, colour = "steelblue") +
+		ggplot2::geom_line(linewidth = 0.8) +
 		ggplot2::labs(
 			title = gtitle,
 			subtitle = paste("Actors:", paste(group, collapse = ", ")),
@@ -1284,7 +1888,7 @@ plot_group_influence <- function(fit,
 			x = "Time"
 		) +
 		ggplot2::theme_bw() +
-		ggplot2::theme(panel.border = ggplot2::element_blank())
+		ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 }
 ####
 
@@ -1301,6 +1905,7 @@ plot_group_influence <- function(fit,
 #' @return Data frame with time, posterior quantiles, and mean
 #' @seealso \code{\link{plot_group_influence}},
 #'   \code{\link{compare_group_influence}}, \code{\link{dbn}}
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 #' @examples
 #' \donttest{
@@ -1402,6 +2007,7 @@ get_group_influence <- function(fit,
 #' @return A ggplot2 object
 #' @seealso \code{\link{plot_group_influence}},
 #'   \code{\link{get_group_influence}}, \code{\link{dbn}}
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 #' @examples
 #' \donttest{
@@ -1471,7 +2077,8 @@ compare_group_influence <- function(fit,
 		ggplot2::theme_bw() +
 		ggplot2::theme(
 			panel.border = ggplot2::element_blank(),
-			legend.position = "bottom"
+			axis.ticks = ggplot2::element_blank(),
+			legend.position = "top"
 		)
 }
 ####
@@ -1490,7 +2097,7 @@ compare_group_influence <- function(fit,
 #'   `[nodes, nodes, relations, time, draws]`. If `summary = "mean"`,
 #'   returns a 4D array with dimensions `[nodes, nodes, relations, time]`.
 #' @keywords internal
-simulate_static <- function(fit, draws, summary = "none") {
+simulate_static <- function(fit, draws = 100L, summary = "none") {
 	n_row <- fit$dims$n_row
 	n_col <- fit$dims$n_col
 	p <- fit$dims$p
@@ -1518,7 +2125,7 @@ simulate_static <- function(fit, draws, summary = "none") {
 		out[, , , , s] <- Yrep
 	}
 
-	if (summary == "mean") {
+	if (identical(summary, "mean")) {
 		apply(out, 1:4, mean)
 	} else {
 		out
@@ -1541,29 +2148,125 @@ simulate_static <- function(fit, draws, summary = "none") {
 #'   `[nodes, nodes, relations, horizon, draws]`. If `summary = "mean"`,
 #'   returns a 4D array with dimensions `[nodes, nodes, relations, horizon]`.
 #' @keywords internal
-simulate_dynamic <- function(fit, H, draws, summary = "none") {
+simulate_dynamic <- function(fit, H, draws = 100L, summary = "none", seed = NULL) {
+	if (!is.null(seed)) set.seed(seed)
 	n_row <- fit$dims$n_row
 	n_col <- fit$dims$n_col
 	p <- fit$dims$p
 	Tt <- fit$dims$Tt
+
+	if (!missing(H) && is.numeric(H) && length(H) == 1L && is.finite(H) && H > Tt) {
+		cli::cli_warn(c(
+			"Forecast horizon {.arg H} ({H}) exceeds the observed series length ({Tt}).",
+			"i" = "Steps beyond {Tt} are pure extrapolation; credible intervals widen and a non-contractive operator will diverge.",
+			"i" = "Check operator stability with {.fun dbn_operator} before trusting long-horizon forecasts."
+		))
+	}
 
 	Theta_pred <- array(0, c(n_row, n_col, p, H, draws))
 
 	n_saved <- length(fit$A)
 	idx <- sample(n_saved, draws, replace = TRUE)
 
-	for (s in seq_len(draws)) {
-		A_last <- fit$A[[idx[s]]][, , Tt]
-		B_last <- fit$B[[idx[s]]][, , Tt]
-		sigma2 <- fit$sigma2[idx[s]]
+	# the forecast must propagate forward from the end of the observed
+	# series, so seed the latent state at the last estimated Theta (not 0).
+	# the last stored time index handles time-thinned fits correctly.
+	have_theta <- !is.null(fit$Theta) && is.array(fit$Theta) &&
+		length(dim(fit$Theta)) == 5
+	t_last_theta <- if (have_theta) dim(fit$Theta)[4] else NA_integer_
+	if (!have_theta) {
+		cli::cli_warn(c(
+			"Fitted {.code Theta} is not stored; seeding the forecast at zero.",
+			"i" = "Refit with {.code store_theta = TRUE} to forecast from the observed end-of-series state."
+		))
+	}
 
-		Theta_curr <- array(0, c(n_row, n_col, p))
+	# propagate the operator forward via RW(1) for h > 1:
+	# A_{T+h} = A_T + sum_{k=1..h} epsilon_k with epsilon ~ N(0, tau_A^2).
+	# this gives the right h-step CIs under the RW prior. for ALS / TV-ALS
+	# fits tau_A2 / tau_B2 may be NA; in that case we hold the operator
+	# constant and warn that the forecast uncertainty is conditional on
+	# the terminal operator value.
+	tau_A2_avail <- !all(is.na(fit$tau_A2))
+	tau_B2_avail <- !all(is.na(fit$tau_B2))
+	propagate_operator <- tau_A2_avail && tau_B2_avail
+	if (!propagate_operator && H > 1L &&
+	    !isTRUE(getOption("dbn.terminal_operator_inform_fired", FALSE))) {
+		cli::cli_inform(c(
+			"i" = "Forecast holds the terminal operator (A_T, B_T) constant for h > 1.",
+			"i" = "This fit has no RW innovation variance (typical for ALS); intervals are conditional on the terminal operator value.",
+			"i" = "This message fires only once per session; clear with {.code options(dbn.terminal_operator_inform_fired = FALSE)}."
+		))
+		options(dbn.terminal_operator_inform_fired = TRUE)
+	}
+
+	# fit$sigma2 / tau_A2 / tau_B2 may be length-1 point estimates (ALS
+	# bootstrap-expanded fits) or full per-draw chains (MCMC fits). use
+	# safe indexing so a length-1 vector is reused across draws instead
+	# of giving NA for s > 1.
+	idx_scalar <- function(vec, m) {
+		if (is.null(vec) || length(vec) == 0L) return(NA_real_)
+		if (length(vec) == 1L) return(vec[1L])
+		vec[m]
+	}
+	for (s in seq_len(draws)) {
+		t_last_A <- dim(fit$A[[idx[s]]])[3]
+		t_last_B <- dim(fit$B[[idx[s]]])[3]
+		A_curr_op <- fit$A[[idx[s]]][, , t_last_A]
+		B_curr_op <- fit$B[[idx[s]]][, , t_last_B]
+		sigma2 <- idx_scalar(fit$sigma2, idx[s])
+		if (!is.finite(sigma2)) sigma2 <- 1
+		if (propagate_operator) {
+			# scalar RW innovation sd per draw (uniform across entries)
+			tauA <- sqrt(max(idx_scalar(fit$tau_A2, idx[s]), 0, na.rm = TRUE))
+			tauB <- sqrt(max(idx_scalar(fit$tau_B2, idx[s]), 0, na.rm = TRUE))
+		}
+		# AR(1) coefficient for the operator state. when the fit was AR(1)
+		# the prior is A_t = rho * A_{t-1} + eps, eps ~ N(0, tauA2 I); we
+		# must honor that during forecast projection instead of defaulting
+		# to pure random walk (rho = 1)
+		rhoA <- if (is.numeric(fit$rhoA)) fit$rhoA[idx[s]] else 1
+		rhoB <- if (is.numeric(fit$rhoB)) fit$rhoB[idx[s]] else 1
+		if (!is.finite(rhoA)) rhoA <- 1
+		if (!is.finite(rhoB)) rhoB <- 1
+
+		if (have_theta) {
+			Theta_curr <- fit$Theta[, , , t_last_theta, idx[s], drop = FALSE]
+			dim(Theta_curr) <- c(n_row, n_col, p)
+		} else {
+			Theta_curr <- array(0, c(n_row, n_col, p))
+		}
+		# per-draw baseline mean for the model's centering form
+		# Theta_t = M + A_t (Theta_{t-1} - M) B_t' + eps. fit$M is
+		# [n_row, n_col, p, draws]; pull this draw's slice (M may be near
+		# zero in the dynamic model, where the level sits in Theta).
+		M_s <- array(0, c(n_row, n_col, p))
+		if (is.array(fit$M) && length(dim(fit$M)) == 4L && dim(fit$M)[4] >= idx[s]) {
+			M_s <- fit$M[, , , idx[s], drop = FALSE]
+			dim(M_s) <- c(n_row, n_col, p)
+		}
 
 		for (h in seq_len(H)) {
+			# propagate operator: A_{T+h} = rhoA * A_{T+h-1} + eps ~ N(0, tauA2 I)
+			# RW case (default) has rhoA = 1; AR(1) fits give rhoA < 1
+			if (propagate_operator && h >= 1L) {
+				if (tauA > 0)
+					A_curr_op <- rhoA * A_curr_op +
+						matrix(rnorm(n_row * n_row, 0, tauA), n_row, n_row)
+				else if (rhoA != 1)
+					A_curr_op <- rhoA * A_curr_op
+				if (tauB > 0)
+					B_curr_op <- rhoB * B_curr_op +
+						matrix(rnorm(n_col * n_col, 0, tauB), n_col, n_col)
+				else if (rhoB != 1)
+					B_curr_op <- rhoB * B_curr_op
+			}
 			Theta_new <- array(0, c(n_row, n_col, p))
 
 			for (rel in seq_len(p)) {
-				Theta_new[, , rel] <- A_last %*% Theta_curr[, , rel] %*% t(B_last) +
+				dev <- Theta_curr[, , rel] - M_s[, , rel]
+				Theta_new[, , rel] <- M_s[, , rel] +
+					A_curr_op %*% dev %*% t(B_curr_op) +
 					sqrt(sigma2) * matrix(rnorm(n_row * n_col), n_row, n_col)
 			}
 
@@ -1572,7 +2275,25 @@ simulate_dynamic <- function(fit, H, draws, summary = "none") {
 		}
 	}
 
-	if (summary == "mean") {
+	# map the latent forecast to the observation scale of the fit's family:
+	# binary -> probability via probit (pnorm); ordinal -> empirical-cut
+	# discretisation; gaussian -> identity.
+	fam_name <- if (is.list(fit$family)) fit$family$name else fit$family
+	if (identical(fam_name, "binary")) {
+		Theta_pred[] <- stats::pnorm(Theta_pred)
+	} else if (identical(fam_name, "ordinal")) {
+		# discretise via the empirical cut points of the observed Y if available
+		yvals <- sort(unique(stats::na.omit(as.numeric(fit$Y))))
+		if (length(yvals) >= 2L) {
+			cuts <- stats::quantile(as.numeric(fit$Theta), na.rm = TRUE,
+				probs = seq(0, 1, length.out = length(yvals) + 1L))
+			cuts[1] <- -Inf; cuts[length(cuts)] <- Inf
+			tmp <- as.numeric(Theta_pred)
+			disc <- cut(tmp, breaks = cuts, labels = FALSE, include.lowest = TRUE)
+			Theta_pred[] <- yvals[disc]
+		}
+	}
+	if (identical(summary, "mean")) {
 		apply(Theta_pred, 1:4, mean)
 	} else {
 		Theta_pred
@@ -1598,12 +2319,12 @@ predict_ordinal <- function(fit, draws = 100, H = NULL) {
 		}
 
 		# map latent scores to ordinal categories via empirical CDF
-		vals <- sort(unique(c(fit$R)))
+		vals <- sort(unique(c(fit$Y %||% fit$R)))
 		Z_vec <- c(Z_pred)
 
 		R_pred <- vals[findInterval(
 			Z_vec,
-			quantile(c(fit$R),
+			quantile(c(fit$Y %||% fit$R),
 				probs = seq(0, 1, length = length(vals) + 1)[-c(1, length(vals) + 1)],
 				na.rm = TRUE
 			)
@@ -1620,7 +2341,7 @@ predict_ordinal <- function(fit, draws = 100, H = NULL) {
 		p <- fit$dims$p
 		R_pred <- array(NA, dim = c(n_row, n_col, p, H, draws))
 
-		vals <- sort(unique(c(fit$R)))
+		vals <- sort(unique(c(fit$Y %||% fit$R)))
 
 		for (s in seq_len(draws)) {
 			M_sample <- fit$M[[sample(length(fit$M), 1)]]
@@ -1631,7 +2352,7 @@ predict_ordinal <- function(fit, draws = 100, H = NULL) {
 				Z_vec <- c(Z_h)
 				R_vec <- vals[findInterval(
 					Z_vec,
-					quantile(c(fit$R),
+					quantile(c(fit$Y %||% fit$R),
 						probs = seq(0, 1, length = length(vals) + 1)[-c(1, length(vals) + 1)],
 						na.rm = TRUE
 					)
@@ -1664,22 +2385,35 @@ predict_ordinal <- function(fit, draws = 100, H = NULL) {
 #'   \item{sampler1}{Sampler used in fit1}
 #'   \item{sampler2}{Sampler used in fit2}
 #'
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 compare_samplers <- function(fit1, fit2, verbose = TRUE) {
 	if (!inherits(fit1, "dbn") || !inherits(fit2, "dbn")) {
 		cli::cli_abort("Both arguments must be fitted {.cls dbn} objects.")
 	}
+	# A/B comparison only makes sense between two fits that both expose a
+	# top-level A draws list. Static fits store A inside fit$B[[1]] (so $A is
+	# NULL) and piecewise stores per-block matrices, so cross-comparisons
+	# need the same model layout.
+	if (!is.list(fit1$A) || !is.list(fit1$B) ||
+	    !is.list(fit2$A) || !is.list(fit2$B)) {
+		cli::cli_abort(c(
+			"{.fun compare_samplers} requires two fits with top-level {.code $A} and {.code $B} draw lists (dynamic, hmm, or lowrank).",
+			"x" = "Got models {.val {fit1$model}} and {.val {fit2$model}}.",
+			"i" = "Static fits store A under {.code fit$B[[1]]}; piecewise stores per-block operators. These layouts are not directly comparable."
+		))
+	}
 
 	sampler1 <- fit1$meta$sampler_used %||% "unknown"
 	sampler2 <- fit2$meta$sampler_used %||% "unknown"
 
-	# Compute posterior means for A and B
+	# compute posterior means for A and B
 	A1_mean <- apply(simplify2array(fit1$A), 1:2, mean)
 	A2_mean <- apply(simplify2array(fit2$A), 1:2, mean)
 	B1_mean <- apply(simplify2array(fit1$B), 1:2, mean)
 	B2_mean <- apply(simplify2array(fit2$B), 1:2, mean)
 
-	# Frobenius norms of differences
+	# frobenius norms of differences
 	A_diff_frob <- norm(A1_mean - A2_mean, type = "F")
 	B_diff_frob <- norm(B1_mean - B2_mean, type = "F")
 

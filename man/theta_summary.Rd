@@ -48,3 +48,6 @@ ts <- theta_summary(fit)
 \seealso{
 \code{\link{theta_slice}}, \code{\link{theta_credible}}, \code{\link{plot_theta}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

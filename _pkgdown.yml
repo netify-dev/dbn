@@ -22,7 +22,6 @@ articles:
   - title: internal
     contents:
     - methodology
-    - lowrank_dbn
     - hmm_dbn
 
 reference:
@@ -32,9 +31,14 @@ reference:
     - dbn
     - dbn_static
     - dbn_dynamic
+    - dbn_piecewise
     - dbn_lowrank
     - dbn_lowrank_accurate
     - dbn_hmm
+    - dbn_als
+    - dbn_multichain
+    - dbn_covariates
+    - dbn_fit_many
     - dbn-options
     - dbn-methods
 
@@ -48,6 +52,14 @@ reference:
     - simulate_piecewise_dbn
     - simulate_lowrank_dbn
     - simulate_hmm_dbn
+    - simulate_binary_dbn
+
+  - title: "Data coercion"
+    desc: "Bring network objects into the dbn 4D array layout"
+    contents:
+    - dbn_coercion
+    - as_dbn_array
+    - as_dbn_array_edgelist
 
   - title: "Posterior Inference"
     desc: "Posterior prediction, draws, and forecasting"
@@ -55,15 +67,19 @@ reference:
     - posterior_predict_dbn
     - derive_draws
     - regime_probs
+    - as_draws.dbn
+    - as_draws.dbn_multichain
+    - forecast_gain
+    - forecast_with_covariates
 
   - title: "Impulse Response Analysis"
     desc: "Compute and analyze network shocks"
     contents:
     - compute_irf
-    - impulse_response_const
-    - impulse_response_dynamic
     - build_shock
     - debug_irf
+    - irf_longrun
+    - fevd
 
   - title: "Network Analysis"
     desc: "Summarize and analyze network structure"
@@ -81,6 +97,16 @@ reference:
     - role_trajectory
     - get_group_influence
     - compare_group_influence
+    - dbn_operator
+    - actor_embedding
+    - dbn_compute_snr
+    - dbn_coupling_rank_probs
+    - coupling_trajectory
+    - node_embedding
+    - operator_draws
+    - dbn_leverage
+    - link_prediction_metrics
+    - posterior_communities
 
   - title: "Network Statistics"
     desc: "Compute descriptive network statistics"
@@ -89,6 +115,7 @@ reference:
     - stat_in_degree
     - stat_out_degree
     - stat_reciprocity
+    - stat_reciprocity_cor
     - stat_transitivity
 
   - title: "Visualization"
@@ -101,15 +128,41 @@ reference:
     - plot_ppc_ecdf
 
   - title: "Model Methods"
-    desc: "S3 methods for dbn objects"
+    desc: "S3 methods, diagnostics, and comparison for dbn objects"
     contents:
     - starts_with("print.")
     - starts_with("summary.")
     - starts_with("predict.")
     - starts_with("plot.")
+    - starts_with("coef.")
+    - starts_with("confint.")
+    - starts_with("vcov.")
+    - starts_with("fitted.")
+    - starts_with("residuals.")
+    - starts_with("logLik.")
+    - starts_with("log_lik.")
+    - starts_with("tidy.")
+    - starts_with("glance.")
+    - starts_with("augment.")
+    - starts_with("simulate.")
+    - starts_with("format.")
+    - starts_with("forecast.")
+    - starts_with("gof.")
+    - starts_with("posterior_predict.")
+    - tidy_dbn
+    - dbn_multichain-methods
+    - combine_chains
+    - compute_waic_dbn
     - compare_dbn
     - compare_blocks
+    - compare_samplers
     - check_convergence
+    - gof
+    - sampler_describe
+    - dbn_se
+    - dbn_boot_intervals
+    - dbn_identifiability_diagnostics
+    - hmm_relabel
 
   - title: "Utilities"
     desc: "Configuration and computational utilities"

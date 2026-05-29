@@ -13,8 +13,9 @@
 ^pkgdown$
 ^\.github$
 ^vignettes/.*_cache$
+^vignettes/cache$
+^vignettes/figure$
 ^vignettes/.*\.Rmd\.orig$
-^Rplots\.pdf$
-^audit_docs\.R$
-^audit_results\.rds$
+Rplots\.pdf$
 ^dbn\.Rcheck$
+^dbn_[0-9.]+\.tar\.gz$

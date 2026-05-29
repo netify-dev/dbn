@@ -25,3 +25,6 @@ if (requireNamespace("ggplot2", quietly = TRUE)) plot_regime_probs(fit)
 \seealso{
 \code{\link{regime_probs}}, \code{\link{plot_trace}}, \code{\link{dbn_hmm}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

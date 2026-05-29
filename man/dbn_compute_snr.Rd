@@ -44,3 +44,6 @@ snr <- dbn_compute_snr(fit, windows = list(early = 1:6, late = 7:12))
 snr$full_sample
 }
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

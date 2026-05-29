@@ -11,71 +11,154 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The `dbn` package implements a family of **Dynamic Bilinear Network (DBN) models** for temporal relational data. These models estimate how past network interactions shape future interactions, recovering time-varying influence structures that reveal which actors drive network dynamics and how those dynamics evolve.
+```{r setup, include = FALSE}
+NOT_CRAN <- identical(tolower(Sys.getenv("NOT_CRAN")), "true")
+knitr::opts_chunk$set(
+  collapse = TRUE, comment = "#>",
+  fig.align = "center",
+  fig.width = 6, fig.height = 4,
+  message = FALSE, warning = FALSE,
+  eval = NOT_CRAN
+)
+library(dbn)
+```
 
-The methodological framework is introduced in:
+The `dbn` package fits Dynamic Bilinear Network (DBN) models for temporal relational data. These models estimate how past network interactions shape future ones, recovering time-varying influence structures that say which actors drive the dynamics and how the dynamics themselves evolve.
+
+The framework is introduced in:
 
 > Salau, T. & Minhas, S. (under review). *When Shocks Cascade: Time-Varying Propagation in Armed Conflict Networks.*
 
+## Quick example
+
+Before the math, a 30-second concrete picture. Simulate a small dynamic network, fit it, and pull out the posterior-mean operator at one time slice:
+
+```{r quick-example, cache = TRUE}
+sim <- simulate_dynamic_dbn(n = 8, time = 10, seed = 6886)
+fit <- dbn(sim$Z, model = "dynamic", family = "gaussian",
+           nscan = 800, burn = 400, odens = 4, verbose = FALSE)
+
+# posterior mean of A_t at t = 5
+A_t5 <- apply(simplify2array(lapply(fit$A, function(a) a[, , 5])),
+              1:2, mean)
+round(A_t5[1:4, 1:4], 2)
+```
+
+Each entry of `A_t5` is a sender weight: row $i$, column $i'$ says how much actor $i'$'s past sending pulls actor $i$'s current sending. The rest of this vignette unpacks where that matrix comes from and which model variants exist.
+
 ## The core idea
 
-Many networks evolve over time: trade partners shift, alliances form and dissolve, conflict patterns reorganize. The central question is not just *what does the network look like now*, but **how does the past network predict the future network, and how does that predictive mapping itself change over time?**
+Networks usually evolve over time: trade partners shift, alliances form and dissolve, conflict patterns reorganize. The question is not just what the network looks like now, but how the past network predicts the future network, and how that predictive mapping itself changes over time.
 
-All models in the `dbn` package share a common bilinear autoregressive structure:
+All models in the `dbn` package share a common bilinear autoregressive
+structure. "Bilinear" here is descriptive, not a brand name: the
+right-hand side is linear in $A_t$ for fixed $B_t$, and linear in $B_t$
+for fixed $A_t$. The two operators sandwich the lagged state:
 
-$$\Theta_t = A_t \, \Theta_{t-1} \, B_t^\top + M + \varepsilon_t$$
+$$\Theta_t = M + A_t \, (\Theta_{t-1} - M) \, B_t^\top + \varepsilon_t$$
 
-The latent interaction state $\Theta_t$ is an $n \times n$ matrix of de-noised relational intensities at time $t$. The sender dynamics matrix $A_t$ captures how actors' past behavior as senders influences future sending patterns, while the receiver dynamics matrix $B_t$ captures how past targeting patterns influence future targets. The baseline mean $M$ absorbs persistent dyad-specific tendencies (stable rivalries, enduring alliances, reporting differences), and $\varepsilon_t$ is matrix-normal innovation noise.
+The latent interaction state $\Theta_t$ is an $n \times n$ matrix of
+de-noised relational intensities at time $t$. The baseline mean $M$
+absorbs persistent dyad-specific tendencies (stable rivalries, enduring
+alliances, reporting differences) and acts as the long-run mean of the
+latent state. The sender dynamics matrix $A_t$ tracks how past
+deviations from baseline carry into future deviations on the sender
+side; an entry $a_{i,i'}$ near 0.4 says that about 40% of actor $i'$'s
+past sending behaviour shows up in actor $i$'s current sending. $B_t$
+does the same job on the receiver side. The innovation $\varepsilon_t$
+is matrix-normal noise.
 
-The bilinear form $A_t \Theta_{t-1} B_t^\top$ means that each dyad's future state depends on the *entire* past network, weighted by the sender and receiver influence matrices. This is what allows the model to capture propagation: a shock to one part of the network can ripple through the system via the estimated $A_t$ and $B_t$ operators.
+The bilinear form $A_t \, (\Theta_{t-1} - M) \, B_t^\top$ acts on the
+deviation of the previous latent state from $M$, so each dyad's future
+deviation depends on the entire pattern of past deviations, weighted by
+sender and receiver influence operators. That is what lets the model
+capture propagation: a shock to one part of the network ripples through
+the system via the estimated $A_t$ and $B_t$. Centering on $M$ rather
+than zero means $A_t = 0$ collapses to the static baseline (not to
+zero), and $M$ becomes the long-run mean toward which the latent state
+reverts when the lag operator is contractive. The operator itself
+follows a random walk, so individual posterior draws can be locally
+non-stationary; the IRF vignette covers the relevant diagnostics.
+
+## Relationship to TERGM, ERGM, and SAOM
+
+DBN sits in a different inferential frame than the structural-statistic family that ergm users know best. The three closest comparisons:
+
+* **ERGM** (Robins et al. 2007; `ergm` package). Edge-level conditional MLE on observed snapshots, with explicit endogenous statistics (`mutual`, `gwesp`, `triangle`). Strong for testing structural hypotheses; weak when the *operator itself* is the object of inference, since ERGM does not parameterise a time-evolving lag operator. TERGM (Hanneke, Fu and Xing 2010; `tergm` package) extends ERGM to short panels by treating each transition as a conditional ERGM.
+* **SAOM / RSiena** (Snijders 2017; `RSiena` package). Actor-driven continuous-time model over tie changes. Strong for behaviour-tie coevolution; assumes the actor as the unit of decision and a continuous-time event clock between observations.
+* **DBN** (this package). Latent-state model in which the latent matrix $\Theta_t$ evolves via a bilinear lag operator $A_t \, (\Theta_{t-1} - M) \, B_t^\top$. Mechanism is system-level propagation, not actor decision. No endogenous structural terms; instead, $A_t$ and $B_t$ are the estimands.
+
+Use DBN when you want (i) an interpretable propagation operator, (ii) impulse-response and forecast machinery, (iii) longer panels where TERGM's per-period conditioning becomes expensive, or (iv) sender / receiver influence trajectories. Use ERGM / TERGM when you want explicit structural terms (gwesp, gwdsp, mutual, nodematch, etc.) with natural-scale coefficient interpretation. Use SAOM when an actor-decision micro-model is the right primitive. The `gof()` method here checks PPI coverage of network-level summaries (density, reciprocity, transitivity, mean in/out degree) per time slice; it is *not* the null-band degree-distribution check that `ergm::gof` produces.
+
+## Identifiability and the $A_0 = B_0 = I$ anchor
+
+The product $A_t \, X \, B_t^\top$ is invariant under the rescaling
+$(A_t, B_t) \to (c A_t,\, c^{-1} B_t)$ for any scalar $c$, so without
+further structure the chain can drift along that scale orbit until the
+operators overflow. The asymmetric `dbn(model = "dynamic")` path pins
+the scale by placing the random-walk prior at the identity at $t = 0$:
+$A_0 = B_0 = I$ is the structural anchor, and the prior penalty on
+$A_1 - I$ (and $B_1 - I$) is not invariant under rescaling, so the
+chain cannot drift. Under `symmetric = TRUE` the constraint $B_t = A_t$
+removes the scale ambiguity directly and the anchor only serves the
+initial-condition role.
+
+A practical consequence for downstream accessors: $A_0 = I$ is a
+structural prior point, not an estimated quantity. `tidy(fit)` and
+`actor_embedding(fit)` therefore drop the $t = 1$ slice from their
+output (so users do not interpret a row of $\|A_0[i, ]\| = 1$ as a
+finding), while `network_summary(fit, stat = "density")` still exposes
+the full $1..T$ range. Note the column names differ between the two
+surfaces: `tidy(fit)` returns a `t` column that starts at 2, whereas
+`network_summary()` returns a `time` column running $1..T$.
 
 ## Model variants
 
-The package provides five model types that differ in how the influence matrices $A$ and $B$ behave over time. The right choice depends on the research question, the expected dynamics, and the network size.
+The package has five model types. They differ in how the influence matrices $A$ and $B$ behave over time, and the right choice depends on the research question, the expected dynamics, and the size of the network.
 
 ### Static model (`model = "static"`)
 
-The static model estimates fixed influence matrices $A$ and $B$ that are constant across all time periods. The latent network $\Theta_t$ still evolves over time, but the rules governing that evolution do not change. This variant is appropriate when you have relatively few time points or believe the influence structure is stable, when you have cross-sectional data, or when you want a baseline model to compare against time-varying alternatives.
+The static model estimates fixed $A$ and $B$ that are constant across time. The latent network $\Theta_t$ still moves, but the rules governing how it moves do not. Reach for this when you have few time points, when you think the influence structure is stable, when the data are cross-sectional, or when you just want a baseline to compare against time-varying alternatives.
 
-The static model reveals who the influential senders and receivers are on average, which dyads have persistently strong or weak interactions after accounting for the baseline, and whether the bilinear lag structure explains variation beyond a simple mean model. Its key outputs include the posterior mean of $A$, $B$, and $M$, scalar variance parameters ($\sigma^2$, $\tau_A^2$, $\tau_B^2$), and convergence diagnostics. See the [static vignette](static_dbn.html) for a worked example with simulation recovery.
+You get the posterior mean of $A$, $B$, and $M$; the scalar variance parameters ($\sigma^2$ for observation noise, a joint $\tau^2$ shared by the $A$ and $B$ Tucker factors, and $g^2$ for the baseline mean); and convergence diagnostics. See the [static vignette](static_dbn.html) for a worked example with simulation recovery.
 
 ### Dynamic model (`model = "dynamic"`)
 
-The dynamic model allows $A_t$ and $B_t$ to evolve over time via random walks (or optionally AR(1) processes). Each element of $A$ and $B$ can change from one period to the next, governed by innovation variances $\tau_A^2$ and $\tau_B^2$ that control how rapidly the influence structure reorganizes.
+The dynamic model lets $A_t$ and $B_t$ evolve over time via a random walk (or, optionally, AR(1) processes). Every element of $A$ and $B$ can change period to period, governed by innovation variances $\tau_A^2$ and $\tau_B^2$ that control how fast the structure reorganizes.
 
-This variant is appropriate when the influence structure is expected to change over time and you want to identify *when* structural changes occur, not just *that* they occur. It supports time-indexed diagnostics (who is influential at each time point), impulse response functions for propagation analysis, multi-step-ahead forecasting, and dyad-level trajectories with posterior uncertainty. For very large networks (50+ actors), the low-rank variant offers better scalability.
+This is the variant to reach for when the influence structure should change over time and you want to know *when* that happens, not just *whether*. The dynamic fit gives you time-indexed diagnostics, impulse response functions, multi-step forecasts, and dyad-level trajectories with credible bands. For very large networks (50+ actors), the low-rank variant scales better.
 
-The model produces influence snapshots (the combined weight matrix $W_t = A_t B_t^\top$ at each time point), coupling trajectories (how tightly each actor's behavior is predicted by the lagged network state), and propagation profiles via IRFs. Optional AR(1) persistence parameters $\rho_A$ and $\rho_B$ measure mean reversion in the influence structure. See the [dynamic vignette](dynamic_dbn.html) for simulation recovery and the [impulse response vignette](impulse_response.html) for IRF analysis.
+Outputs include influence snapshots (the combined weight matrix $W_t = A_t B_t^\top$ at each time point), coupling trajectories (how tightly each actor's behavior is predicted by the lagged network state), and propagation profiles via IRFs. Optional AR(1) persistence parameters $\rho_A$ and $\rho_B$ measure mean reversion. See the [dynamic vignette](dynamic_dbn.html) for simulation recovery and the [impulse response vignette](impulse_response.html) for IRF analysis.
 
 ### Piecewise model (`model = "piecewise"`)
 
-The piecewise model estimates block-constant influence matrices $A_k$ and $B_k$ for user-specified regimes $k = 1, \ldots, K$. Within each regime, the influence structure is fixed; across regimes, it can differ arbitrarily. This model sits between the static and dynamic extremes.
+The piecewise model estimates block-constant matrices $A_k$ and $B_k$ for user-specified regimes $k = 1, \ldots, K$. Within a regime the influence structure is fixed; across regimes it can differ however much the data demand. This sits between the static and dynamic extremes.
 
-It is appropriate when you know (or hypothesize) when structural breaks occurred and want interpretable regime-specific influence summaries. Typical applications involve comparing pre- and post-event periods around a known event such as a financial crisis, policy change, or conflict onset. The model also has memory advantages over the dynamic variant, since it estimates $K$ matrices instead of $T-1$. The `compare_blocks()` function quantifies regime differences with posterior uncertainty, providing direct evidence for whether the influence structure genuinely changed. See the [piecewise vignette](piecewise_dbn.html) for a worked example including an applied analysis of UNGA voting around the 2008 financial crisis.
+Use this when you know (or hypothesise) when structural breaks happened and want interpretable, directly-comparable per-regime summaries. Typical applications compare pre- and post-event periods around a known event (a financial crisis, policy change, or conflict onset). Memory is much lighter than the dynamic variant since you estimate $K$ matrices instead of $T-1$. The `compare_blocks()` function quantifies the regime difference with posterior uncertainty, giving you a direct test of whether the structure genuinely shifted. See the [piecewise vignette](piecewise_dbn.html) for a worked example including UNGA voting around the 2008 financial crisis.
 
 ### Low-rank model (`model = "lowrank"`)
 
-The low-rank variant factorizes the sender dynamics matrix as $A_t = U \, \text{diag}(\alpha_t) \, U^\top$, reducing the parameter count from $n^2$ to $n \times r + r$. This makes it scalable to larger networks (50+ actors). The columns of $U$ define latent groups of actors that share similar influence patterns, and $\alpha_t$ captures how strongly each factor drives the dynamics at time $t$. The receiver dynamics $B_t$ remain fully estimated. See the [low-rank vignette](lowrank_dbn.html) for examples with simulation recovery.
+The low-rank variant factorises the sender dynamics as $A_t = U \, \text{diag}(\alpha_t) \, U^\top$, dropping the parameter count from $n^2$ to $n \times r + r$. This is what makes it tractable on larger networks (50+ actors). The columns of $U$ pick out latent groups of actors that share influence patterns; $\alpha_t$ says how strongly each factor drives the dynamics at time $t$. $B_t$ stays fully estimated. Fit it with `dbn(..., model = "lowrank")` and extract the factor trajectories with `tidy_dbn_lowrank()`.
 
 ### HMM model (`model = "hmm"`)
 
-The HMM variant replaces smooth evolution with discrete regime-switching: the network alternates between a small number of regimes ($R = 2$--5), each with its own influence matrices, governed by a Markov transition matrix $\Pi$. The model estimates the regime labels $s_t$ alongside the dynamics, allowing data-driven discovery of structural breaks. See the [HMM vignette](hmm_dbn.html) for examples with regime recovery.
+The HMM variant trades smooth evolution for discrete regime-switching: the network alternates between a small number of regimes ($R = 2$ to 5), each with its own influence matrices, governed by a Markov transition matrix $\Pi$. The sampler estimates the regime labels $s_t$ jointly with the dynamics, so structural breaks come out of the data rather than being specified up front. See the [HMM vignette](hmm_dbn.html) for regime recovery examples.
 
 ## Choosing a model
 
-For most applications, the choice is between the static, dynamic, and piecewise models:
+For most applications the choice is between static, dynamic, and piecewise:
 
 | Consideration | Static | Dynamic | Piecewise |
 |:---|:---:|:---:|:---:|
-| Influence structure changes over time | | ✓ | ✓ |
-| Few time points or cross-sectional | ✓ | | |
-| Breaks are discrete and known | | | ✓ |
-| Influence evolves smoothly | | ✓ | |
-| Want time-indexed diagnostics | | ✓ | |
-| Want interpretable regime summaries | | | ✓ |
-| Memory constraints (large networks) | | | ✓ |
-| Want impulse response analysis | | ✓ | |
-| Want forecasting | | ✓ | |
+| Influence structure changes over time | | yes | yes |
+| Few time points or cross-sectional | yes | | |
+| Breaks are discrete and known | | | yes |
+| Influence evolves smoothly | | yes | |
+| Want time-indexed diagnostics | | yes | |
+| Want interpretable regime summaries | | | yes |
+| Memory constraints (large networks) | | | yes |
+| Want impulse response analysis | | yes | |
+| Want forecasting | | yes | |
 
 The static model is nested within the dynamic model (setting $\tau_A^2 = \tau_B^2 = 0$ recovers it exactly), so the posterior of $\tau_A^2$ itself serves as an informal diagnostic: if it concentrates near zero, the data favor a static structure. Similarly, piecewise with $K=1$ is equivalent to static.
 
@@ -93,15 +176,17 @@ For undirected networks where the sender-receiver distinction is not meaningful,
 
 ## Impulse response analysis
 
-A distinctive feature of the bilinear framework is the ability to compute impulse response functions (IRFs) that trace how a shock to the network propagates through the estimated dynamics. Given a perturbation matrix $S$ applied at time $t_0$, the model propagates the shock forward through the sequence of estimated operators $\{A_t, B_t\}$ and tracks a network-level statistic (density, degree, reciprocity, transitivity) over subsequent horizons.
+The bilinear framework also supports impulse response functions (IRFs), which trace how a shock to the network propagates through the estimated dynamics. Inject a perturbation matrix $S$ at time $t_0$, propagate forward through the sequence of estimated $\{A_t, B_t\}$, and track a network-level statistic (density, degree, reciprocity, transitivity) over later horizons.
 
-This answers questions like: if a specific bilateral relationship escalates, how does overall network density respond over the next several periods? Which actors' escalations generate the broadest downstream consequences?
+That answers questions like: if a specific bilateral relationship escalates, how does overall network density respond over the next several periods? Which actors' escalations generate the broadest downstream consequences?
 
-The paper introduces two key diagnostics built on this framework. **Coupling trajectories** measure how tightly each actor's current behavior is predicted by the prior network state, measured by the row norms of the influence matrices. Actors with high coupling are structurally embedded in the lag dynamics; those with low coupling behave more idiosyncratically. **Propagation profiles** measure how broadly a standardized bilateral perturbation involving a given actor transmits through the wider system. High-coupling actors are not necessarily high-leverage actors: an actor can be predictable from the lag structure without generating large downstream spillovers.
+The paper builds two diagnostics on this machinery. Coupling trajectories measure how tightly each actor's current behaviour is predicted by the prior network state (the row norms of the influence matrices). Actors with high coupling are structurally embedded in the lag dynamics; low-coupling actors behave more idiosyncratically. Propagation profiles measure how broadly a standardised bilateral perturbation involving a given actor transmits through the wider system. The two are not the same: an actor can be predictable from the lag structure without generating large downstream spillovers.
 
 ## Inference
 
-All models use fully Bayesian MCMC inference with conjugate Gibbs sampling. The dynamic model exploits the bilinear structure to decompose the high-dimensional state-space problem into efficient row-wise Forward-Filtering Backward-Sampling (FFBS) passes. Instead of filtering in the full $n^2$-dimensional vectorized space, each row of $A_t$ and $B_t$ is updated via an independent $n$-dimensional FFBS pass, reducing per-sweep cost from $O(n^4 T)$ to $O(n^3 T)$. The C++ backend supports optional multi-threaded computation via OpenMP (set with `set_dbn_threads()`), and automatic time-thinning and optional latent state compression manage memory for large problems. The `estimate_memory()` function checks RAM requirements before fitting, and `check_convergence()` provides built-in effective sample size and Geweke diagnostics.
+`dbn()` defaults to Bayesian MCMC with conjugate Gibbs sampling. The dynamic model exploits the bilinear structure to split the high-dimensional state-space problem into row-wise Forward-Filtering Backward-Sampling (FFBS) passes. Instead of filtering in the full $n^2$-dimensional vectorised space, each row of $A_t$ and $B_t$ is updated via an independent $n$-dimensional FFBS pass, which drops per-sweep cost from $O(n^4 T)$ to $O(n^3 T)$. The C++ backend supports multi-threaded computation via OpenMP (set with `set_dbn_threads()`), and automatic time-thinning and optional latent-state compression keep memory manageable. `estimate_memory()` checks RAM requirements before fitting, and `check_convergence()` reports effective sample size and Geweke diagnostics.
+
+For exploratory work or large panels where MCMC is too slow, `dbn_als()` gives a fast alternating-least-squares point estimate of the same operator structure (seconds rather than minutes). Pair it with `bootstrap = N` for entry-wise standard errors and confidence intervals.
 
 ## Citation
 
@@ -110,3 +195,10 @@ If you use this package in your research, please cite:
 > Salau, T. & Minhas, S. (under review). When Shocks Cascade: Time-Varying Propagation in Armed Conflict Networks.
 
 The package source code and documentation are available at <https://github.com/netify-dev/dbn>.
+
+## References
+
+- Hanneke, S., Fu, W. & Xing, E. P. (2010). Discrete temporal models of social networks. *Electronic Journal of Statistics*, 4, 585-605.
+- Robins, G., Pattison, P., Kalish, Y. & Lusher, D. (2007). An introduction to exponential random graph (p*) models for social networks. *Social Networks*, 29(2), 173-191.
+- Snijders, T. A. B. (2017). Stochastic actor-oriented models for network dynamics. *Annual Review of Statistics and Its Application*, 4, 343-363.
+- Vehtari, A., Gelman, A., Simpson, D., Carpenter, B. & Bürkner, P.-C. (2021). Rank-normalization, folding, and localization: An improved R-hat for assessing convergence of MCMC. *Bayesian Analysis*, 16(2), 667-718.

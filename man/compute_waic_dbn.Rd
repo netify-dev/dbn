@@ -2,17 +2,27 @@
 % Please edit documentation in R/utils_blocks.R
 \name{compute_waic_dbn}
 \alias{compute_waic_dbn}
-\title{Compute WAIC for DBN Fit}
+\title{Compute WAIC for a dbn fit}
 \usage{
-compute_waic_dbn(fit)
+compute_waic_dbn(fit, model_name = NULL)
 }
 \arguments{
-\item{fit}{dbn model fit object}
+\item{fit}{A \code{dbn} fit object.}
+
+\item{model_name}{Optional character label attached to the returned WAIC
+object so \code{\link[loo:loo_compare]{loo::loo_compare()}} can distinguish competing fits in its
+output table.}
 }
 \value{
-list with waic, lppd, p_waic
+A list with \code{estimates}, \code{pointwise}, \code{lppd}, \code{p_waic}, \code{waic},
+and \code{class = c("waic", "loo")} so \code{loo::loo_compare(w1, w2)} dispatches.
 }
 \description{
-computes Watanabe-Akaike Information Criterion
+Computes the Watanabe-Akaike Information Criterion (WAIC) for model
+comparison. Returns a list compatible with \code{loo::loo_compare()}: the
+\code{estimates} slot has rows \code{elpd_waic}, \code{p_waic}, \code{waic} with \code{Estimate}
+and \code{SE} columns, and the object is \code{class = c("waic", "loo")}.
 }
-\keyword{internal}
+\author{
+Tosin Salau and Shahryar Minhas
+}

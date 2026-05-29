@@ -35,3 +35,6 @@ ts <- theta_slice(fit, time = 1)
 \seealso{
 \code{\link{theta_summary}}, \code{\link{theta_credible}}, \code{\link{param_summary}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

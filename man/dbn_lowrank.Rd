@@ -15,7 +15,7 @@ dbn_lowrank(
   update_rho_alpha = FALSE,
   ar1_B = FALSE,
   update_rho_B = FALSE,
-  seed = 6886,
+  seed = NULL,
   verbose = TRUE,
   time_thin = 1,
   previous = NULL,
@@ -49,7 +49,7 @@ if posterior predictive checks show poor fit. Default: 2.}
 
 \item{seed}{Random seed}
 
-\item{verbose}{Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.}
+\item{verbose}{Logical or numeric. If TRUE the progress bar is updated on every iteration (its display rate is throttled by the terminal); if numeric \code{n}, the bar is updated every n-th iteration; FALSE suppresses all progress output.}
 
 \item{time_thin}{Save every nth time point}
 
@@ -64,8 +64,12 @@ if posterior predictive checks show poor fit. Default: 2.}
 \value{
 A \code{dbn} object with components including \code{U}, \code{alpha}, \code{B}, \code{M},
 \code{Theta}, \code{sigma2}, \code{tau_A2}, \code{tau_B2}, \code{g2}, plus an \code{info} list of
-model settings. See \code{summary()} and \code{plot()} methods for inspection,
-and \code{tidy_dbn_lowrank()} for posterior summaries.
+model settings. The posterior draws \code{U}, \code{alpha}, and \code{B} are each stored
+as a \emph{list} of length \code{draws} (one matrix/array per kept draw), not
+as a single stacked array; collapse one with, for example,
+\code{apply(simplify2array(fit$U), 1:2, mean)} for the posterior-mean factor
+matrix. See \code{summary()} and \code{plot()} methods for inspection, and
+\code{tidy_dbn_lowrank()} for posterior summaries.
 }
 \description{
 Fits a dynamic bilinear network model with a low-rank
@@ -82,4 +86,7 @@ fit <- dbn_lowrank(sim$Y, r = 2, nscan = 200, burn = 100, verbose = FALSE)
 \seealso{
 \code{\link[=dbn]{dbn()}} for the main dispatcher, \code{\link[=param_summary]{param_summary()}} for posterior
 summaries, \code{\link[=tidy_dbn_lowrank]{tidy_dbn_lowrank()}} for low-rank-specific tidiers.
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

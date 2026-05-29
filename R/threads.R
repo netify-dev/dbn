@@ -1,5 +1,5 @@
 ####
-# OpenMP thread management for parallel MCMC
+# openmp thread management for parallel mcmc
 ####
 
 #' Get the current number of threads used by dbn
@@ -8,6 +8,7 @@
 #'   parallel MCMC computation. Defaults to 1 (single-threaded).
 #' @return Integer number of threads currently set for parallel computation
 #' @seealso \code{\link{set_dbn_threads}}
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 #' @examples
 #' get_dbn_threads()
@@ -52,6 +53,7 @@ get_dbn_threads <- function() {
 #'   threading does and does not help when \code{n_threads > 1} is requested.
 #' @return The previous value of n_threads (invisibly)
 #' @seealso \code{\link{get_dbn_threads}}
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 #' @examples
 #' set_dbn_threads(4)
@@ -62,15 +64,27 @@ set_dbn_threads <- function(n_threads = NULL, quiet = FALSE) {
 	if (is.null(n_threads)) {
 		n_threads <- 1L
 	} else {
+		# validate upfront so non-numeric / NA / decimal inputs give a
+		# directive error instead of leaking base R coercion warnings.
+		if (length(n_threads) != 1L || !is.numeric(n_threads) || !is.finite(n_threads)) {
+			cli::cli_abort(c(
+				"{.arg n_threads} must be a single positive whole number.",
+				"x" = "Got {.cls {class(n_threads)[1]}} of length {length(n_threads)} = {.val {n_threads}}."
+			))
+		}
+		if (n_threads != round(n_threads)) {
+			cli::cli_abort(c(
+				"{.arg n_threads} must be a whole number; got {.val {n_threads}}."
+			))
+		}
 		n_threads <- as.integer(n_threads)
 		if (n_threads < 1) {
 			cli::cli_abort("{.arg n_threads} must be at least 1.")
 		}
 		max_threads <- parallel::detectCores()
 		if (n_threads > max_threads) {
-			warning(sprintf(
-				"n_threads (%d) exceeds available cores (%d), using %d",
-				n_threads, max_threads, max_threads
+			cli::cli_warn(c(
+				"{.arg n_threads} ({n_threads}) exceeds available cores ({max_threads}); clamping to {max_threads}."
 			))
 			n_threads <- max_threads
 		}

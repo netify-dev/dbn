@@ -4,7 +4,15 @@
 \alias{compute_irf_single}
 \title{Compute IRF for a Single Posterior Draw}
 \usage{
-compute_irf_single(fit, draw_idx, shock, H, t0 = 1, stat_fun = stat_density)
+compute_irf_single(
+  fit,
+  draw_idx,
+  shock,
+  H,
+  t0 = 1,
+  stat_fun = stat_density,
+  stat_n_elem = 1L
+)
 }
 \arguments{
 \item{fit}{dbn model fit object}

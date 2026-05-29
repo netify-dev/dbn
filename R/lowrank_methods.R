@@ -49,6 +49,7 @@ plot_lowrank <- function(x,
 		ggplot2::theme_bw() +
 		ggplot2::theme(
 			panel.border = ggplot2::element_blank(),
+			axis.ticks = ggplot2::element_blank(),
 			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
 		)
@@ -84,6 +85,7 @@ plot_lowrank <- function(x,
 		ggplot2::theme_bw() +
 		ggplot2::theme(
 			panel.border = ggplot2::element_blank(),
+			axis.ticks = ggplot2::element_blank(),
 			strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 			strip.text.x = ggplot2::element_text(color = "white", hjust = 0)
 		)
@@ -93,16 +95,22 @@ plot_lowrank <- function(x,
 	U_bar <- Reduce(`+`, x$U) / S
 
 	grid <- expand.grid(actor = seq_len(nrow(U_bar)), factor = seq_len(ncol(U_bar)))
-	df_U <- data.frame(actor = grid$actor, factor = grid$factor,
+	# label the factor axis discretely ("factor 1", "factor 2", ...) so the
+	# ticks don't render as a collapsed continuous scale ("0.5 1.0 1.5 ...")
+	df_U <- data.frame(actor = grid$actor,
+						factor = factor(grid$factor,
+										levels = seq_len(ncol(U_bar)),
+										labels = paste0("factor ", seq_len(ncol(U_bar)))),
 						loading = as.vector(U_bar))
 
 	p_U <- ggplot2::ggplot(df_U, ggplot2::aes(factor, actor, fill = loading)) +
 		ggplot2::geom_tile() +
 		ggplot2::scale_fill_gradient2(low = "navy", mid = "white", high = "darkred", midpoint = 0) +
+		ggplot2::scale_y_continuous(breaks = seq_len(nrow(U_bar))) +
 		ggplot2::coord_equal() +
-		ggplot2::labs(title = "Posterior mean of U", x = "Factor k", y = "Actor i") +
+		ggplot2::labs(title = "Posterior mean of U", x = NULL, y = "Actor i") +
 		ggplot2::theme_bw() +
-		ggplot2::theme(panel.border = ggplot2::element_blank())
+		ggplot2::theme(panel.border = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank())
 	####
 
 	if (requireNamespace("gridExtra", quietly = TRUE)) {
@@ -158,8 +166,9 @@ summary_lowrank <- function(object, digits = 3, ...) {
 #' @return Prediction array
 #' @keywords internal
 predict_lowrank <- function(object, H = 1, draws = 100,
-							summary = c("mean", "none")) {
+							summary = c("mean", "none"), seed = NULL) {
 	if (object$model != "lowrank") cli::cli_abort("Not a low-rank fit.")
+	if (!is.null(seed)) set.seed(seed)
 	summary <- match.arg(summary)
 
 	n_row <- object$dims$n_row
@@ -170,13 +179,30 @@ predict_lowrank <- function(object, H = 1, draws = 100,
 	pick <- sample(S_saved, draws, TRUE)
 
 	Theta_pred <- array(0, c(n_row, n_col, p, H, draws))
+	# seed the lag-0 state from the last observed slice (gaussian latent ~
+	# observed); propagate via the model's centering form
+	# Theta_t = M + A_t (Theta_{t-1} - M) B_t' + eps and return the full-scale
+	# latent forecast. without the seed, h = 1 would read an all-zero lag and
+	# collapse to pure noise.
+	Tt <- dim(object$Y)[4]
+	Y_last <- object$Y[, , , Tt, drop = FALSE]
+	Y_last[!is.finite(Y_last)] <- 0
 
 	for (d in seq_len(draws)) {
 		s <- pick[d]
-		sigma2 <- object$sigma2[s]
+		# safe sigma2 index for bootstrap-expanded fits (length-1 sigma2)
+		sigma2 <- if (length(object$sigma2) >= s) object$sigma2[s] else object$sigma2[1]
+		if (!is.finite(sigma2)) sigma2 <- 1
 		U <- object$U[[s]]
 		B_now <- object$B[[s]][, , dim(object$B[[s]])[3]]
 		alpha_path <- object$alpha[[s]]
+		M_s <- object$M[[s]]
+
+		# per-relation lag-0 full state (last observed slice)
+		state <- vector("list", p)
+		for (rel in seq_len(p)) {
+			state[[rel]] <- Y_last[, , rel, 1]
+		}
 
 		for (h in seq_len(H)) {
 			a_t <- alpha_path[, ncol(alpha_path)] +
@@ -184,14 +210,18 @@ predict_lowrank <- function(object, H = 1, draws = 100,
 			A_t <- U %*% diag(a_t) %*% t(U)
 
 			for (rel in seq_len(p)) {
-				Theta_pred[, , rel, h, d] <- A_t %*% Theta_pred[, , rel, max(h - 1, 1), d] %*% t(B_now) +
+				dev <- state[[rel]] - M_s[, , rel]
+				new_state <- M_s[, , rel] +
+					A_t %*% dev %*% t(B_now) +
 					matrix(rnorm(n_row * n_col, 0, sqrt(sigma2)), n_row, n_col)
+				Theta_pred[, , rel, h, d] <- new_state
+				state[[rel]] <- new_state
 			}
 			alpha_path <- cbind(alpha_path, a_t)
 		}
 	}
 
-	if (summary == "mean") apply(Theta_pred, 1:4, mean) else Theta_pred
+	if (identical(summary, "mean")) apply(Theta_pred, 1:4, mean) else Theta_pred
 }
 ####
 
@@ -220,10 +250,17 @@ predict_lowrank <- function(object, H = 1, draws = 100,
 #' df_alpha <- tidy_dbn_lowrank(fit)
 #' head(df_alpha)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 tidy_dbn_lowrank <- function(fit, factors = NULL) {
+	if (!inherits(fit, "dbn") || !identical(fit$model, "lowrank")) {
+		cli::cli_abort(c(
+			"{.fun tidy_dbn_lowrank} requires a low-rank fit.",
+			"x" = "Got model type {.val {fit$model %||% class(fit)[1]}}.",
+			"i" = "Fit with {.code dbn(..., model = \"lowrank\")}, or use {.fun tidy_dbn} for other models."
+		))
+	}
 	if (is.null(factors)) factors <- 1:fit$settings$r
-	if (fit$model != "lowrank") cli::cli_abort("Not a low-rank fit.")
 	S <- length(fit$alpha)
 	Tt_ <- ncol(fit$alpha[[1]])
 

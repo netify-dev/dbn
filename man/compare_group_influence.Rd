@@ -49,3 +49,6 @@ compare_group_influence(fit,
 \code{\link{plot_group_influence}},
 \code{\link{get_group_influence}}, \code{\link{dbn}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

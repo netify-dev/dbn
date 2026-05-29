@@ -67,7 +67,18 @@ parse_blocks <- function(blocks, Tt, n) {
 	# compute block lengths
 	lengths <- diff(boundaries)
 
-	# validate minimum block lengths
+	# validate minimum block lengths. blocks shorter than 2 cannot identify
+	# the per-block operator at all (no transition pair); abort directively
+	# instead of letting the C++ block update return a singular matrix.
+	infeasible <- which(lengths < 2L)
+	if (length(infeasible) > 0L) {
+		cli::cli_abort(c(
+			"Block specification yields blocks of length < 2.",
+			"x" = "Blocks {paste(infeasible, collapse = ', ')} have length {paste(lengths[infeasible], collapse = ', ')} (need at least 2 for a transition).",
+			"i" = "For {.code Tt = {Tt}}, the maximum number of equal-length blocks is {.val {Tt %/% 2}}.",
+			"i" = "Pass a smaller integer K or a breakpoint vector with at least 2 time points per block."
+		))
+	}
 	short_blocks <- which(lengths < min_block_length)
 	if (length(short_blocks) > 0) {
 		cli::cli_warn(c(
@@ -210,12 +221,22 @@ structural_stability <- function(Y, family = "ordinal",
 			cli::cli_progress_step("Window {i}/{n_windows}: t = {t_start}:{t_end}")
 		}
 
-		# fit quick static model
+		# fit a quick static model. A single window failing is tolerable
+		# (we fall back to identity for that window's B), but a systematic
+		# failure makes the breakpoint detector unreliable -- so we surface
+		# the error class via cli_warn rather than swallowing silently.
 		fit_window <- tryCatch({
 			dbn_static(Y_window, family = family,
 					   nscan = nscan, burn = nscan %/% 2, odens = 1,
 					   verbose = FALSE, seed = 12345 + i)
-		}, error = function(e) NULL)
+		}, error = function(e) {
+			cli::cli_warn(c(
+				"Window {i}/{n_windows} (t = {t_start}:{t_end}) static fit failed.",
+				"x" = "{conditionMessage(e)}",
+				"i" = "Using identity B for this window; breakpoint detection may be unreliable if this happens for many windows."
+			))
+			NULL
+		})
 
 		if (!is.null(fit_window) && !is.null(fit_window$B)) {
 			# extract posterior mean of B[[1]]
@@ -385,13 +406,44 @@ select_K_auto <- function(Y, family = "ordinal",
 ####
 
 ####
-#' Compute WAIC for DBN Fit
+#' Compute WAIC for a dbn fit
 #'
-#' @description computes Watanabe-Akaike Information Criterion
-#' @param fit dbn model fit object
-#' @return list with waic, lppd, p_waic
-#' @keywords internal
-compute_waic_dbn <- function(fit) {
+#' Computes the Watanabe-Akaike Information Criterion (WAIC) for model
+#' comparison. Returns a list compatible with `loo::loo_compare()`: the
+#' `estimates` slot has rows `elpd_waic`, `p_waic`, `waic` with `Estimate`
+#' and `SE` columns, and the object is `class = c("waic", "loo")`.
+#'
+#' @param fit A `dbn` fit object.
+#' @param model_name Optional character label attached to the returned WAIC
+#'   object so [loo::loo_compare()] can distinguish competing fits in its
+#'   output table.
+#' @return A list with `estimates`, `pointwise`, `lppd`, `p_waic`, `waic`,
+#'   and `class = c("waic", "loo")` so `loo::loo_compare(w1, w2)` dispatches.
+#' @author Tosin Salau and Shahryar Minhas
+#' @export
+compute_waic_dbn <- function(fit, model_name = NULL) {
+	# accept model_name = so loo_compare rows are distinguishable; two
+	# competing specs would otherwise both label as their model type.
+	if (!is.null(model_name)) {
+		if (length(model_name) != 1L || !is.character(model_name)) {
+			cli::cli_abort("{.arg model_name} must be a single string.")
+		}
+	}
+	# ALS fits don't have a posterior over parameters:
+	# - without bootstrap, n_draws = 1 -> p_waic = 0 and WAIC reduces to
+	#   -2 * lppd, which trivially "wins" against any MCMC competitor.
+	# - with bootstrap, the variance is empirical-Bayes flavoured and
+	#   under-counts model complexity.
+	# refuse outright and point users at the right tool.
+	su <- fit$meta$sampler_used %||% ""
+	is_als <- su %in% c("als", "als_tv", "als_piecewise")
+	if (is_als) {
+		cli::cli_abort(c(
+			"WAIC is not a valid criterion for ALS fits.",
+			"i" = "ALS produces a point estimate (no posterior over parameters), so {.code p_waic = 0} and the WAIC reduces to {.code -2*lppd}, which trivially favors ALS over any MCMC competitor.",
+			"i" = "For ALS-vs-MCMC comparison, use {.fn compute_irf} stability across resamples or refit the candidate with MCMC ({.fn dbn}, {.code model = \"dynamic\"})."
+		))
+	}
 	# extract relevant info based on model type
 	if (fit$model == "static") {
 		waic <- compute_waic_static(fit)
@@ -402,13 +454,64 @@ compute_waic_dbn <- function(fit) {
 	} else {
 		# fallback: use DIC-based approximation
 		if (!is.null(fit$diagnostics$dic) && !is.na(fit$diagnostics$dic)) {
-			return(list(waic = fit$diagnostics$dic, lppd = NA, p_waic = NA))
+			waic <- list(waic = fit$diagnostics$dic, lppd = NA_real_, p_waic = NA_real_)
+		} else {
+			cli::cli_warn("WAIC not implemented for model type {fit$model}. Using NA.")
+			waic <- list(waic = NA_real_, lppd = NA_real_, p_waic = NA_real_)
 		}
-		cli::cli_warn("WAIC not implemented for model type {fit$model}. Using NA.")
-		return(list(waic = NA, lppd = NA, p_waic = NA))
 	}
-
-	waic
+	# repackage as a loo-shaped object (estimates matrix + class) so that
+	# loo::loo_compare() dispatches.
+	lppd_v <- as.numeric(waic$lppd %||% NA_real_)
+	pwaic_v <- as.numeric(waic$p_waic %||% NA_real_)
+	waic_v <- as.numeric(waic$waic %||% NA_real_)
+	elpd_waic <- lppd_v - pwaic_v
+	# if pointwise contributions are available, compute SEs honestly
+	pointwise <- waic$pointwise
+	if (is.null(pointwise) || !is.matrix(pointwise)) {
+		se_elpd <- NA_real_
+		se_pwaic <- NA_real_
+		se_waic <- NA_real_
+	} else {
+		n_obs <- nrow(pointwise)
+		se_elpd  <- sqrt(n_obs * var(pointwise[, "elpd_waic"]))
+		se_pwaic <- sqrt(n_obs * var(pointwise[, "p_waic"]))
+		se_waic  <- 2 * se_elpd
+	}
+	# warn when p_waic dwarfs the number of observations. p_waic > N is a
+	# red flag for under-mixed chains: the per-observation log-lik
+	# variance is dominating the criterion, so WAIC differences are not
+	# interpretable until the sampler is run longer.
+	n_obs_total <- tryCatch({
+		Y <- fit$Y
+		if (is.null(Y)) NA_real_
+		else sum(!is.na(Y))
+	}, error = function(e) NA_real_)
+	if (is.finite(n_obs_total) && is.finite(pwaic_v) && n_obs_total > 0 &&
+	    pwaic_v > n_obs_total) {
+		cli::cli_warn(c(
+			"{.field p_waic} ({sprintf('%.3g', pwaic_v)}) is {sprintf('%.1fx', pwaic_v / n_obs_total)} the number of observations ({n_obs_total}).",
+			"i" = "This typically signals the chain has not mixed long enough for stable WAIC, not an over-parameterized model.",
+			"i" = "Increase {.arg nscan} (10x is a good starting heuristic) or check {.fn check_convergence}; do not interpret WAIC differences in this regime."
+		))
+	}
+	estimates <- matrix(
+		c(elpd_waic, se_elpd, pwaic_v, se_pwaic, waic_v, se_waic),
+		nrow = 3, ncol = 2, byrow = TRUE,
+		dimnames = list(c("elpd_waic", "p_waic", "waic"), c("Estimate", "SE"))
+	)
+	out <- list(
+		estimates = estimates,
+		pointwise = pointwise,
+		lppd      = lppd_v,
+		p_waic    = pwaic_v,
+		waic      = waic_v,
+		elpd_waic = elpd_waic,
+		n_obs     = n_obs_total,
+		model_name = model_name %||% fit$model %||% NA_character_
+	)
+	class(out) <- c("waic", "loo")
+	out
 }
 ####
 
@@ -419,6 +522,7 @@ compute_waic_dbn <- function(fit) {
 #' @param fit static dbn fit
 #' @return list with waic, lppd, p_waic
 #' @keywords internal
+#' @noRd
 compute_waic_static <- function(fit) {
 	Y <- fit$Y
 	family <- fit$family
@@ -451,37 +555,174 @@ compute_waic_static <- function(fit) {
 	# handle NAs
 	log_lik_samples[!is.finite(log_lik_samples)] <- NA
 
-	# compute WAIC components
-	# lppd: log pointwise predictive density
+	# per-observation lppd and p_waic; loo::loo_compare needs the pointwise
+	# matrix to compute SE on differences. drop cells with <2 finite draws.
+	col_ok <- apply(log_lik_samples, 2, function(x) sum(is.finite(x)) >= 2L)
+	pointwise <- matrix(NA_real_, nrow = sum(col_ok), ncol = 2,
+		dimnames = list(NULL, c("elpd_waic", "p_waic")))
+	if (sum(col_ok) > 0L) {
+		ll_ok <- log_lik_samples[, col_ok, drop = FALSE]
+		lse <- apply(ll_ok, 2, function(x) {
+			x <- x[is.finite(x)]
+			if (length(x) == 0L) return(NA_real_)
+			log(mean(exp(x - max(x)))) + max(x)
+		})
+		var_per_col <- apply(ll_ok, 2, function(x) {
+			x <- x[is.finite(x)]
+			if (length(x) < 2L) return(0)
+			var(x)
+		})
+		pointwise[, "elpd_waic"] <- lse - var_per_col
+		pointwise[, "p_waic"]    <- var_per_col
+	}
 	lppd <- sum(apply(log_lik_samples, 2, function(x) {
 		x <- x[is.finite(x)]
 		if (length(x) == 0) return(NA)
 		log(mean(exp(x - max(x)))) + max(x)
 	}), na.rm = TRUE)
-
-	# p_waic: effective number of parameters
 	p_waic <- sum(apply(log_lik_samples, 2, function(x) {
 		x <- x[is.finite(x)]
 		if (length(x) < 2) return(0)
 		var(x)
 	}), na.rm = TRUE)
-
 	waic <- -2 * (lppd - p_waic)
 
-	list(waic = waic, lppd = lppd, p_waic = p_waic)
+	list(waic = waic, lppd = lppd, p_waic = p_waic, pointwise = pointwise)
 }
 ####
 
 ####
 #' Compute WAIC for Piecewise Model
 #'
-#' @description WAIC computation for piecewise DBN
+#' @description WAIC computation for piecewise DBN. Evaluates the
+#'   per-observation Gaussian (or probit) log-likelihood under the
+#'   block-specific predictive distribution
+#'   `Y_t | Theta_t, M, sigma^2 ~ N(Theta_t + M, sigma^2)`, where `Theta_t`
+#'   is governed by the block-specific operators `A_k(t), B_k(t)`. Iterates
+#'   over posterior draws to compute lppd (mean of likelihood, log) and
+#'   p_waic (variance of log-likelihood).
 #' @param fit piecewise dbn fit
 #' @return list with waic, lppd, p_waic
 #' @keywords internal
+#' @noRd
 compute_waic_piecewise <- function(fit) {
-	# use same approach as static but accounting for block structure
-	compute_waic_static(fit)
+	Y <- fit$Y
+	family <- fit$family
+	n_draws <- fit$settings$draws %||% 0L
+	M_samples <- fit$draws$misc$M
+	A_samples <- fit$draws$misc$A
+	B_samples <- fit$draws$misc$B
+	Theta_samples <- fit$draws$misc$Theta
+	s2_vec <- fit$draws$pars$s2
+
+	if (is.null(M_samples) || is.null(A_samples) || is.null(B_samples) ||
+	    n_draws < 2L || is.null(s2_vec)) {
+		# fall back to the static approximation if the piecewise draws are
+		# missing; this typically only happens when keep dropped them
+		return(compute_waic_static(fit))
+	}
+
+	dims <- fit$dims
+	n_row <- dims$n_row; n_col <- dims$n_col; p <- dims$p %||% 1L; Tt <- dims$Tt
+
+	# block_indices[[k]] is the vector of time indices assigned to block k
+	block_indices <- fit$blocks$block_indices
+	K_blocks <- length(block_indices)
+	t2k <- integer(Tt)
+	for (k in seq_len(K_blocks)) t2k[block_indices[[k]]] <- k
+
+	# subsample draws to keep the cost manageable
+	S_max <- 100L
+	s_idx <- if (n_draws > S_max) {
+		as.integer(round(seq(1, n_draws, length.out = S_max)))
+	} else {
+		seq_len(n_draws)
+	}
+	S <- length(s_idx)
+
+	n_obs <- prod(dim(Y))
+	Y_vec <- as.numeric(Y)
+	have_theta <- !is.null(Theta_samples)
+
+	log_lik_samples <- matrix(NA_real_, nrow = S, ncol = n_obs)
+	for (ii in seq_len(S)) {
+		s <- s_idx[ii]
+		s2_s <- s2_vec[s]
+		if (!is.finite(s2_s) || s2_s <= 0) next
+		M_s <- M_samples[[s]]
+		if (is.null(M_s)) next
+
+		if (have_theta) {
+			Theta_s <- Theta_samples[[s]]
+		} else {
+			# reconstruct Theta from block operators starting at Theta_1 = M
+			# (deterministic point trajectory; ignores process innovations)
+			A_s <- A_samples[[s]]
+			B_s <- B_samples[[s]]
+			Theta_s <- array(0, dim = c(n_row, n_col, p, Tt))
+			Theta_s[,,, 1] <- 0
+			for (t in 2:Tt) {
+				k <- t2k[t]
+				Ak <- A_s[[k]]; Bk <- B_s[[k]]
+				for (r in seq_len(p)) {
+					Theta_s[,, r, t] <- Ak %*% Theta_s[,, r, t - 1L] %*% t(Bk)
+				}
+			}
+		}
+
+		# predicted mean for Y: Theta_t + M (broadcast over r and t)
+		M_arr <- array(M_s, dim = c(n_row, n_col, p))
+		mu <- array(0, dim = c(n_row, n_col, p, Tt))
+		for (t in seq_len(Tt)) {
+			for (r in seq_len(p)) {
+				mu[,, r, t] <- Theta_s[,, r, t] + M_arr[,, r]
+			}
+		}
+
+		if (family == "gaussian") {
+			log_lik_samples[ii, ] <- dnorm(Y_vec, as.numeric(mu),
+			                                sqrt(s2_s), log = TRUE)
+		} else {
+			# ordinal / binary: probit-scale approximation matching the
+			# static path's convention. Sigma fixed at 1 on the latent scale.
+			log_lik_samples[ii, ] <- dnorm(Y_vec, as.numeric(mu), 1,
+			                                log = TRUE)
+		}
+	}
+	log_lik_samples[!is.finite(log_lik_samples)] <- NA_real_
+
+	# per-observation lppd and p_waic for loo::loo_compare SE
+	col_ok <- apply(log_lik_samples, 2, function(x) sum(is.finite(x)) >= 2L)
+	pointwise <- matrix(NA_real_, nrow = sum(col_ok), ncol = 2,
+		dimnames = list(NULL, c("elpd_waic", "p_waic")))
+	if (sum(col_ok) > 0L) {
+		ll_ok <- log_lik_samples[, col_ok, drop = FALSE]
+		lse <- apply(ll_ok, 2, function(x) {
+			x <- x[is.finite(x)]
+			if (length(x) == 0L) return(NA_real_)
+			mx <- max(x); log(mean(exp(x - mx))) + mx
+		})
+		var_per_col <- apply(ll_ok, 2, function(x) {
+			x <- x[is.finite(x)]
+			if (length(x) < 2L) return(0)
+			var(x)
+		})
+		pointwise[, "elpd_waic"] <- lse - var_per_col
+		pointwise[, "p_waic"]    <- var_per_col
+	}
+	lppd <- sum(apply(log_lik_samples, 2, function(x) {
+		x <- x[is.finite(x)]
+		if (length(x) == 0) return(NA_real_)
+		mx <- max(x)
+		log(mean(exp(x - mx))) + mx
+	}), na.rm = TRUE)
+	p_waic <- sum(apply(log_lik_samples, 2, function(x) {
+		x <- x[is.finite(x)]
+		if (length(x) < 2) return(0)
+		var(x)
+	}), na.rm = TRUE)
+	waic <- -2 * (lppd - p_waic)
+	list(waic = waic, lppd = lppd, p_waic = p_waic, pointwise = pointwise)
 }
 ####
 
@@ -492,6 +733,7 @@ compute_waic_piecewise <- function(fit) {
 #' @param fit dynamic dbn fit
 #' @return list with waic, lppd, p_waic
 #' @keywords internal
+#' @noRd
 compute_waic_dynamic <- function(fit) {
 	# simplified WAIC using Theta samples
 	Y <- fit$Y
@@ -515,27 +757,45 @@ compute_waic_dynamic <- function(fit) {
 	# compute approximate WAIC
 	log_lik_samples <- matrix(NA, nrow = length(sample_idx), ncol = prod(dim(Y)))
 
+	# use the per-draw latent state Theta_s as the location parameter so
+	# WAIC reflects the dynamic model fit (rather than a constant-mean
+	# proxy), and populate pointwise contributions for loo::loo_compare.
 	for (i in seq_along(sample_idx)) {
 		s <- sample_idx[i]
-		Theta_s <- Theta[, , , , s]
-
-		# get M for this draw
-		M_s <- fit$M[, , , s]
-		if (length(dim(M_s)) == 3) {
-			M_expanded <- array(M_s, dim = dim(Y))
-		} else {
-			M_expanded <- array(mean(M_s, na.rm = TRUE), dim = dim(Y))
-		}
+		Theta_s <- Theta[, , , , s]  # [n_row, n_col, p, Tt]
 
 		if (family == "gaussian") {
 			sigma2_s <- fit$sigma2_obs[s] %||% fit$sigma2[s]
-			log_lik_samples[i, ] <- dnorm(c(Y), c(M_expanded), sqrt(sigma2_s), log = TRUE)
+			log_lik_samples[i, ] <- dnorm(c(Y), c(Theta_s), sqrt(sigma2_s), log = TRUE)
 		} else {
-			log_lik_samples[i, ] <- dnorm(c(Y), c(M_expanded), 1, log = TRUE)
+			# binary / ordinal: Theta_s is the latent location on the probit
+			# / rank scale; use standard-normal kernel as a coarse proxy.
+			log_lik_samples[i, ] <- dnorm(c(Y), c(Theta_s), 1, log = TRUE)
 		}
 	}
 
+	# NA cells in Y produce NA log-lik; drop them from pointwise summaries.
 	log_lik_samples[!is.finite(log_lik_samples)] <- NA
+
+	# pointwise contributions: per-observation lppd and p_waic, drop NA cols.
+	col_ok <- apply(log_lik_samples, 2, function(x) sum(is.finite(x)) >= 2L)
+	pointwise <- matrix(NA_real_, nrow = sum(col_ok), ncol = 2,
+		dimnames = list(NULL, c("elpd_waic", "p_waic")))
+	if (sum(col_ok) > 0L) {
+		ll_ok <- log_lik_samples[, col_ok, drop = FALSE]
+		lse <- apply(ll_ok, 2, function(x) {
+			x <- x[is.finite(x)]
+			if (length(x) == 0L) return(NA_real_)
+			log(mean(exp(x - max(x)))) + max(x)
+		})
+		var_per_col <- apply(ll_ok, 2, function(x) {
+			x <- x[is.finite(x)]
+			if (length(x) < 2L) return(0)
+			var(x)
+		})
+		pointwise[, "elpd_waic"] <- lse - var_per_col
+		pointwise[, "p_waic"]    <- var_per_col
+	}
 
 	lppd <- sum(apply(log_lik_samples, 2, function(x) {
 		x <- x[is.finite(x)]
@@ -551,6 +811,6 @@ compute_waic_dynamic <- function(fit) {
 
 	waic <- -2 * (lppd - p_waic)
 
-	list(waic = waic, lppd = lppd, p_waic = p_waic)
+	list(waic = waic, lppd = lppd, p_waic = p_waic, pointwise = pointwise)
 }
 ####

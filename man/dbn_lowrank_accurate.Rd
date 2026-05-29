@@ -15,7 +15,7 @@ dbn_lowrank_accurate(
   update_rho_alpha = FALSE,
   ar1_B = FALSE,
   update_rho_B = FALSE,
-  seed = 6886,
+  seed = NULL,
   verbose = TRUE,
   time_thin = 1,
   previous = NULL,
@@ -49,7 +49,7 @@ if posterior predictive checks show poor fit. Default: 2.}
 
 \item{seed}{Random seed}
 
-\item{verbose}{Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.}
+\item{verbose}{Logical or numeric. If TRUE the progress bar is updated on every iteration (its display rate is throttled by the terminal); if numeric \code{n}, the bar is updated every n-th iteration; FALSE suppresses all progress output.}
 
 \item{time_thin}{Save every nth time point}
 
@@ -69,7 +69,8 @@ Internal alternative implementation of the low-rank dynamic
 model. Retained for regression testing and long-T numerical-conditioning
 use cases. The public entry point is \code{\link[=dbn_lowrank]{dbn_lowrank()}}; \code{\link[=dbn]{dbn()}} with
 \code{model = "lowrank"} routes to \code{\link[=dbn_lowrank]{dbn_lowrank()}}, not to this function.
-Access via \code{dbn:::dbn_lowrank_accurate()} if you need it.
+Reach for it directly with \code{\link[=dbn_lowrank_accurate]{dbn_lowrank_accurate()}} when you want the
+alternative numerical path.
 }
 \seealso{
 \code{\link[=dbn_lowrank]{dbn_lowrank()}} (the public entry point), \code{\link[=dbn]{dbn()}} for the

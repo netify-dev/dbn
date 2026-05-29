@@ -26,3 +26,6 @@ stat_in_degree(X)
 \code{\link{compute_irf}}, \code{\link{build_shock}},
 \code{\link{stat_density}}, \code{\link{stat_out_degree}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

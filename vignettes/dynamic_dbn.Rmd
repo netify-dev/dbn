@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
   collapse  = TRUE, comment = "#>",
   fig.align = "center",
   fig.width = 6, fig.height = 4,
-  message   = FALSE, warning = FALSE,
+  message   = TRUE, warning = FALSE,
   eval      = NOT_CRAN
 )
 library(dbn)
@@ -26,47 +26,47 @@ library(ggplot2)
 
 ## 1 The model
 
-The dynamic bilinear model allows the influence matrices $A_t$ and $B_t$
-to change over time, capturing settings where the rules governing
-network evolution are themselves evolving:
+The dynamic bilinear model lets the influence matrices $A_t$ and $B_t$
+change over time, so it can handle settings where the rules of evolution
+themselves evolve:
 
-$$\Theta_t = A_t \, \Theta_{t-1} \, B_t^\top + M + \varepsilon_t$$
+$$\Theta_t = M + A_t \, (\Theta_{t-1} - M) \, B_t^\top + \varepsilon_t$$
 
-Entry $a_{i,i',t}$ of the sender influence matrix $A_t$ measures how
-strongly actor $i'$'s past sending behavior predicts actor $i$'s current
-sending at time $t$.  The receiver matrix $B_t$ captures the analogous
-pattern on the targeting side.  The baseline mean $M$ absorbs stable
-dyad-specific tendencies that persist regardless of the dynamics.
+Entry $a_{i,i',t}$ of the sender influence matrix $A_t$ says how
+strongly actor $i'$'s past sending behaviour predicts actor $i$'s
+current sending at time $t$. $B_t$ does the same on the targeting side.
+The baseline mean $M$ absorbs stable dyad-specific tendencies that
+persist regardless of the dynamics.
 
-Two additional parameters govern how rapidly the influence structure
-reorganizes.  The innovation variances $\tau_A^2$ and $\tau_B^2$ control
-step-to-step variation in $A_t$ and $B_t$: values near zero indicate a
-nearly static structure, while larger values allow rapid reorganization.
-When `ar1 = TRUE`, the model adds persistence parameters $\rho_A$ and
-$\rho_B$ that measure mean reversion.  Values of $\rho$ near 1 indicate
-that the influence structure is highly persistent; values near 0 indicate
-rapid reversion to the prior mean.
+Two more parameters govern how quickly the influence structure
+reorganises. Innovation variances $\tau_A^2$ and $\tau_B^2$ control
+step-to-step variation in $A_t$ and $B_t$: near zero means a nearly
+static structure; larger values allow rapid reorganisation. When
+`ar1 = TRUE`, the model adds persistence parameters $\rho_A$ and
+$\rho_B$ that measure mean reversion. Values near 1 mean the influence
+structure is highly persistent; values near 0 mean rapid reversion to
+the prior mean.
 
 ## 2 Simulate data
 
 We generate a Gaussian network with time-varying influence matrices.
-Setting `ar1 = TRUE` gives the influence matrices AR(1) dynamics, so each
-period's influence structure is a noisy version of the previous period's
-rather than an uncorrelated random walk.  The high persistence
-($\rho = 0.9$) and small innovation variance ($\tau^2 = 0.04$) create
-smoothly evolving dynamics that are easier to recover from limited data.
+Setting `ar1 = TRUE` gives the influence matrices AR(1) dynamics, so
+each period's influence structure is a noisy version of the previous
+period's rather than an uncorrelated random walk. Persistence
+$\rho = 0.8$ and innovation variance $\tau^2 = 0.1$ create dynamics
+that evolve smoothly and are well-identified at this panel size.
 
 ```{r simulate}
 sim = simulate_dynamic_dbn(
-  n      = 8,
+  n      = 12,
   p      = 1,
-  time   = 15,
+  time   = 25,
   sigma2 = 0.3,
-  tauA2  = 0.04,
-  tauB2  = 0.04,
+  tauA2  = 0.1,
+  tauB2  = 0.1,
   ar1    = TRUE,
-  rhoA   = 0.9,
-  rhoB   = 0.9,
+  rhoA   = 0.8,
+  rhoB   = 0.8,
   seed   = 6886
 )
 
@@ -76,18 +76,18 @@ dim(Y)
 
 ## 3 Fit the model
 
-We set `ar1 = TRUE` so the model uses AR(1) dynamics for $A_t$ and
-$B_t$, and `update_rho = TRUE` so the persistence parameters are
-estimated from the data rather than fixed at a default value.
+Set `ar1 = TRUE` so the model uses AR(1) dynamics for $A_t$ and $B_t$,
+and `update_rho = TRUE` so the persistence parameters are estimated
+from the data rather than held at a default.
 
 ```{r fit, cache = TRUE}
 fit = dbn(
   Y,
   family     = "gaussian",
   model      = "dynamic",
-  nscan      = 1000,
-  burn       = 500,
-  odens      = 2,
+  nscan      = 4000,
+  burn       = 2000,
+  odens      = 4,
   ar1        = TRUE,
   update_rho = TRUE,
   verbose    = FALSE
@@ -96,17 +96,31 @@ fit = dbn(
 
 ## 4 Convergence diagnostics
 
-The trace plots should show stationary chains with no drift.  For the
-dynamic model, the key parameters are $\sigma^2$ (process noise),
-$\tau_A^2$ and $\tau_B^2$ (innovation variances), and $\rho_A$ and
-$\rho_B$ (persistence).
+The parameters worth watching for the dynamic model are $\sigma^2$
+(process noise), $\tau_A^2$ and $\tau_B^2$ (innovation variances), and
+$\rho_A$ / $\rho_B$ (persistence). Trace plots should show stationary
+fluctuation around a stable mean.
 
 ```{r convergence}
 check_convergence(fit)
 ```
 
 ```{r trace, fig.height = 5}
-plot_trace(fit, pars = c("sigma2", "tau_A2", "tau_B2", "rho_A", "rho_B"))
+plot_trace(fit, pars = c("sigma2", "tau_A2", "tau_B2", "rhoA", "rhoB"))
+```
+
+ESS values in the several-hundreds and Geweke z-scores within $\pm 2$
+indicate adequate mixing for the scalar parameters. To check
+between-chain convergence, run multiple chains and check
+rank-normalised split-$\hat R$ (Vehtari et al. 2021):
+
+```{r multichain, eval = FALSE}
+mc = dbn_multichain(Y, chains = 4, seeds = c(1, 2, 3, 4),
+                    model = "dynamic", family = "gaussian",
+                    nscan = 5000, burn = 2500, odens = 5,
+                    ar1 = TRUE, update_rho = TRUE, verbose = FALSE)
+check_convergence(mc)   # cross-chain Rhat, bulk-ESS, tail-ESS
+posterior::as_draws(mc) # for bayesplot / tidybayes downstream
 ```
 
 ## 5 Parameter recovery
@@ -117,19 +131,35 @@ plot_trace(fit, pars = c("sigma2", "tau_A2", "tau_B2", "rho_A", "rho_B"))
 param_summary(fit)
 ```
 
-The model estimates variance parameters that govern the dynamics.  The
-internal parameterization may differ in scale from the simulation inputs,
-so direct comparison of scalar values is not always meaningful.  The most
-informative validation is whether the model recovers the latent network
-trajectories.
+The model estimates variance parameters that govern the dynamics. The
+internal parameterisation may differ in scale from the simulation
+inputs, so directly comparing scalar values is not always meaningful.
+The cleaner checks are (a) whether the AR(1) persistence parameters
+recover the truth and (b) whether the latent network trajectories come
+back.
+
+### AR(1) persistence
+
+The simulator set $\rho_A = \rho_B = 0.8$. The posterior should land
+near 0.8 with the 95% interval covering it:
+
+```{r rho-recovery}
+data.frame(
+  param = c("rhoA", "rhoB"),
+  truth = c(0.8, 0.8),
+  post_mean = c(mean(fit$rhoA), mean(fit$rhoB)),
+  q025 = c(quantile(fit$rhoA, 0.025), quantile(fit$rhoB, 0.025)),
+  q975 = c(quantile(fit$rhoA, 0.975), quantile(fit$rhoB, 0.975))
+)
+```
 
 ### Latent network recovery
 
-The model's primary output is the latent network state $\Theta_t$.  We
+The model's primary output is the latent network state $\Theta_t$. We
 compare the posterior mean of $\Theta_t + M$ to the true values across
-all dyads and time points.  Strong correlation along the diagonal
-indicates that the model is capturing both the cross-sectional structure
-and the temporal dynamics.
+all dyads and time points. A strong correlation along the diagonal
+means the model is picking up both the cross-sectional structure and
+the temporal dynamics.
 
 ```{r theta-recovery, fig.height = 4.5}
 Theta_mean = apply(fit$Theta, 1:4, mean)
@@ -159,22 +189,21 @@ ggplot(df_theta, aes(x = truth, y = estimate)) +
     title    = "Recovery of Latent Network State",
     subtitle = paste0("R-Squared = ", r_sq, " (All Dyads x Time Points)"),
     x = expression("True " * Theta[t]),
-    y = expression("Posterior Mean " * Theta[t] + M)
+    y = expression("Posterior Mean of " * (Theta[t] + M))
   ) +
   theme_bw() +
   theme(panel.border = element_blank())
 ```
 
-Each point represents one off-diagonal dyad at one time point.  Some
-scatter is expected due to posterior shrinkage and estimation uncertainty,
-but the bulk of points should cluster along the diagonal.
+Each point is one off-diagonal dyad at one time point. Some scatter is
+expected from posterior shrinkage and estimation uncertainty, but the
+bulk of points should cluster along the diagonal.
 
 ## 6 Dyad trajectories
 
-The `dyad_path()` function tracks how a specific bilateral relationship
-evolves over time, with a ribbon showing the posterior credible interval.
-Wider ribbons indicate greater uncertainty about the trajectory of that
-particular relationship.
+`dyad_path()` tracks a specific bilateral relationship over time, with
+a ribbon for the posterior credible interval. Wider ribbons mean
+greater uncertainty about that dyad's trajectory.
 
 ```{r dyad-path, fig.height = 3.5}
 dyad_path(fit, i = 1, j = 2)
@@ -182,35 +211,61 @@ dyad_path(fit, i = 1, j = 2)
 
 ## 7 Forecasting
 
-We generate forecasts 5 steps ahead by propagating the estimated dynamics
-forward.  Each of the 200 posterior draws produces a different forecast
-trajectory (reflecting uncertainty in $A$, $B$, and $\sigma^2$), and
-`summary = "mean"` averages across them.
+We forecast 3 steps ahead. `predict()` propagates the operator forward
+with the same dynamics the model was fit under. This fit is AR(1), so
+the operator mean-reverts: $A_{T+h} = \rho_A A_{T+h-1} + \eta_h^A$,
+$\eta_h^A \sim \mathcal{N}(0, \tau_A^2)$, and likewise for $B$ (when
+`ar1 = FALSE` this reduces to a pure random walk, $\rho = 1$). Each
+posterior draw gives a different operator trajectory on top of a
+different innovation realisation. (The ALS fallback path holds $A_T$,
+$B_T$ constant and uses bootstrap draws for the operator; see
+`?dbn_als`.) Each of the 200 draws below produces a forecast trajectory
+that captures all three sources of uncertainty: the operator path, the
+parameters, and $\sigma^2$.
 
 ```{r forecast}
-fc = predict(fit, H = 5, draws = 200, summary = "mean")
-dim(fc)
+fc_mean = predict(fit, H = 3, draws = 200, summary = "mean")
+dim(fc_mean)
 ```
 
-The resulting array has dimensions `[actors, actors, relations, horizon]`.
-These forecasts assume the final-period dynamics continue unchanged, so
-they are most informative over short horizons.
+The resulting array has class `dbn_forecast` and dimensions
+`[actors, actors, relations, horizon]`.
+
+For credible intervals, pass `level = N` (percent) or
+`summary = "ci"` with explicit quantiles. The return is a
+`dbn_forecast_ci` with `$mean`, `$lower`, and `$upper` arrays:
+
+```{r forecast-ci}
+fc_ci = predict(fit, H = 3, draws = 200, level = 90)
+summary(fc_ci)
+```
+
+Forecasts are most informative over short horizons. At longer horizons
+the lag operator acts repeatedly on the latent state and innovation and
+parameter uncertainty accumulate, so the predictive bands widen even
+though the operator stays contractive (both the AR(1) dynamics and the
+default `shrink_rho` prior keep it so). The `lower` / `upper` columns
+from `summary(fc_ci)` above show that spread per horizon; check the gap
+between them at the last horizon you want to report and stop where it
+has grown past what is useful.
 
 ## 8 Network statistics over time
 
-The `network_summary()` function tracks a network-level statistic across
-time with posterior credible intervals, providing a macro-level view of
-how the network evolves.
+`network_summary()` tracks a network-level statistic across time with
+posterior credible intervals, giving you a macro-level view of how the
+network evolves. For the Gaussian family "density" is the share of
+latent ties above zero, so values sit near 0.5 on mean-zero simulated
+data rather than near a sparse binary edge density.
 
 ```{r network-stats}
 ns = network_summary(fit, stat = "density")
 head(ns)
 ```
 
-The `edge_prob()` function computes the posterior probability that each
-edge is positive at a given time point.  Values near 1 indicate reliably
-positive edges; values near 0.5 indicate substantial uncertainty about
-the sign.
+`edge_prob()` returns the posterior probability that each edge is
+positive at a given time point. Values near 1 are reliably positive
+edges; values near 0.5 mean the sign is essentially undetermined. The
+diagonal is `NA` because self-loops are not modeled.
 
 ```{r edge-prob}
 ep = edge_prob(fit, rel = 1, time = dim(Y)[4])
@@ -219,10 +274,10 @@ round(ep[1:5, 1:5], 2)
 
 ## 9 Bipartite networks
 
-The package automatically detects bipartite networks when the sender and
-receiver dimensions differ.  Passing a rectangular array causes the model
-to estimate $A$ as `n_row x n_row` (sender dynamics) and $B$ as
-`n_col x n_col` (receiver dynamics).
+The package detects bipartite networks automatically when sender and
+receiver dimensions differ. A rectangular array sends the model down
+the bipartite path: $A$ is estimated as `n_row x n_row` (sender
+dynamics) and $B$ as `n_col x n_col` (receiver dynamics).
 
 ```{r bipartite, cache = TRUE}
 sim_bp = simulate_dynamic_dbn(
@@ -243,9 +298,9 @@ summary(fit_bp)
 
 ## 10 Parallel computation
 
-The dynamic model parallelizes row-wise FFBS updates via OpenMP.  For
-networks with 15 or more actors, multi-threading produces meaningful
-speedups (typically 2-4x with 4-8 cores).
+The dynamic model parallelises row-wise FFBS updates via OpenMP. For
+networks with 15 or more actors, multi-threading buys you a meaningful
+speedup (typically 2-4x with 4-8 cores).
 
 ```{r threads, eval = FALSE}
 set_dbn_threads(parallel::detectCores(logical = FALSE))
@@ -253,8 +308,9 @@ set_dbn_threads(parallel::detectCores(logical = FALSE))
 
 ## 11 Scaling guidance
 
-For larger networks, the main constraint is RAM.  Use `estimate_memory()`
-before fitting, and adjust `time_thin` and `odens` to manage memory.
+For larger networks the binding constraint is RAM. Use
+`estimate_memory()` before fitting, and tune `time_thin` and `odens` to
+manage memory.
 
 ```{r memory-est}
 estimate_memory(
@@ -265,13 +321,13 @@ estimate_memory(
 ```
 
 For 100+ actors, expect to need 16-32 GB depending on settings.
-Increasing `time_thin` and `odens` are the most effective ways to reduce
-memory usage.
+`time_thin` and `odens` are the most effective levers for reducing it.
 
 ## 12 Next steps
 
 For impulse response analysis that traces how shocks propagate through
-the estimated dynamics, see `vignette("impulse_response")`.  For models
-with known structural breaks where the influence structure shifts at
-discrete time points, see `vignette("piecewise_dbn")`.  For large
-networks (50+ actors), see `vignette("lowrank_dbn")`.
+the estimated dynamics, see `vignette("impulse_response")`. For known
+structural breaks where the influence structure shifts at discrete
+time points, see `vignette("piecewise_dbn")`. For large networks
+(50+ actors), the low-rank model `dbn(..., model = "lowrank")`
+factorises the sender dynamics to keep estimation tractable.

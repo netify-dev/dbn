@@ -57,7 +57,8 @@ loglik_U <- function(U, alpha, Theta, Barray, sigma2) {
 #'   model. Retained for regression testing and long-T numerical-conditioning
 #'   use cases. The public entry point is [dbn_lowrank()]; [dbn()] with
 #'   `model = "lowrank"` routes to [dbn_lowrank()], not to this function.
-#'   Access via `dbn:::dbn_lowrank_accurate()` if you need it.
+#'   Reach for it directly with [dbn_lowrank_accurate()] when you want the
+#'   alternative numerical path.
 #' @param Y Data array (nodes x nodes x relations x time)
 #' @param r Rank for low-rank factorization. A good starting point is
 #'   \code{ceiling(log2(n))} where \code{n} is the number of nodes. Increase
@@ -70,7 +71,7 @@ loglik_U <- function(U, alpha, Theta, Barray, sigma2) {
 #' @param ar1_B Use AR(1) for B dynamics
 #' @param update_rho_B Update AR coefficient for B
 #' @param seed Random seed
-#' @param verbose Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.
+#' @param verbose Logical or numeric. If TRUE the progress bar is updated on every iteration (its display rate is throttled by the terminal); if numeric `n`, the bar is updated every n-th iteration; FALSE suppresses all progress output.
 #' @param time_thin Save every nth time point
 #' @param family Data family
 #' @param previous Previous results to continue from
@@ -80,6 +81,7 @@ loglik_U <- function(U, alpha, Theta, Barray, sigma2) {
 #' @return List containing MCMC results (same structure as [dbn_lowrank()]).
 #' @seealso [dbn_lowrank()] (the public entry point), [dbn()] for the
 #'   dispatcher.
+#' @export
 #' @keywords internal
 dbn_lowrank_accurate <- function(Y,
 						family = c("ordinal", "gaussian", "binary"),
@@ -91,7 +93,7 @@ dbn_lowrank_accurate <- function(Y,
 						update_rho_alpha = FALSE,
 						ar1_B = FALSE,
 						update_rho_B = FALSE,
-						seed = 6886,
+						seed = NULL,
 						verbose = TRUE,
 						time_thin = 1,
 						previous = NULL,
@@ -116,7 +118,8 @@ dbn_lowrank_accurate <- function(Y,
 		binary = family_binary()
 	)
 
-	set.seed(seed)
+	.dbn_restore_seed <- .use_seed_locally(seed)
+	on.exit(.dbn_restore_seed(), add = TRUE)
 
 	if (dim(Y)[4] < 2) {
 		cli::cli_abort("Low-rank model requires at least 2 time points. Use {.code model = \"static\"} for cross-sectional data.")
@@ -140,7 +143,8 @@ dbn_lowrank_accurate <- function(Y,
 		cli::cli_abort(c(
 			"Low-rank model does not yet support bipartite (rectangular) networks.",
 			"i" = "Your data has {n_row} senders and {n_col} receivers.",
-			"i" = "Use {.code model = \"dynamic\"} for bipartite networks."
+			"i" = "Use {.code model = \"dynamic\"} for bipartite networks (full coverage).",
+			"i" = "Bipartite low-rank requires separate Stiefel U_row and U_col matrices; on the roadmap."
 		))
 	}
 
@@ -299,7 +303,7 @@ dbn_lowrank_accurate <- function(Y,
 		M_ss <- sum(M_flat^2, na.rm = TRUE)
 		g2 <- safe_rinv_gamma(10 + length(M_flat)/2, 10 + M_ss/2)
 
-		# Theta update via FFBS (returns Theta with M included)
+		# theta update via FFBS (returns Theta with M included)
 		Theta_flat <- ffbs_theta_all_relations(Z_flat, M_flat, Aarray, Barray,
 											  sigma2_proc, sigma2_obs, m, p, Tt)
 
@@ -591,8 +595,12 @@ dbn_lowrank_accurate <- function(Y,
 #' @param ... Additional arguments (currently unused)
 #' @return A `dbn` object with components including `U`, `alpha`, `B`, `M`,
 #'   `Theta`, `sigma2`, `tau_A2`, `tau_B2`, `g2`, plus an `info` list of
-#'   model settings. See `summary()` and `plot()` methods for inspection,
-#'   and `tidy_dbn_lowrank()` for posterior summaries.
+#'   model settings. The posterior draws `U`, `alpha`, and `B` are each stored
+#'   as a \emph{list} of length `draws` (one matrix/array per kept draw), not
+#'   as a single stacked array; collapse one with, for example,
+#'   `apply(simplify2array(fit$U), 1:2, mean)` for the posterior-mean factor
+#'   matrix. See `summary()` and `plot()` methods for inspection, and
+#'   `tidy_dbn_lowrank()` for posterior summaries.
 #' @seealso [dbn()] for the main dispatcher, [param_summary()] for posterior
 #'   summaries, [tidy_dbn_lowrank()] for low-rank-specific tidiers.
 #' @examples
@@ -600,6 +608,7 @@ dbn_lowrank_accurate <- function(Y,
 #' sim <- simulate_lowrank_dbn(n = 8, time = 5, r = 2, seed = 1)
 #' fit <- dbn_lowrank(sim$Y, r = 2, nscan = 200, burn = 100, verbose = FALSE)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 dbn_lowrank <- function(Y,
 						family = c("ordinal", "gaussian", "binary"),
@@ -611,7 +620,7 @@ dbn_lowrank <- function(Y,
 						update_rho_alpha = FALSE,
 						ar1_B = FALSE,
 						update_rho_B = FALSE,
-						seed = 6886,
+						seed = NULL,
 						verbose = TRUE,
 						time_thin = 1,
 						previous = NULL,
@@ -636,7 +645,8 @@ dbn_lowrank <- function(Y,
 		binary = family_binary()
 	)
 
-	set.seed(seed)
+	.dbn_restore_seed <- .use_seed_locally(seed)
+	on.exit(.dbn_restore_seed(), add = TRUE)
 
 	if (dim(Y)[4] < 2) {
 		cli::cli_abort("Low-rank model requires at least 2 time points. Use {.code model = \"static\"} for cross-sectional data.")
@@ -660,7 +670,8 @@ dbn_lowrank <- function(Y,
 		cli::cli_abort(c(
 			"Low-rank model does not yet support bipartite (rectangular) networks.",
 			"i" = "Your data has {n_row} senders and {n_col} receivers.",
-			"i" = "Use {.code model = \"dynamic\"} for bipartite networks."
+			"i" = "Use {.code model = \"dynamic\"} for bipartite networks (full coverage).",
+			"i" = "Bipartite low-rank requires separate Stiefel U_row and U_col matrices; on the roadmap."
 		))
 	}
 
@@ -819,7 +830,7 @@ dbn_lowrank <- function(Y,
 		M_ss <- sum(M_flat^2, na.rm = TRUE)
 		g2 <- safe_rinv_gamma(10 + length(M_flat)/2, 10 + M_ss/2)
 
-		# Theta update via blocked FFBS (returns Theta with M included)
+		# theta update via blocked FFBS (returns Theta with M included)
 		Theta_flat <- ffbs_theta_blocked(Z_flat, M_flat, Aarray, Barray,
 										sigma2_proc, sigma2_obs, m, p, Tt)
 
@@ -877,7 +888,7 @@ dbn_lowrank <- function(Y,
 		if (g %% u_update_freq == 0) {
 			W <- generate_skew_proposal(m, sqrt(m) * epsilon)
 
-			# Cayley transform proposal
+			# cayley transform proposal
 			U_prop <- cayley_transform(U, W, epsilon)
 
 			# re-orthogonalize if numerical drift exceeds tolerance

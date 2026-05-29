@@ -50,3 +50,6 @@ rp <- dbn_coupling_rank_probs(fit, K_grid = c(1, 3, 5))
 rp$full_sample$p_topK$p_top3
 }
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

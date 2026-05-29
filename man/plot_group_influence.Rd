@@ -44,3 +44,6 @@ plot_group_influence(fit, group = c(1, 3, 5), type = "sender")
 \code{\link{get_group_influence}},
 \code{\link{compare_group_influence}}, \code{\link{dbn}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

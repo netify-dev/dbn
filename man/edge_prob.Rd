@@ -32,3 +32,6 @@ ep <- edge_prob(fit)
 \seealso{
 \code{\link{network_summary}}, \code{\link{theta_credible}}, \code{\link{theta_summary}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

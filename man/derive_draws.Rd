@@ -39,3 +39,6 @@ length(dd)
 \seealso{
 \code{\link{param_summary}}, \code{\link{theta_slice}}, \code{\link{theta_summary}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

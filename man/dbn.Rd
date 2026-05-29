@@ -8,12 +8,14 @@ dbn(
   data,
   family = c("ordinal", "gaussian", "binary"),
   model = c("static", "dynamic", "lowrank", "hmm", "piecewise"),
+  method = c("mcmc", "als"),
   nscan = 10000,
   burn = 1000,
   odens = 1,
   verbose = TRUE,
   symmetric = FALSE,
   sampler = "auto",
+  bootstrap = 0,
   ...
 )
 }
@@ -24,7 +26,13 @@ file that contains an object named \code{Y}.  The array should be
 4-dimensional \verb{[actors, actors, relations, time]} for multiple relation
 types.  Diagonal entries (self-ties) should be \code{NA} for unipartite
 networks.  For bipartite networks, pass a rectangular array where the
-first dimension (senders) differs from the second (receivers).}
+first dimension (senders) differs from the second (receivers).
+
+Missing values are supported: \code{NA} entries (including the \code{NA} diagonal)
+are treated as missing and imputed within the sampler, so partially
+observed networks can be fit directly. The data must, however, contain at
+least some finite observations; \code{NaN} and infinite values are anomalies
+(use \code{NA} to mark missing data) and trigger a warning.}
 
 \item{family}{Character string specifying the outcome distribution.
 See \strong{Details} for guidance on choosing:
@@ -44,7 +52,18 @@ See \strong{Details} for guidance on choosing:
 \item \code{"piecewise"}: Block-constant influence with known break points
 }}
 
-\item{nscan}{Number of posterior samples to draw after burn-in}
+\item{method}{Character string selecting the estimation method.
+\itemize{
+\item \code{"mcmc"} (default): Full Bayesian posterior via MCMC. Slow but
+gives credible intervals from the posterior directly.
+\item \code{"als"}: Fast alternating-least-squares point estimate via
+\code{\link{dbn_als}}. Routes to the dynamic-model ALS regardless of
+the requested \code{model}. MCMC-only arguments (\code{nscan}, \code{burn}, \code{odens},
+\code{sampler}) are ignored on this path. Combine with \code{bootstrap = N} for
+resampling-based CIs in the same call.
+}}
+
+\item{nscan}{Number of posterior samples to draw after burn-in (MCMC only)}
 
 \item{burn}{Number of initial MCMC samples to discard (warm-up period)}
 
@@ -52,14 +71,21 @@ See \strong{Details} for guidance on choosing:
 
 \item{verbose}{Logical or numeric. If TRUE, show progress. If numeric, print detailed info every n iterations (default: TRUE)}
 
-\item{symmetric}{Logical. If TRUE, enforce B = A (symmetric/undirected network). Requires square network (n_row == n_col). Not supported for lowrank models. Default: FALSE.}
+\item{symmetric}{Logical. If TRUE, enforce B = A (symmetric / undirected network). Requires a square network (n_row == n_col). Supported on the static, dynamic, piecewise, and HMM model paths; rejected with an informative error on the low-rank model. Default: FALSE.}
 
 \item{sampler}{Character string specifying the inference sampler (dynamic model only).
 \itemize{
-\item \code{"auto"} (default): Smart choice — exact PCG for symmetric, FFBS for asymmetric.
+\item \code{"auto"} (default): Smart choice -- exact PCG for symmetric, FFBS for asymmetric.
 \item \code{"exact"}: Exact posterior via preconditioned conjugate gradient (PCG).
+Currently only implemented for symmetric fits (\code{symmetric = TRUE}); on an
+asymmetric fit a warning is issued and the sampler silently falls back
+to the approximate FFBS path.
 \item \code{"approx"}: Approximate posterior via forward-filtering/backward-sampling (FFBS).
 }}
+
+\item{bootstrap}{Integer. Only used when \code{method = "als"}. If \verb{> 0}, runs
+that many bootstrap replicates after the point-estimate fit and attaches
+CIs to the returned object (see \code{\link{dbn_als}}). Default \code{0}.}
 
 \item{...}{Additional model-specific parameters:
 \describe{
@@ -90,16 +116,42 @@ A list of class \code{"dbn"} with model-specific contents. Common elements:
 \item{dims}{List of data dimensions (n_row, n_col, p, Tt)}
 \item{settings}{List of MCMC settings used}
 \item{Y}{Original data array}
-\item{M}{Posterior draws for baseline mean M}
-\item{Theta}{Posterior draws for latent network state}
+\item{M}{Posterior draws for the baseline mean M, an array with the draw
+index as the last dimension}
+\item{Theta}{Posterior draws for the latent network state, an array with
+the draw index as the last dimension}
 
 Model-specific elements include:
-\item{A}{Posterior draws for sender influence matrices}
-\item{B}{Posterior draws for receiver influence matrices}
-\item{sigma2, tau_A2, tau_B2, g2}{Posterior draws for variance parameters}
+\item{A, B}{Posterior draws for the sender and receiver influence
+operators. For the dynamic model these are \emph{lists} of length
+\code{draws}, each element an \verb{[n_row, n_row, T]} (respectively
+\verb{[n_col, n_col, T]}) array. The same A and B are shared across all
+\code{p} relations: shapes are \verb{[n_row, n_row, T]} whether \code{p = 1} or
+\code{p > 1}, and each relation evolves through the same operator pair
+(this is the bilinear sharing assumption -- relations differ in M
+and Theta, not in A/B). The posterior-mean operator at time \code{t} is,
+for example,
+\code{Reduce("+", lapply(fit$A, function(a) a[, , t])) / length(fit$A)}.
+The \strong{static} model has no time dimension and stores its operator
+draws differently: \code{fit$A} is \code{NULL}, and the draws are held together in
+\code{fit$B}, a three-element list of mode-wise operators -- \code{fit$B[[1]]} the
+\verb{[n_row, n_row, draws]} sender operator (A), \code{fit$B[[2]]} the
+\verb{[n_col, n_col, draws]} receiver operator (B), and \code{fit$B[[3]]} the
+\verb{[p, p, draws]} relation-mode operator (\verb{1 x 1} for single-relation data).}
+\item{sigma2, tau_A2, tau_B2, g2, sigma2_obs}{Posterior draws for the
+variance parameters. \code{sigma2} is the process (state-innovation)
+variance of the latent state; \code{sigma2_obs} is the observation-noise
+variance that separates \code{Y} from \code{Theta}; \code{tau_A2} and \code{tau_B2} are
+the random-walk innovation variances of the operators \code{A_t} and \code{B_t}
+(under the default RW prior on both symmetric and asymmetric paths),
+with \code{A_0 = B_0 = I} as the structural anchor. For the iid prior on
+the asymmetric path, set \code{options(dbn.prior_kind = "iid")}.
+\code{g2} is the variance of the baseline mean \code{M}.}
 \item{rhoA, rhoB}{AR(1) persistence parameters (dynamic model with ar1=TRUE)}
 \item{A_blocks}{List of regime-specific posterior mean A matrices (piecewise)}
 \item{time_kept}{Which time indices are stored (dynamic/lowrank/HMM)}
+\item{meta}{List of fit metadata, including \code{meta$runtime_sec} (wall-clock
+fit time in seconds) and the sampler/family/dimension records.}
 
 Use \code{\link[=summary]{summary()}}, \code{\link[=plot]{plot()}}, \code{\link[=param_summary]{param_summary()}}, and \code{\link[=check_convergence]{check_convergence()}}
 to inspect results. See model-specific vignettes for full workflows.
@@ -109,7 +161,14 @@ Main entry point for fitting Dynamic Bilinear Network (DBN) models. These
 models estimate how past network interactions predict future interactions,
 recovering time-varying influence structures from temporal relational data.
 
-The core model is: \eqn{\Theta_t = A_t \Theta_{t-1} B_t' + M + \varepsilon_t},
+For a fast point-estimate (seconds, no MCMC) call \code{\link[=dbn_als]{dbn_als()}} -- the
+alternating-least-squares estimator -- and pair it with \code{bootstrap = N}
+for entry-wise standard errors. \code{dbn()} itself runs MCMC and returns
+full posterior draws; reach for it when you want credible intervals,
+model comparison, or predictive checks.
+
+The core model is the deviation-form bilinear AR
+\eqn{\Theta_t = M + A_t (\Theta_{t-1} - M) B_t' + \varepsilon_t},
 where \eqn{A_t} captures sender influence, \eqn{B_t} captures receiver
 influence, and \eqn{M} captures stable dyad-specific tendencies.
 }
@@ -141,12 +200,21 @@ are unknown.
 networks (50+ actors).
 }
 
+\strong{Fast path (point estimate, no MCMC):}
+For exploratory work or when you need results in seconds rather than
+minutes, use \code{\link[=dbn_als]{dbn_als()}}. ALS returns the same operator structure as
+\code{dbn()} but as a single point estimate; pair it with \code{bootstrap = N}
+for entry-wise standard errors. The MCMC \code{dbn()} entry point below
+returns full posterior draws and is the right choice for inference,
+credible intervals, model comparison, and predictive checks.
+
 \strong{MCMC settings:}
 The sampler draws \code{nscan} posterior samples after discarding the first
 \code{burn} as warm-up. Setting \code{odens > 1} thins the output by saving every
 k-th sample. For initial exploration, \verb{nscan = 5000, burn = 2000, odens = 5}
-is a reasonable starting point. For publication, use longer chains
-(\verb{nscan = 10000+}) and verify convergence with \code{\link[=check_convergence]{check_convergence()}}.
+is a reasonable starting point. For final inference use longer
+chains (\verb{nscan = 10000+}) and verify convergence with \code{\link[=check_convergence]{check_convergence()}}.
+For multi-chain Rhat / posterior-package interop, see \code{\link[=dbn_multichain]{dbn_multichain()}}.
 }
 \examples{
 \donttest{
@@ -164,4 +232,7 @@ fit_dyn <- dbn(sim$Z, model = "dynamic", family = "gaussian",
 fit_pw <- dbn(sim$Y, model = "piecewise", blocks = 2,
     nscan = 200, burn = 100, verbose = FALSE)
 }
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

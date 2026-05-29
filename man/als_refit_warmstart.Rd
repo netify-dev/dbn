@@ -14,7 +14,8 @@ als_refit_warmstart(
   tol,
   n_row,
   n_col,
-  Tt
+  Tt,
+  ridge_frac = 0.003
 )
 }
 \arguments{
@@ -28,6 +29,9 @@ als_refit_warmstart(
 
 \item{tol}{Convergence tolerance}
 
+\item{ridge_frac}{Asymmetric ridge penalty fraction; must match the original
+fit so the bootstrap replicates the same estimator.}
+
 \item{Z}{Latent scores matrix (n_row x n_col)}
 
 \item{Z_prev}{List of previous Z matrices for AR structure}
@@ -38,5 +42,11 @@ List with fitted (A, B) matrices
 \description{
 ALS fitting with optional warm initialization from a prior fit.
 Used by bootstrap to stabilize convergence on resampled data.
+Implements the iterative block coordinate descent estimator of Minhas and
+Hoff (2025) with warm-start initialization.
+}
+\references{
+Minhas, S. and Hoff, P. D. (2025). Decomposing Network Dynamics: Social
+Influence Regression. \emph{Political Analysis}.
 }
 \keyword{internal}

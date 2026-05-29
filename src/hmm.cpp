@@ -233,6 +233,36 @@ arma::mat forward_hmm_fast(const arma::cube& Theta_avg,
     return log_alpha;
 }
 
+// robustly normalise a vector of (possibly degenerate) log-weights to
+// probabilities; falls back to uniform if every weight underflows to -Inf or
+// the total is non-finite, so downstream sampling always sees a valid vector
+static arma::vec log_weights_to_probs(const arma::vec& log_w) {
+    int R = log_w.n_elem;
+    double m = log_w.max();
+    if (!std::isfinite(m)) {
+        return arma::ones<arma::vec>(R) / R;
+    }
+    arma::vec probs = exp(log_w - m);
+    double s = sum(probs);
+    if (!std::isfinite(s) || s <= 0.0) {
+        return arma::ones<arma::vec>(R) / R;
+    }
+    return probs / s;
+}
+
+// inverse-CDF categorical draw; always returns a valid 1-based state, even
+// when floating-point rounding leaves the cumulative total just below u
+static int sample_categorical(const arma::vec& probs) {
+    int R = probs.n_elem;
+    double u = R::runif(0, 1);
+    double cumsum = 0.0;
+    for (int r = 0; r < R; r++) {
+        cumsum += probs(r);
+        if (u <= cumsum) return r + 1;
+    }
+    return R;
+}
+
 // backward sampling for HMM states
 //' @keywords internal
 //' @noRd
@@ -241,49 +271,29 @@ IntegerVector backward_sample(const arma::mat& log_alpha,
                                   const arma::mat& Pi) {
     int Tt = log_alpha.n_cols;
     int R = log_alpha.n_rows;
-    
+
     IntegerVector S(Tt);
-    
-    // sample final state
-    arma::vec probs = exp(log_alpha.col(Tt-1));
-    probs = probs / sum(probs); // normalize
-    
-    double u = R::runif(0, 1);
-    double cumsum = 0;
-    for(int r = 0; r < R; r++) {
-        cumsum += probs(r);
-        if(u <= cumsum) {
-            S[Tt-1] = r + 1; // 1-based indexing for R
-            break;
-        }
-    }
-    
+
+    // sample final state. A long run can drive a forward-pass column to all
+    // -Inf (underflow); log_weights_to_probs() then falls back to uniform and
+    // sample_categorical() still returns a valid state, so the 0-based
+    // s_next below is always in [0, R-1].
+    S[Tt-1] = sample_categorical(log_weights_to_probs(log_alpha.col(Tt-1)));
+
     // backward sampling
     for(int t = Tt-2; t >= 0; t--) {
-        int s_next = S[t+1] - 1; // 0-based
+        int s_next = S[t+1] - 1; // 0-based; guaranteed in [0, R-1]
 
-        // P(S_t = j | S_{t+1}, Y_{1:t})
+        // P(S_t = j | S_{t+1}, Y_{1:t}); + 1e-300 guards log(0) for a zero
+        // transition probability
         arma::vec log_probs(R);
         for(int j = 0; j < R; j++) {
-            log_probs(j) = log_alpha(j, t) + log(Pi(j, s_next));
+            log_probs(j) = log_alpha(j, t) + std::log(Pi(j, s_next) + 1e-300);
         }
-        
-        // normalize
-        double log_norm = log_sum_exp(log_probs);
-        arma::vec probs_t = exp(log_probs - log_norm);
-        
-        // sample
-        u = R::runif(0, 1);
-        cumsum = 0;
-        for(int r = 0; r < R; r++) {
-            cumsum += probs_t(r);
-            if(u <= cumsum) {
-                S[t] = r + 1;
-                break;
-            }
-        }
+
+        S[t] = sample_categorical(log_weights_to_probs(log_probs));
     }
-    
+
     return S;
 }
 

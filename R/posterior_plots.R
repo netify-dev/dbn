@@ -22,21 +22,32 @@ NULL
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) plot_trace(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 plot_trace <- function(fit, pars = NULL, ncol = 2) {
 	param_df <- param_summary(fit, probs = c(0.025, 0.5, 0.975))
 	if (is.null(param_df)) {
-		warning("No scalar parameters found to plot")
+		cli::cli_warn("No scalar parameters found to plot.")
 		return(invisible(NULL))
 	}
 
 	if (is.null(pars)) {
 		pars <- param_df$parameter
 	} else {
+		missing_pars <- setdiff(pars, param_df$parameter)
 		pars <- intersect(pars, param_df$parameter)
 		if (length(pars) == 0) {
-			warning("None of the requested parameters found")
-			return(invisible(NULL))
+			cli::cli_abort(c(
+				"None of the requested parameters were found in this fit.",
+				"x" = "Requested: {.val {missing_pars}}.",
+				"i" = "Available parameters: {.val {param_df$parameter}}."
+			))
+		}
+		if (length(missing_pars) > 0) {
+			cli::cli_warn(c(
+				"Skipping parameter{?s} not found in this fit: {.val {missing_pars}}.",
+				"i" = "Available parameters: {.val {param_df$parameter}}."
+			))
 		}
 	}
 
@@ -79,6 +90,7 @@ plot_trace <- function(fit, pars = NULL, ncol = 2) {
 			ggplot2::theme_bw() +
 			ggplot2::theme(
 				panel.border = ggplot2::element_blank(),
+				axis.ticks = ggplot2::element_blank(),
 				strip.background = ggplot2::element_rect(fill = "black", color = "black"),
 				strip.text.x = ggplot2::element_text(color = "white", hjust = 0, size = 10, face = "bold")
 			)
@@ -124,11 +136,12 @@ plot_trace <- function(fit, pars = NULL, ncol = 2) {
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) plot_theta(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 plot_theta <- function(fit, time = 1, rel = 1, fun = mean, ...) {
 	theta_sum <- theta_summary(fit, fun = fun, rel = rel, time = time, ...)
 	if (is.null(theta_sum) || nrow(theta_sum) == 0) {
-		warning("No Theta values found for specified indices")
+		cli::cli_warn("No Theta values found for specified indices.")
 		return(invisible(NULL))
 	}
 
@@ -162,6 +175,7 @@ plot_theta <- function(fit, time = 1, rel = 1, fun = mean, ...) {
 			ggplot2::theme_bw() +
 			ggplot2::theme(
 				panel.border = ggplot2::element_blank(),
+				axis.ticks = ggplot2::element_blank(),
 				panel.grid = ggplot2::element_blank()
 			)
 		if (n_row == n_col) p <- p + ggplot2::coord_equal()
@@ -191,11 +205,12 @@ plot_theta <- function(fit, time = 1, rel = 1, fun = mean, ...) {
 #' fit <- dbn(sim$Y, model = "hmm", R = 2, nscan = 200, burn = 100, verbose = FALSE)
 #' if (requireNamespace("ggplot2", quietly = TRUE)) plot_regime_probs(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 plot_regime_probs <- function(fit) {
 	probs <- regime_probs(fit)
 	if (is.null(probs)) {
-		warning("Not an HMM model or no regime information found")
+		cli::cli_warn("Not an HMM model or no regime information found.")
 		return(invisible(NULL))
 	}
 
@@ -216,7 +231,8 @@ plot_regime_probs <- function(fit) {
 			ggplot2::theme_bw() +
 			ggplot2::theme(
 				panel.border = ggplot2::element_blank(),
-				legend.position = "bottom"
+				axis.ticks = ggplot2::element_blank(),
+				legend.position = "top"
 			)
 		return(p)
 	}

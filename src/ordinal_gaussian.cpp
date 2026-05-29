@@ -30,10 +30,17 @@ arma::cube rz_gaussian_approx_cpp(const arma::cube& R, const arma::cube& Z,
 #endif
     std::vector<std::mt19937_64> rngs;
     rngs.reserve(n_threads);
+    // Same deterministic per-thread seeding as dynamic.cpp::init_thread_rngs:
+    // one R::runif() call (thread-count-independent global RNG advance) plus
+    // a SplitMix64 mixer to derive per-thread seeds. Yields bit-identical
+    // results across thread counts when R's seed is the same.
+    uint64_t base = static_cast<uint64_t>(R::runif(0.0, 1.0) * 4294967296.0);
     for (int i = 0; i < n_threads; i++) {
-        uint64_t seed = static_cast<uint64_t>(R::runif(0.0, 1.0) * 4294967296.0);
-        seed ^= static_cast<uint64_t>(i + 1) * 2654435761ULL;
-        rngs.emplace_back(seed);
+        uint64_t z = base + static_cast<uint64_t>(i + 1) * 0x9E3779B97F4A7C15ULL;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+        z = z ^ (z >> 31);
+        rngs.emplace_back(z);
     }
 
     #ifdef _OPENMP

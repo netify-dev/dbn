@@ -34,3 +34,6 @@ plot(irf)
 \code{\link{compute_irf}}, \code{\link{build_shock}},
 \code{\link{print.dbn_irf}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

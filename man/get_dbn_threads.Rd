@@ -19,3 +19,6 @@ get_dbn_threads()
 \seealso{
 \code{\link{set_dbn_threads}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

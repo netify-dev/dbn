@@ -30,3 +30,6 @@ summary(fit)
 \seealso{
 \code{\link[=dbn]{dbn()}}, \code{\link[=param_summary]{param_summary()}}, \code{\link[=check_convergence]{check_convergence()}}, \code{\link[=plot.dbn]{plot.dbn()}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

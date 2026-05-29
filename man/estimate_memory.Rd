@@ -12,13 +12,17 @@ estimate_memory(
   nscan = 5000,
   burn = 1000,
   odens = 1,
-  time_thin = 1,
+  time_thin = NULL,
   family = "ordinal",
+  store_z = NULL,
+  keep = NULL,
   quiet = FALSE
 )
 }
 \arguments{
-\item{n_row}{Number of sender nodes}
+\item{n_row}{Number of sender nodes, or a data array: a 3D
+\verb{[actors, actors, time]} or 4D \verb{[actors, actors, relations, time]} array
+passed here has its dimensions unpacked automatically.}
 
 \item{n_col}{Number of receiver nodes (default: n_row)}
 
@@ -36,13 +40,21 @@ estimate_memory(
 
 \item{family}{Data family ("ordinal", "gaussian", "binary")}
 
+\item{store_z}{Logical, or \code{NULL} (default) to match \code{dbn()}'s behavior:
+\code{TRUE} for ordinal/binary fits, \code{FALSE} for gaussian.}
+
+\item{keep}{Character vector of draw components to retain, e.g.
+\code{c("A", "B", "M")} to drop the Theta draws. \code{NULL} keeps all.}
+
 \item{quiet}{Suppress printed output}
 }
 \value{
-Estimated memory in GB (invisibly)
+A named numeric vector with \code{object_gb} (size of the fitted
+object) and \code{peak_gb} (peak memory during sampling), invisibly.
 }
 \description{
-Estimates RAM (in GB) needed for dynamic model output storage
+Estimates RAM (in GB) needed for a dynamic model fit: both the
+size of the returned object and the peak working memory during sampling.
 }
 \examples{
 # Estimate memory for a moderate network
@@ -58,4 +70,7 @@ gb
 }
 \seealso{
 \code{\link{dbn}}, \code{\link{dbn_dynamic}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

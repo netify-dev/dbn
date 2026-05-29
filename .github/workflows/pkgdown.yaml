@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      # vignettes gate every chunk on `eval = NOT_CRAN`; set this to TRUE
+      # so the rendered articles include their output and figures.
+      NOT_CRAN: "true"
     permissions:
       contents: write
     steps:
@@ -20,7 +23,7 @@ jobs:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::pkgdown, local::.
+          extra-packages: any::pkgdown, any::peacesciencer, any::ergm, any::gtools, local::.
           needs: website
       - name: Build site
         run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)

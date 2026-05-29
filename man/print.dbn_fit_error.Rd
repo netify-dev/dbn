@@ -18,3 +18,6 @@
 Print method for a \code{dbn_fit_error}, the placeholder object
 \code{\link[=dbn_fit_many]{dbn_fit_many()}} returns in place of a fit that errored.
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

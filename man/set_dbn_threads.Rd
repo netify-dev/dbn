@@ -54,3 +54,6 @@ set_dbn_threads(NULL)
 \seealso{
 \code{\link{get_dbn_threads}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

@@ -11,6 +11,54 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// solve_A_trajectory_cpp
+arma::cube solve_A_trajectory_cpp(const arma::cube& Phi, const arma::cube& B_arr, const arma::cube& Omega, double lambda, double mu);
+RcppExport SEXP _dbn_solve_A_trajectory_cpp(SEXP PhiSEXP, SEXP B_arrSEXP, SEXP OmegaSEXP, SEXP lambdaSEXP, SEXP muSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::cube& >::type Phi(PhiSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type B_arr(B_arrSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type Omega(OmegaSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    rcpp_result_gen = Rcpp::wrap(solve_A_trajectory_cpp(Phi, B_arr, Omega, lambda, mu));
+    return rcpp_result_gen;
+END_RCPP
+}
+// solve_B_trajectory_cpp
+arma::cube solve_B_trajectory_cpp(const arma::cube& Phi, const arma::cube& A_arr, const arma::cube& Omega, double lambda, double mu);
+RcppExport SEXP _dbn_solve_B_trajectory_cpp(SEXP PhiSEXP, SEXP A_arrSEXP, SEXP OmegaSEXP, SEXP lambdaSEXP, SEXP muSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::cube& >::type Phi(PhiSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type A_arr(A_arrSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type Omega(OmegaSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda(lambdaSEXP);
+    Rcpp::traits::input_parameter< double >::type mu(muSEXP);
+    rcpp_result_gen = Rcpp::wrap(solve_B_trajectory_cpp(Phi, A_arr, Omega, lambda, mu));
+    return rcpp_result_gen;
+END_RCPP
+}
+// compute_tv_als_objective_cpp
+double compute_tv_als_objective_cpp(const arma::cube& Phi, const arma::cube& A_arr, const arma::cube& B_arr, const arma::cube& Omega, double lambda_A, double lambda_B, double mu_A, double mu_B);
+RcppExport SEXP _dbn_compute_tv_als_objective_cpp(SEXP PhiSEXP, SEXP A_arrSEXP, SEXP B_arrSEXP, SEXP OmegaSEXP, SEXP lambda_ASEXP, SEXP lambda_BSEXP, SEXP mu_ASEXP, SEXP mu_BSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::cube& >::type Phi(PhiSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type A_arr(A_arrSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type B_arr(B_arrSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type Omega(OmegaSEXP);
+    Rcpp::traits::input_parameter< double >::type lambda_A(lambda_ASEXP);
+    Rcpp::traits::input_parameter< double >::type lambda_B(lambda_BSEXP);
+    Rcpp::traits::input_parameter< double >::type mu_A(mu_ASEXP);
+    Rcpp::traits::input_parameter< double >::type mu_B(mu_BSEXP);
+    rcpp_result_gen = Rcpp::wrap(compute_tv_als_objective_cpp(Phi, A_arr, B_arr, Omega, lambda_A, lambda_B, mu_A, mu_B));
+    return rcpp_result_gen;
+END_RCPP
+}
 // stabilize_spectral_radius
 arma::mat stabilize_spectral_radius(const arma::mat& M, double threshold);
 RcppExport SEXP _dbn_stabilize_spectral_radius(SEXP MSEXP, SEXP thresholdSEXP) {
@@ -117,13 +165,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // update_mu_dynamic
-List update_mu_dynamic(const arma::mat& Z_4d, const arma::mat& Theta_4d, double g2, double a_g, double b_g, int n_row, int n_col, int p, int Tt);
-RcppExport SEXP _dbn_update_mu_dynamic(SEXP Z_4dSEXP, SEXP Theta_4dSEXP, SEXP g2SEXP, SEXP a_gSEXP, SEXP b_gSEXP, SEXP n_rowSEXP, SEXP n_colSEXP, SEXP pSEXP, SEXP TtSEXP) {
+List update_mu_dynamic(const arma::mat& Z_4d, const arma::mat& Theta_4d, const arma::cube& M_prev, double g2, double a_g, double b_g, int n_row, int n_col, int p, int Tt);
+RcppExport SEXP _dbn_update_mu_dynamic(SEXP Z_4dSEXP, SEXP Theta_4dSEXP, SEXP M_prevSEXP, SEXP g2SEXP, SEXP a_gSEXP, SEXP b_gSEXP, SEXP n_rowSEXP, SEXP n_colSEXP, SEXP pSEXP, SEXP TtSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::mat& >::type Z_4d(Z_4dSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type Theta_4d(Theta_4dSEXP);
+    Rcpp::traits::input_parameter< const arma::cube& >::type M_prev(M_prevSEXP);
     Rcpp::traits::input_parameter< double >::type g2(g2SEXP);
     Rcpp::traits::input_parameter< double >::type a_g(a_gSEXP);
     Rcpp::traits::input_parameter< double >::type b_g(b_gSEXP);
@@ -131,7 +180,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type n_col(n_colSEXP);
     Rcpp::traits::input_parameter< int >::type p(pSEXP);
     Rcpp::traits::input_parameter< int >::type Tt(TtSEXP);
-    rcpp_result_gen = Rcpp::wrap(update_mu_dynamic(Z_4d, Theta_4d, g2, a_g, b_g, n_row, n_col, p, Tt));
+    rcpp_result_gen = Rcpp::wrap(update_mu_dynamic(Z_4d, Theta_4d, M_prev, g2, a_g, b_g, n_row, n_col, p, Tt));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -155,8 +204,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // update_AB_batch_extended
-List update_AB_batch_extended(const arma::mat& Theta_4d, const arma::cube& Aarray_old, const arma::cube& Barray_old, double sigma2, double tauA2, double tauB2, bool ar1, double rhoA, double rhoB, int n_row, int n_col, int p, int Tt);
-RcppExport SEXP _dbn_update_AB_batch_extended(SEXP Theta_4dSEXP, SEXP Aarray_oldSEXP, SEXP Barray_oldSEXP, SEXP sigma2SEXP, SEXP tauA2SEXP, SEXP tauB2SEXP, SEXP ar1SEXP, SEXP rhoASEXP, SEXP rhoBSEXP, SEXP n_rowSEXP, SEXP n_colSEXP, SEXP pSEXP, SEXP TtSEXP) {
+List update_AB_batch_extended(const arma::mat& Theta_4d, const arma::cube& Aarray_old, const arma::cube& Barray_old, double sigma2, double tauA2, double tauB2, bool ar1, double rhoA, double rhoB, int n_row, int n_col, int p, int Tt, std::string prior_kind, double kappaA_inv, double kappaB_inv);
+RcppExport SEXP _dbn_update_AB_batch_extended(SEXP Theta_4dSEXP, SEXP Aarray_oldSEXP, SEXP Barray_oldSEXP, SEXP sigma2SEXP, SEXP tauA2SEXP, SEXP tauB2SEXP, SEXP ar1SEXP, SEXP rhoASEXP, SEXP rhoBSEXP, SEXP n_rowSEXP, SEXP n_colSEXP, SEXP pSEXP, SEXP TtSEXP, SEXP prior_kindSEXP, SEXP kappaA_invSEXP, SEXP kappaB_invSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -173,7 +222,10 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type n_col(n_colSEXP);
     Rcpp::traits::input_parameter< int >::type p(pSEXP);
     Rcpp::traits::input_parameter< int >::type Tt(TtSEXP);
-    rcpp_result_gen = Rcpp::wrap(update_AB_batch_extended(Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, n_row, n_col, p, Tt));
+    Rcpp::traits::input_parameter< std::string >::type prior_kind(prior_kindSEXP);
+    Rcpp::traits::input_parameter< double >::type kappaA_inv(kappaA_invSEXP);
+    Rcpp::traits::input_parameter< double >::type kappaB_inv(kappaB_invSEXP);
+    rcpp_result_gen = Rcpp::wrap(update_AB_batch_extended(Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, n_row, n_col, p, Tt, prior_kind, kappaA_inv, kappaB_inv));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -220,8 +272,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // update_AB_batch_large
-List update_AB_batch_large(const arma::mat& Theta_4d, const arma::cube& Aarray_old, const arma::cube& Barray_old, double sigma2, double tauA2, double tauB2, bool ar1, double rhoA, double rhoB, int n_row, int n_col, int p, int Tt);
-RcppExport SEXP _dbn_update_AB_batch_large(SEXP Theta_4dSEXP, SEXP Aarray_oldSEXP, SEXP Barray_oldSEXP, SEXP sigma2SEXP, SEXP tauA2SEXP, SEXP tauB2SEXP, SEXP ar1SEXP, SEXP rhoASEXP, SEXP rhoBSEXP, SEXP n_rowSEXP, SEXP n_colSEXP, SEXP pSEXP, SEXP TtSEXP) {
+List update_AB_batch_large(const arma::mat& Theta_4d, const arma::cube& Aarray_old, const arma::cube& Barray_old, double sigma2, double tauA2, double tauB2, bool ar1, double rhoA, double rhoB, int n_row, int n_col, int p, int Tt, std::string prior_kind, double kappaA_inv, double kappaB_inv);
+RcppExport SEXP _dbn_update_AB_batch_large(SEXP Theta_4dSEXP, SEXP Aarray_oldSEXP, SEXP Barray_oldSEXP, SEXP sigma2SEXP, SEXP tauA2SEXP, SEXP tauB2SEXP, SEXP ar1SEXP, SEXP rhoASEXP, SEXP rhoBSEXP, SEXP n_rowSEXP, SEXP n_colSEXP, SEXP pSEXP, SEXP TtSEXP, SEXP prior_kindSEXP, SEXP kappaA_invSEXP, SEXP kappaB_invSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -238,7 +290,10 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type n_col(n_colSEXP);
     Rcpp::traits::input_parameter< int >::type p(pSEXP);
     Rcpp::traits::input_parameter< int >::type Tt(TtSEXP);
-    rcpp_result_gen = Rcpp::wrap(update_AB_batch_large(Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, n_row, n_col, p, Tt));
+    Rcpp::traits::input_parameter< std::string >::type prior_kind(prior_kindSEXP);
+    Rcpp::traits::input_parameter< double >::type kappaA_inv(kappaA_invSEXP);
+    Rcpp::traits::input_parameter< double >::type kappaB_inv(kappaB_invSEXP);
+    rcpp_result_gen = Rcpp::wrap(update_AB_batch_large(Theta_4d, Aarray_old, Barray_old, sigma2, tauA2, tauB2, ar1, rhoA, rhoB, n_row, n_col, p, Tt, prior_kind, kappaA_inv, kappaB_inv));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -1831,6 +1886,9 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_dbn_solve_A_trajectory_cpp", (DL_FUNC) &_dbn_solve_A_trajectory_cpp, 5},
+    {"_dbn_solve_B_trajectory_cpp", (DL_FUNC) &_dbn_solve_B_trajectory_cpp, 5},
+    {"_dbn_compute_tv_als_objective_cpp", (DL_FUNC) &_dbn_compute_tv_als_objective_cpp, 8},
     {"_dbn_stabilize_spectral_radius", (DL_FUNC) &_dbn_stabilize_spectral_radius, 2},
     {"_dbn_safe_cholesky", (DL_FUNC) &_dbn_safe_cholesky, 3},
     {"_dbn_ensure_positive_definite", (DL_FUNC) &_dbn_ensure_positive_definite, 2},
@@ -1838,12 +1896,12 @@ static const R_CallMethodDef CallEntries[] = {
     {"_dbn_batch_update_Z_ordinal", (DL_FUNC) &_dbn_batch_update_Z_ordinal, 9},
     {"_dbn_batch_update_Z_ordinal_fast", (DL_FUNC) &_dbn_batch_update_Z_ordinal_fast, 10},
     {"_dbn_precompute_time_indices", (DL_FUNC) &_dbn_precompute_time_indices, 5},
-    {"_dbn_update_mu_dynamic", (DL_FUNC) &_dbn_update_mu_dynamic, 9},
+    {"_dbn_update_mu_dynamic", (DL_FUNC) &_dbn_update_mu_dynamic, 10},
     {"_dbn_batch_ffbs_all_relations", (DL_FUNC) &_dbn_batch_ffbs_all_relations, 9},
-    {"_dbn_update_AB_batch_extended", (DL_FUNC) &_dbn_update_AB_batch_extended, 13},
+    {"_dbn_update_AB_batch_extended", (DL_FUNC) &_dbn_update_AB_batch_extended, 16},
     {"_dbn_update_variances_dynamic", (DL_FUNC) &_dbn_update_variances_dynamic, 13},
     {"_dbn_batch_ffbs_all_relations_blocked", (DL_FUNC) &_dbn_batch_ffbs_all_relations_blocked, 9},
-    {"_dbn_update_AB_batch_large", (DL_FUNC) &_dbn_update_AB_batch_large, 13},
+    {"_dbn_update_AB_batch_large", (DL_FUNC) &_dbn_update_AB_batch_large, 16},
     {"_dbn_compute_process_variance_blocked", (DL_FUNC) &_dbn_compute_process_variance_blocked, 7},
     {"_dbn_compute_gaussian_obs_residuals_dynamic_cpp", (DL_FUNC) &_dbn_compute_gaussian_obs_residuals_dynamic_cpp, 7},
     {"_dbn_compute_ar1_innovation_ss_cpp", (DL_FUNC) &_dbn_compute_ar1_innovation_ss_cpp, 4},

@@ -1,4 +1,5 @@
 #include <RcppArmadillo.h>
+#include <cmath>
 
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::plugins(cpp11)]]
@@ -43,9 +44,12 @@ Rcpp::List update_AB_static_cpp(const arma::cube& Theta_prev,
     );
   }
 
-  // regularization parameter
+  // regularization parameter (guarded finite & positive so XtX stays SPD;
+  // an unguarded non-finite ridge made XtX non-finite and crashed pinv)
   double reg_A = sigma2 / tau_A2;
   double reg_B = sigma2 / tau_B2;
+  if (!std::isfinite(reg_A) || reg_A <= 0.0) reg_A = 1e-6;
+  if (!std::isfinite(reg_B) || reg_B <= 0.0) reg_B = 1e-6;
 
   // update A row by row: row i of A has n_row parameters
   // model: Theta_curr[i,:] = A[i,:] * Theta_prev * B'
@@ -72,7 +76,19 @@ Rcpp::List update_AB_static_cpp(const arma::cube& Theta_prev,
     arma::vec ai;
     bool solved = arma::solve(ai, XtX, XtY, arma::solve_opts::likely_sympd);
     if (!solved) {
-      ai = arma::pinv(XtX) * XtY;
+      solved = arma::solve(ai, XtX, XtY);
+    }
+    if (!solved) {
+      // non-throwing pseudo-inverse (arma::pinv can throw "svd failed")
+      arma::mat XtX_pinv;
+      if (arma::pinv(XtX_pinv, XtX)) {
+        ai = XtX_pinv * XtY;
+        solved = true;
+      }
+    }
+    if (!solved) {
+      // last resort: skip this row's update rather than crash
+      ai = arma::zeros<arma::vec>(n_row);
     }
 
     A.row(i) = ai.t();
@@ -103,7 +119,19 @@ Rcpp::List update_AB_static_cpp(const arma::cube& Theta_prev,
     arma::vec bj;
     bool solved = arma::solve(bj, XtX, XtY, arma::solve_opts::likely_sympd);
     if (!solved) {
-      bj = arma::pinv(XtX) * XtY;
+      solved = arma::solve(bj, XtX, XtY);
+    }
+    if (!solved) {
+      // non-throwing pseudo-inverse (arma::pinv can throw "svd failed")
+      arma::mat XtX_pinv;
+      if (arma::pinv(XtX_pinv, XtX)) {
+        bj = XtX_pinv * XtY;
+        solved = true;
+      }
+    }
+    if (!solved) {
+      // last resort: keep the incoming B column rather than crash
+      bj = B_init.col(j);
     }
 
     B.col(j) = bj;

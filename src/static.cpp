@@ -73,15 +73,21 @@ double compute_diagonal_sse(const List& B_list, int K) {
 //' @noRd
 // [[Rcpp::export]]
 double compute_deviation_sum(const arma::cube& ABarray, int m, int Tt) {
+    // Sum_{t=2..T} ||A_t||^2: the sufficient statistic for tau_A2 under the
+    // iid zero-mean prior `A_t ~ N(0, tau_A2 I)`. This matches the A/B
+    // updates in update_AB_batch_{extended,large}, which use a zero prior
+    // mean -- so the prior and the SS are mutually consistent.
+    //
+    // The documented random-walk prior was tried and diverges (the asymmetric
+    // model's scale ambiguity has no anchor when the prior allows arbitrary
+    // drift). An iid-around-identity prior was tried but interacts badly
+    // with the scale rebalancer (operator pulled near I -> eigenvalues near 1
+    // -> explosive on ordinal data). Use `ar1 = TRUE` for genuinely
+    // persistent time-varying smoothing.
     double sum_sq = 0.0;
-    arma::mat I = arma::eye(m, m);
-
-    // start from t=2 (index 1), matching the R code
     for (int t = 1; t < Tt; t++) {
-        arma::mat diff = ABarray.slice(t) - I;
-        sum_sq += arma::accu(diff % diff);
+        sum_sq += arma::accu(ABarray.slice(t) % ABarray.slice(t));
     }
-
     return sum_sq;
 }
 

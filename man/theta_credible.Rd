@@ -42,3 +42,6 @@ tc <- theta_credible(fit)
 \seealso{
 \code{\link{theta_summary}}, \code{\link{theta_slice}}, \code{\link{edge_prob}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

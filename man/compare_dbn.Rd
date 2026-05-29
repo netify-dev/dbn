@@ -2,33 +2,49 @@
 % Please edit documentation in R/post_methods.R
 \name{compare_dbn}
 \alias{compare_dbn}
-\title{Compare Multiple DBN Models}
+\title{Compare fitted DBN models with information criteria}
 \usage{
-compare_dbn(...)
+compare_dbn(..., type = c("waic", "aic", "bic"), names = NULL)
 }
 \arguments{
-\item{...}{Two or more fitted \code{dbn} objects to compare. Objects are
-labeled "Model 1", "Model 2", etc. in the plot legend.}
+\item{...}{Two or more fitted objects of class \code{"dbn"}, or a single
+list of fitted \code{"dbn"} objects.}
+
+\item{type}{Character string selecting the criterion used to order rows:
+\code{"waic"}, \code{"aic"}, or \code{"bic"}. All available criteria are
+still returned as columns.}
+
+\item{names}{Optional character vector of display names. Must have the same
+length as the number of fitted models.}
 }
 \value{
-A ggplot2 object showing overlaid trace plots, faceted by
-parameter.
+A data frame with class \code{c("dbn_compare", "data.frame")} and
+columns \code{model}, \code{elpd_waic}, \code{se_waic}, \code{p_waic},
+\code{waic}, \code{aic}, \code{bic}, \code{delta_waic},
+\code{delta_aic}, \code{delta_bic}, \code{weight_waic},
+\code{weight_aic}, and \code{weight_bic}.
 }
 \description{
-Creates side-by-side trace plots of scalar variance parameters
-from two or more fitted DBN models. Useful for comparing convergence
-behavior across different model specifications (e.g., static vs. dynamic,
-different ranks, different families).
+Compare two or more fitted \pkg{dbn} models using WAIC, AIC, and BIC.
+The returned object is a data frame ordered by the criterion selected in
+\code{type}. Smaller WAIC/AIC/BIC values are preferred. Delta columns are
+criterion differences from the best model under that criterion, and weight
+columns are normalized \code{exp(-0.5 * delta)} weights.
 }
 \examples{
-\donttest{
-sim <- simulate_static_dbn(n = 6, time = 10, seed = 1)
-fit1 <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
-fit2 <- dbn(sim$Y, model = "static", nscan = 200, burn = 100, verbose = FALSE)
-compare_dbn(fit1, fit2)
+\dontrun{
+fit_dyn <- dbn(Y, model = "dynamic", family = "gaussian")
+fit_static <- dbn(Y, model = "static", family = "gaussian")
+compare_dbn(dynamic = fit_dyn, static = fit_static)
+compare_dbn(list(fit_dyn, fit_static), names = c("dynamic", "static"),
+    type = "aic")
 }
+
 }
 \seealso{
 \code{\link{dbn}}, \code{\link{check_convergence}},
-\code{\link{param_summary}}
+\code{\link{compute_waic_dbn}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

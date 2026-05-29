@@ -42,3 +42,6 @@ ls <- latent_summary(fit)
 \seealso{
 \code{\link{param_summary}}, \code{\link{theta_summary}}, \code{\link{derive_draws}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

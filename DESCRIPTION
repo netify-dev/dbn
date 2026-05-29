@@ -1,8 +1,8 @@
 Package: dbn
 Type: Package
-Title: Dynamic Bilinear Network Models for Ordinal Relational Data
-Version: 1.1.1
-Date: 2026-05-20
+Title: Dynamic Bilinear Network Models for Relational Data
+Version: 1.2.0
+Date: 2026-05-28
 Authors@R: c(
     person("Tosin", "Salau", email = "salaubol@msu.edu",
            role = "aut"),
@@ -14,9 +14,9 @@ Maintainer: Shahryar Minhas <minhassh@msu.edu>
 Description: Implements Dynamic Bilinear Network (DBN) models for analyzing
     temporal relational data. Supports ordinal (rank likelihood), continuous
     (Gaussian), and binary (probit) outcome types across static, dynamic,
-    low-rank, and HMM model variants for both unipartite and bipartite
-    directed networks. Includes functions for model estimation via MCMC,
-    visualization, impulse response analysis, and diagnostics.
+    piecewise, low-rank, and HMM model variants for both unipartite and
+    bipartite directed networks. Includes functions for model estimation via
+    MCMC, visualization, impulse response analysis, and diagnostics.
 URL: https://netify-dev.github.io/dbn/,
     https://github.com/netify-dev/dbn
 BugReports: https://github.com/netify-dev/dbn/issues
@@ -28,6 +28,7 @@ Depends:
 Imports:
     abind,
     cli,
+    generics,
     Matrix,
     stats,
     graphics,
@@ -44,20 +45,25 @@ LinkingTo:
     RcppArmadillo
 Suggests:
     coda,
+    ergm,
+    forecast,
     ggplot2,
     gridExtra,
+    gtools,
     knitr,
-    rmarkdown,
-    testthat (>= 3.0.0),
-    netify,
     network,
+    networkDynamic,
     igraph,
-    lattice,
     peacesciencer,
-    RcppArmadillo,
-    RhpcBLASctl
-Remotes:
-    netify-dev/netify
+    rmarkdown,
+    rstantools,
+    testthat (>= 3.0.0),
+    posterior,
+    future,
+    future.apply,
+    pkgload,
+    RhpcBLASctl,
+    tidybayes
 VignetteBuilder: knitr
 RoxygenNote: 7.3.3
 Config/testthat/edition: 3

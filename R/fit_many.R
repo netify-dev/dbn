@@ -42,6 +42,7 @@
 #' fits <- dbn_fit_many(sims, model = "dynamic", family = "gaussian",
 #'                      nscan = 200, burn = 100, mc.cores = 2)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 dbn_fit_many <- function(Y_list, ..., mc.cores = NULL, seeds = NULL,
 						 save_dir = NULL, verbose = TRUE) {
@@ -112,9 +113,14 @@ dbn_fit_many <- function(Y_list, ..., mc.cores = NULL, seeds = NULL,
 		)
 		if (!is.null(save_dir) && !inherits(res, "dbn_fit_error")) {
 			fit <- res
-			try(save(fit, compress = "xz",
-					 file = file.path(save_dir, paste0(fit_names[i], ".rda"))),
-				silent = TRUE)
+			save_path <- file.path(save_dir, paste0(fit_names[i], ".rda"))
+			tryCatch(
+				save(fit, compress = "xz", file = save_path),
+				error = function(e) cli::cli_warn(c(
+					"Could not save fit {.val {fit_names[i]}} to {.path {save_path}}.",
+					"x" = "{conditionMessage(e)}"
+				))
+			)
 		}
 		res
 	}
@@ -160,6 +166,7 @@ dbn_fit_many <- function(Y_list, ..., mc.cores = NULL, seeds = NULL,
 #' @param x A `dbn_fit_error` object.
 #' @param ... Ignored.
 #' @return `x`, invisibly.
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 print.dbn_fit_error <- function(x, ...) {
 	cli::cli_alert_danger("dbn fit {.val {x$fit_name}} failed: {x$error}")

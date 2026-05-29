@@ -6,6 +6,7 @@
 \usage{
 simulate_piecewise_dbn(
   n = 20,
+  n_col = n,
   time = 50,
   blocks = 4,
   p = 1,
@@ -16,6 +17,10 @@ simulate_piecewise_dbn(
 }
 \arguments{
 \item{n}{number of actors}
+
+\item{n_col}{number of receivers; must equal \code{n} (piecewise simulation is
+unipartite only). Present for signature consistency with the other
+\verb{simulate_*_dbn} functions.}
 
 \item{time}{number of time points}
 
@@ -30,7 +35,10 @@ simulate_piecewise_dbn(
 \item{seed}{random seed}
 }
 \value{
-list with Y, true_A, true_B, true_M, block_info
+A list with \code{Y} (ordinal observed array), \code{Z} (continuous observed
+array), \code{Theta}, the block operators \code{A}/\code{B} and baseline \code{M}, and
+\code{block_info}. \code{Y_continuous}/\code{true_A}/\code{true_B}/\code{true_M} are also
+provided as aliases for \code{Z}/\code{A}/\code{B}/\code{M}.
 }
 \description{
 generates synthetic data from piecewise-static model
@@ -40,4 +48,7 @@ generates synthetic data from piecewise-static model
 sim <- simulate_piecewise_dbn(n = 10, time = 40, blocks = c(15, 30, 40))
 dim(sim$Y)
 }
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

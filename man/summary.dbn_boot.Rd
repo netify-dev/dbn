@@ -7,7 +7,7 @@
 \method{summary}{dbn_boot}(object, ...)
 }
 \arguments{
-\item{object}{A \code{dbn_boot} object from \code{\link[=dbn_explore_bootstrap]{dbn_explore_bootstrap()}}.}
+\item{object}{A \code{dbn_boot} object from dbn_als(bootstrap = R).}
 
 \item{...}{Additional arguments (unused).}
 }
@@ -16,4 +16,7 @@ Invisibly returns the \code{dbn_boot} object.
 }
 \description{
 Summary of Bootstrap Results for ALS
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

@@ -10,7 +10,11 @@ check_convergence(results)
 \item{results}{Output from \code{\link[=dbn]{dbn()}}}
 }
 \value{
-Invisible NULL (diagnostics are printed to console)
+Invisibly, a data frame with one row per sampled parameter and
+columns \code{parameter}, \code{ess}, \code{geweke_z}, \code{ess_ok} (ESS >= 200), and
+\code{geweke_ok} (|Geweke z| <= 2). Diagnostics are also printed to the
+console, with threshold violations flagged. Returns \code{NULL} invisibly when
+there are no sampled parameters to diagnose.
 }
 \description{
 Prints effective sample sizes (ESS) and Geweke diagnostics
@@ -29,6 +33,14 @@ the chain come from the same distribution. Absolute values above 2
 suggest the chain has not converged and you should increase \code{burn}.
 
 For visual diagnostics, use \code{\link[=plot_trace]{plot_trace()}} to inspect trace plots.
+
+\strong{Note on Rhat:} \code{dbn()} runs a single-chain conjugate Gibbs
+sampler, so there is no between-chain variance to compute Rhat against.
+This routine instead reports per-parameter Geweke z-scores (comparing
+the first 10\% to the last 50\% of the chain) and effective sample size
+from the chain's autocorrelation function. For multi-chain inference,
+run \code{dbn()} several times with different \code{seed} values and compare the
+resulting posterior summaries manually.
 }
 \examples{
 \donttest{
@@ -40,4 +52,7 @@ check_convergence(fit)
 \seealso{
 \code{\link{dbn}}, \code{\link{compare_dbn}},
 \code{\link{param_summary}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

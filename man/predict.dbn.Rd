@@ -64,3 +64,6 @@ ppd <- predict(fit, draws = 10)
 \code{\link[=dbn]{dbn()}}, \code{\link[=posterior_predict_dbn]{posterior_predict_dbn()}}, \code{\link[=plot_ppc_ecdf]{plot_ppc_ecdf()}},
 \code{\link[=plot_ppc_density]{plot_ppc_density()}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

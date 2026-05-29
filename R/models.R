@@ -6,7 +6,14 @@
 #' models estimate how past network interactions predict future interactions,
 #' recovering time-varying influence structures from temporal relational data.
 #'
-#' The core model is: \eqn{\Theta_t = A_t \Theta_{t-1} B_t' + M + \varepsilon_t},
+#' For a fast point-estimate (seconds, no MCMC) call [dbn_als()] -- the
+#' alternating-least-squares estimator -- and pair it with `bootstrap = N`
+#' for entry-wise standard errors. `dbn()` itself runs MCMC and returns
+#' full posterior draws; reach for it when you want credible intervals,
+#' model comparison, or predictive checks.
+#'
+#' The core model is the deviation-form bilinear AR
+#' \eqn{\Theta_t = M + A_t (\Theta_{t-1} - M) B_t' + \varepsilon_t},
 #' where \eqn{A_t} captures sender influence, \eqn{B_t} captures receiver
 #' influence, and \eqn{M} captures stable dyad-specific tendencies.
 #'
@@ -34,12 +41,21 @@
 #' - `"lowrank"`: Like dynamic but with dimensionality reduction for large
 #'   networks (50+ actors).
 #'
+#' **Fast path (point estimate, no MCMC):**
+#' For exploratory work or when you need results in seconds rather than
+#' minutes, use [dbn_als()]. ALS returns the same operator structure as
+#' `dbn()` but as a single point estimate; pair it with `bootstrap = N`
+#' for entry-wise standard errors. The MCMC `dbn()` entry point below
+#' returns full posterior draws and is the right choice for inference,
+#' credible intervals, model comparison, and predictive checks.
+#'
 #' **MCMC settings:**
 #' The sampler draws `nscan` posterior samples after discarding the first
 #' `burn` as warm-up. Setting `odens > 1` thins the output by saving every
 #' k-th sample. For initial exploration, `nscan = 5000, burn = 2000, odens = 5`
-#' is a reasonable starting point. For publication, use longer chains
-#' (`nscan = 10000+`) and verify convergence with [check_convergence()].
+#' is a reasonable starting point. For final inference use longer
+#' chains (`nscan = 10000+`) and verify convergence with [check_convergence()].
+#' For multi-chain Rhat / posterior-package interop, see [dbn_multichain()].
 #'
 #' @param data Numeric array of network data, or a file path to an `.RData`
 #'   file that contains an object named `Y`.  The array should be
@@ -48,6 +64,12 @@
 #'   types.  Diagonal entries (self-ties) should be `NA` for unipartite
 #'   networks.  For bipartite networks, pass a rectangular array where the
 #'   first dimension (senders) differs from the second (receivers).
+#'
+#'   Missing values are supported: `NA` entries (including the `NA` diagonal)
+#'   are treated as missing and imputed within the sampler, so partially
+#'   observed networks can be fit directly. The data must, however, contain at
+#'   least some finite observations; `NaN` and infinite values are anomalies
+#'   (use `NA` to mark missing data) and trigger a warning.
 #' @param family Character string specifying the outcome distribution.
 #'   See **Details** for guidance on choosing:
 #'   \itemize{
@@ -64,15 +86,31 @@
 #'     \item `"hmm"`: Regime-switching with data-driven regime discovery
 #'     \item `"piecewise"`: Block-constant influence with known break points
 #'   }
-#' @param nscan Number of posterior samples to draw after burn-in
+#' @param method Character string selecting the estimation method.
+#'   \itemize{
+#'     \item `"mcmc"` (default): Full Bayesian posterior via MCMC. Slow but
+#'       gives credible intervals from the posterior directly.
+#'     \item `"als"`: Fast alternating-least-squares point estimate via
+#'       \code{\link{dbn_als}}. Routes to the dynamic-model ALS regardless of
+#'       the requested `model`. MCMC-only arguments (`nscan`, `burn`, `odens`,
+#'       `sampler`) are ignored on this path. Combine with `bootstrap = N` for
+#'       resampling-based CIs in the same call.
+#'   }
+#' @param bootstrap Integer. Only used when `method = "als"`. If `> 0`, runs
+#'   that many bootstrap replicates after the point-estimate fit and attaches
+#'   CIs to the returned object (see \code{\link{dbn_als}}). Default `0`.
+#' @param nscan Number of posterior samples to draw after burn-in (MCMC only)
 #' @param burn Number of initial MCMC samples to discard (warm-up period)
 #' @param odens Thinning interval: save every odens-th sample (reduces autocorrelation and memory)
 #' @param verbose Logical or numeric. If TRUE, show progress. If numeric, print detailed info every n iterations (default: TRUE)
-#' @param symmetric Logical. If TRUE, enforce B = A (symmetric/undirected network). Requires square network (n_row == n_col). Not supported for lowrank models. Default: FALSE.
+#' @param symmetric Logical. If TRUE, enforce B = A (symmetric / undirected network). Requires a square network (n_row == n_col). Supported on the static, dynamic, piecewise, and HMM model paths; rejected with an informative error on the low-rank model. Default: FALSE.
 #' @param sampler Character string specifying the inference sampler (dynamic model only).
 #'   \itemize{
-#'     \item `"auto"` (default): Smart choice — exact PCG for symmetric, FFBS for asymmetric.
+#'     \item `"auto"` (default): Smart choice -- exact PCG for symmetric, FFBS for asymmetric.
 #'     \item `"exact"`: Exact posterior via preconditioned conjugate gradient (PCG).
+#'       Currently only implemented for symmetric fits (`symmetric = TRUE`); on an
+#'       asymmetric fit a warning is issued and the sampler silently falls back
+#'       to the approximate FFBS path.
 #'     \item `"approx"`: Approximate posterior via forward-filtering/backward-sampling (FFBS).
 #'   }
 #' @param ... Additional model-specific parameters:
@@ -102,19 +140,46 @@
 #'   \item{dims}{List of data dimensions (n_row, n_col, p, Tt)}
 #'   \item{settings}{List of MCMC settings used}
 #'   \item{Y}{Original data array}
-#'   \item{M}{Posterior draws for baseline mean M}
-#'   \item{Theta}{Posterior draws for latent network state}
+#'   \item{M}{Posterior draws for the baseline mean M, an array with the draw
+#'     index as the last dimension}
+#'   \item{Theta}{Posterior draws for the latent network state, an array with
+#'     the draw index as the last dimension}
 #'
 #'   Model-specific elements include:
-#'   \item{A}{Posterior draws for sender influence matrices}
-#'   \item{B}{Posterior draws for receiver influence matrices}
-#'   \item{sigma2, tau_A2, tau_B2, g2}{Posterior draws for variance parameters}
+#'   \item{A, B}{Posterior draws for the sender and receiver influence
+#'     operators. For the dynamic model these are \emph{lists} of length
+#'     `draws`, each element an `[n_row, n_row, T]` (respectively
+#'     `[n_col, n_col, T]`) array. The same A and B are shared across all
+#'     `p` relations: shapes are `[n_row, n_row, T]` whether `p = 1` or
+#'     `p > 1`, and each relation evolves through the same operator pair
+#'     (this is the bilinear sharing assumption -- relations differ in M
+#'     and Theta, not in A/B). The posterior-mean operator at time `t` is,
+#'     for example,
+#'     `Reduce("+", lapply(fit$A, function(a) a[, , t])) / length(fit$A)`.
+#'     The \strong{static} model has no time dimension and stores its operator
+#'     draws differently: `fit$A` is `NULL`, and the draws are held together in
+#'     `fit$B`, a three-element list of mode-wise operators -- `fit$B[[1]]` the
+#'     `[n_row, n_row, draws]` sender operator (A), `fit$B[[2]]` the
+#'     `[n_col, n_col, draws]` receiver operator (B), and `fit$B[[3]]` the
+#'     `[p, p, draws]` relation-mode operator (`1 x 1` for single-relation data).}
+#'   \item{sigma2, tau_A2, tau_B2, g2, sigma2_obs}{Posterior draws for the
+#'     variance parameters. `sigma2` is the process (state-innovation)
+#'     variance of the latent state; `sigma2_obs` is the observation-noise
+#'     variance that separates `Y` from `Theta`; `tau_A2` and `tau_B2` are
+#'     the random-walk innovation variances of the operators `A_t` and `B_t`
+#'     (under the default RW prior on both symmetric and asymmetric paths),
+#'     with `A_0 = B_0 = I` as the structural anchor. For the iid prior on
+#'     the asymmetric path, set `options(dbn.prior_kind = "iid")`.
+#'     `g2` is the variance of the baseline mean `M`.}
 #'   \item{rhoA, rhoB}{AR(1) persistence parameters (dynamic model with ar1=TRUE)}
 #'   \item{A_blocks}{List of regime-specific posterior mean A matrices (piecewise)}
 #'   \item{time_kept}{Which time indices are stored (dynamic/lowrank/HMM)}
+#'   \item{meta}{List of fit metadata, including `meta$runtime_sec` (wall-clock
+#'     fit time in seconds) and the sampler/family/dimension records.}
 #'
 #'   Use [summary()], [plot()], [param_summary()], and [check_convergence()]
 #'   to inspect results. See model-specific vignettes for full workflows.
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 #' @examples
 #' \donttest{
@@ -136,16 +201,166 @@
 dbn <- function(data,
 				family = c("ordinal", "gaussian", "binary"),
 				model = c("static", "dynamic", "lowrank", "hmm", "piecewise"),
+				method = c("mcmc", "als"),
 				nscan = 10000,
 				burn = 1000,
 				odens = 1,
 				verbose = TRUE,
 				symmetric = FALSE,
 				sampler = "auto",
+				bootstrap = 0,
 				...) {
+	# auto-detect gaussian when family was not specified and data looks continuous
+	family_was_default <- missing(family)
+	if (family_was_default && is.numeric(data)) {
+		obs <- data[!is.na(data)]
+		if (length(obs) > 0L) {
+			looks_continuous <- !all(obs == round(obs)) || length(unique(obs)) > 7L
+			looks_binary <- length(unique(obs)) <= 2L && all(obs %in% c(0, 1))
+			if (looks_continuous && !looks_binary) {
+				if (isTRUE(verbose > 0))
+					cli::cli_inform(c(
+						"i" = "{.arg family} not specified; defaulting to {.val gaussian} based on data values.",
+						"i" = "Pass {.code family = \"ordinal\"} or {.code \"binary\"} explicitly to override."
+					))
+				family <- "gaussian"
+			}
+		}
+	}
 	family <- match.arg(family)
+	# catch the common `model = "als"` mistake before match.arg fires so
+	# the user gets a directive hint instead of a cryptic enum error.
+	if (length(model) == 1L && is.character(model) && identical(model, "als")) {
+		cli::cli_abort(c(
+			"{.code model = \"als\"} is not a valid model type.",
+			"i" = "ALS is an estimator, not a model. Either call {.fn dbn_als} directly,",
+			"i" = "or use {.code dbn(..., method = \"als\")} on top of a {.code model = \"dynamic\"} / {.val static} / {.val piecewise} specification."
+		))
+	}
+	# inform the user when `model` defaults: the static default is a common
+	# beginner trap on dynamic-shaped data, so make the choice visible.
+	# gated on `verbose` because production pipelines that set verbose=FALSE
+	# explicitly want this kind of chatter suppressed; the user still gets
+	# what the static default produces, which is reflected in fit$model.
+	model_was_default <- missing(model)
 	model <- match.arg(model)
+	if (model_was_default && isTRUE(verbose > 0)) {
+		# nudge harder toward dynamic when there are several time periods
+		Tt_data <- if (is.array(data)) tail(dim(data), 1L) else NA_integer_
+		if (!is.na(Tt_data) && Tt_data >= 8L) {
+			cli::cli_inform(c(
+				"!" = "{.arg model} not specified; defaulting to {.val static} but the panel has {Tt_data} time periods.",
+				"i" = "Strongly consider {.code model = \"dynamic\"} for panels with this many periods; static is rarely the right choice."
+			))
+		} else {
+			cli::cli_inform(c(
+				"i" = "{.arg model} not specified; defaulting to {.val static}.",
+				"i" = "For time-varying operators (most common for panels with multiple periods), pass {.code model = \"dynamic\"}."
+			))
+		}
+	}
+	method <- match.arg(method)
 	sampler <- match.arg(sampler, choices = c("auto", "exact", "approx"))
+	# validate verbose upfront so character / NA inputs error directively.
+	if (!is.logical(verbose) && !is.numeric(verbose)) {
+		cli::cli_abort(c(
+			"{.arg verbose} must be {.code TRUE}/{.code FALSE} or a non-negative integer.",
+			"x" = "Got {.cls {class(verbose)[1]}} {.val {verbose}}."
+		))
+	}
+	if (is.numeric(verbose) && (length(verbose) != 1L || !is.finite(verbose) || verbose < 0)) {
+		cli::cli_abort("{.arg verbose} must be a single non-negative number, got {.val {verbose}}.")
+	}
+
+	# fast point-estimate path: `method = "als"` routes to `dbn_als()`, which
+	# also handles `bootstrap = N` for CIs. MCMC-only args (nscan/burn/odens/
+	# sampler) are silently ignored on this path; warn if the user passed
+	# values that suggest they expected MCMC.
+	if (method == "als") {
+		mc <- match.call()
+		mcmc_only <- intersect(names(mc), c("nscan", "burn", "odens", "sampler"))
+		if (length(mcmc_only) > 0L) {
+			cli::cli_warn(c(
+				"{.code method = \"als\"} ignores MCMC-only argument{?s} {.arg {mcmc_only}}.",
+				"i" = "{.fun dbn_als} controls fitting via {.arg max_iter}, {.arg tol}, {.arg ridge}; pass those via {.code ...}."
+			))
+		}
+		dots <- list(...)
+		base <- list(data = data, family = family, symmetric = symmetric,
+			bootstrap = bootstrap, verbose = verbose)
+		return(do.call(dbn_als, c(base, dots)))
+	}
+
+	if (bootstrap != 0) {
+		cli::cli_warn(c(
+			"{.arg bootstrap} is only meaningful with {.code method = \"als\"}; ignoring.",
+			"i" = "For MCMC uncertainty use the posterior draws directly (the chain itself supplies intervals)."
+		))
+	}
+
+	# catch brms-style names (n_iter, thin, prior, chains) directively and
+	# point at the dbn equivalent; otherwise they fall into `...` and the
+	# user gets a fit that didn't honor what they asked for.
+	dots_dbn <- list(...)
+	if ("n_iter" %in% names(dots_dbn)) {
+		cli::cli_abort(c(
+			"{.fun dbn} uses {.arg nscan} (not {.arg n_iter}) for the MCMC iteration count.",
+			"i" = "Replace {.code n_iter = N} with {.code nscan = N}."
+		))
+	}
+	if ("thin" %in% names(dots_dbn)) {
+		cli::cli_abort(c(
+			"{.fun dbn} uses {.arg odens} (not {.arg thin}) for output thinning.",
+			"i" = "Replace {.code thin = N} with {.code odens = N} (keep every N-th iteration)."
+		))
+	}
+	if ("prior" %in% names(dots_dbn)) {
+		cli::cli_abort(c(
+			"{.fun dbn} does not yet accept a {.arg prior} argument (brms-style).",
+			"i" = "Variance hyperparameters are controlled via {.arg a_tau}, {.arg b_tau}, {.arg kappa_Abar2} on the symmetric path.",
+			"i" = "A general prior interface is on the roadmap."
+		))
+	}
+	if ("chains" %in% names(dots_dbn)) {
+		cli::cli_abort(c(
+			"{.fun dbn} runs a single Gibbs chain.",
+			"i" = "For multi-chain Rhat-style convergence checks, use {.fun dbn_multichain}.",
+			"i" = "Example: {.code dbn_multichain(Y, chains = 4, seeds = 1:4, ...)}."
+		))
+	}
+	# brms-style covariate alias names: redirect to the canonical {.arg covariates}
+	# argument so a user typing `X = ...` or `x_covariates = ...` does not
+	# silently get a fit that ignores them
+	cov_alias <- intersect(c("X", "x_covariates", "Z_covariates"), names(dots_dbn))
+	if (length(cov_alias) > 0L) {
+		cli::cli_abort(c(
+			"{.fun dbn} accepts exogenous covariates via the {.arg covariates} argument.",
+			"i" = "Replace {.code {cov_alias[1]} = ...} with {.code covariates = dbn_covariates(...)}; see {.fn dbn_covariates}."
+		))
+	}
+	# pull covariates and actor_effects out of `...`; either non-NULL
+	# (covariates) or non-"none" (actor_effects) triggers the covariate-aware
+	# sampler. currently supported on {.code model = "dynamic"} only
+	covariates    <- dots_dbn$covariates
+	actor_effects <- dots_dbn$actor_effects %||% "none"
+	uses_covariate_path <- !is.null(covariates) ||
+		(is.character(actor_effects) && length(actor_effects) == 1L &&
+		 actor_effects != "none")
+	if (uses_covariate_path) {
+		if (!is.null(covariates) && !inherits(covariates, "dbn_covariates"))
+			cli::cli_abort(c(
+				"{.arg covariates} must be a {.cls dbn_covariates} object.",
+				"i" = "Build one with {.fn dbn_covariates}, e.g. {.code dbn_covariates(dyad = list(distance = D))}."
+			))
+		if (!model %in% c("dynamic", "static", "piecewise", "hmm", "lowrank"))
+			cli::cli_abort(c(
+				"Covariate / actor-effects support requires a recognised {.arg model}.",
+				"i" = "Got {.val {model}}."
+			))
+		if (isTRUE(symmetric))
+			cli::cli_abort("Covariate / actor-effects support for {.code symmetric = TRUE} is on the roadmap.")
+	}
+	dots_dbn$covariates <- NULL
 
 	# validate sampler vs model
 	if (sampler != "auto" && model != "dynamic") {
@@ -156,14 +371,57 @@ dbn <- function(data,
 		sampler <- "auto"
 	}
 
-	# load data from file path or use the array directly
-	if (is.character(data)) {
+	# load data from file path or use the array directly. A length-1
+	# character is a path; a character array is malformed data, not a path.
+	if (is.character(data) && length(data) == 1L) {
 		cli::cli_inform("Loading data from: {.path {data}}")
 		env <- new.env()
 		load(data, envir = env)
 		Y <- env$Y
 		if (is.null(Y)) cli::cli_abort("Data file must contain object {.var Y}")
 	} else {
+		if (inherits(data, "formula")) {
+			cli::cli_abort(c(
+				"{.fun dbn} does not accept a formula interface ({.code dbn(Y ~ x)}).",
+				"x" = "Got a {.cls formula} for {.arg data}.",
+				"i" = "Pass the network data directly as a 3D ({.code [actors, actors, time]}) or 4D ({.code [actors, actors, relations, time]}) numeric array.",
+				"i" = "DBN models the network's own dynamics; exogenous covariates are not currently supported. Include actor-level covariates by augmenting the network array if needed."
+			))
+		}
+		if (is.character(data)) {
+			cli::cli_abort(c(
+				"{.arg data} must be a numeric array or a single file path.",
+				"x" = "Got a character array of length {length(data)}.",
+				"i" = "Convert factor/character data to numeric codes before fitting."
+			))
+		}
+		if (inherits(data, c("igraph", "network"))) {
+			cli::cli_abort(c(
+				"{.fun dbn} does not accept {.cls {class(data)[1]}} objects directly.",
+				"i" = "Coerce to an adjacency array first: for one time slice, {.code array(as_adjacency_matrix(g, sparse = FALSE), c(n, n, 1))}; for a panel, stack along the time axis."
+			))
+		}
+		# catch the two natural panel layouts (list of network/igraph
+		# objects, list of plain matrices) before they fall through to
+		# the generic "must be numeric array" error
+		if (is.list(data) && length(data) >= 1L &&
+		    all(vapply(data, function(x) inherits(x, c("network", "igraph")), logical(1L)))) {
+			cli::cli_abort(c(
+				"{.fun dbn} does not accept lists of {.cls network} / {.cls igraph} objects directly.",
+				"i" = "Stack them into a 3D adjacency array first:",
+				"i" = "  {.code Y <- simplify2array(lapply(net_list, as.matrix))}",
+				"i" = "If actors enter/exit across periods, align node labels first and pass {.code NA} for absent ties."
+			))
+		}
+		if (is.list(data) && length(data) >= 2L &&
+		    all(vapply(data, function(x) is.matrix(x) && is.numeric(x), logical(1L)))) {
+			cli::cli_abort(c(
+				"{.fun dbn} does not accept a list of plain matrices.",
+				"i" = "Stack them into a 3D adjacency array first:",
+				"i" = "  {.code Y <- simplify2array(mat_list)}",
+				"i" = "This gives an {.code [n_row, n_col, time]} array which {.fun dbn} accepts directly."
+			))
+		}
 		Y <- data
 	}
 	####
@@ -171,12 +429,44 @@ dbn <- function(data,
 	# validate dimensions and reshape 3D to 4D if needed
 	if (length(dim(Y)) == 3) {
 		dim_orig <- dim(Y)
+		# heuristic: a [time, actor, actor] array (a common panel-data
+		# mistake) has its last two dimensions equal and unequal to the
+		# first; the expected layout is [actor, actor, time]
+		if (dim_orig[2] == dim_orig[3] && dim_orig[1] != dim_orig[2]) {
+			cli::cli_warn(c(
+				"Input array dimensions {dim_orig[1]} x {dim_orig[2]} x {dim_orig[3]} look transposed.",
+				"i" = "Expected {.code [actor, actor, time]}; this looks like {.code [time, actor, actor]}.",
+				"i" = "If the first dimension is time, use {.code aperm(Y, c(2, 3, 1))} first."
+			))
+		}
+		# preserve dimnames across the 3D->4D auto-conversion so downstream
+		# tidy() / coef() output keeps the actor labels
+		dnames_orig <- dimnames(Y)
 		Y <- array(Y, dim = c(dim_orig[1], dim_orig[2], 1, dim_orig[3]))
-		cli::cli_inform("Converting 3D array to 4D array with single relation")
+		if (!is.null(dnames_orig)) {
+			dimnames(Y) <- list(dnames_orig[[1]], dnames_orig[[2]], NULL, dnames_orig[[3]])
+		}
+		# silence the conversion note under verbose = FALSE
+		if (isTRUE(verbose > 0)) cli::cli_inform("Converting 3D array to 4D array with single relation")
 	} else if (length(dim(Y)) != 4) {
 		cli::cli_abort("Data must be a 3D array [actors x actors x time] or 4D array [actors x actors x relations x time]")
 	}
 
+	# warn (do not fail) if a square network has a non-NA diagonal
+	warn_filled_diagonal(Y)
+
+	# MCMC controls must be single whole numbers
+	for (ctrl_nm in c("nscan", "burn", "odens")) {
+		ctrl_v <- get(ctrl_nm)
+		if (length(ctrl_v) != 1L || !is.numeric(ctrl_v) || !is.finite(ctrl_v) ||
+		    ctrl_v != round(ctrl_v)) {
+			cli::cli_abort(c(
+				"{.arg {ctrl_nm}} must be a single whole number.",
+				"x" = "Got {.val {ctrl_v}}."
+			))
+		}
+		assign(ctrl_nm, as.integer(round(ctrl_v)))
+	}
 	if (nscan <= 0) cli::cli_abort("{.arg nscan} must be positive.")
 	if (burn < 0) cli::cli_abort("{.arg burn} must be non-negative.")
 	if (odens < 1) cli::cli_abort("{.arg odens} must be at least 1.")
@@ -244,7 +534,21 @@ dbn <- function(data,
 		if (model == "lowrank") {
 			cli::cli_abort(c(
 				"Symmetric networks are not yet supported for low-rank models.",
-				"i" = "Use {.code model = \"dynamic\"} or {.code model = \"static\"} instead."
+				"i" = "Use {.code model = \"dynamic\"}, {.val static}, {.val piecewise}, or {.val hmm} for symmetric fits.",
+				"i" = "The constraint is not yet implemented for the low-rank Tucker factorisation."
+			))
+		}
+		# warn unconditionally (correctness warnings ignore verbosity) when
+		# symmetric = TRUE is requested on visibly directed data, since the
+		# directed information collapses onto the upper triangle. routed via
+		# the dispatcher so every model (dynamic / piecewise / hmm / ...)
+		# inherits the same check.
+		asym_mag <- .dbn_asymmetry_magnitude(Y, n_r, n_c)
+		if (!is.na(asym_mag) && asym_mag > 1e-6) {
+			cli::cli_warn(c(
+				"{.code symmetric = TRUE} was requested but the input data shows directed asymmetry (max |Y_t - Y_t^T| = {sprintf('%.3g', asym_mag)}).",
+				"i" = "The symmetric specification collapses directed information onto the upper triangle of {.var A_t}.",
+				"i" = "If this is intentional (e.g. data are pre-symmetrized), ignore. Otherwise refit with {.code symmetric = FALSE}."
 			))
 		}
 		if (verbose) {
@@ -267,12 +571,133 @@ dbn <- function(data,
 	# dispatch to model-specific sampler
 	dots <- list(...)
 
+	# warn on ... arguments the chosen model does not accept (e.g. an HMM's
+	# `R` passed to a lowrank model), which would otherwise be swallowed
+	# silently and produce a different model than the user intended
+	model_fn <- switch(model,
+		static = "dbn_static", dynamic = "dbn_dynamic",
+		lowrank = "dbn_lowrank", hmm = "dbn_hmm",
+		piecewise = "dbn_piecewise", NULL)
+	# when uses_covariate_path is TRUE, the actual callee is a covariate
+	# dispatcher (e.g. .dbn_with_covariates for dynamic), not dbn_dynamic
+	# itself. add the dispatcher's formals to `known` so covariate-specific
+	# args (prior_beta_scale, tau_beta2_init, prior_kind, etc.) are not
+	# flagged as unknown and dropped before dispatch.
+	cov_fn <- if (isTRUE(uses_covariate_path)) switch(model,
+		dynamic = ".dbn_with_covariates",
+		static = ".dbn_with_covariates_static",
+		lowrank = ".dbn_with_covariates_lowrank",
+		hmm = ".dbn_with_covariates_hmm",
+		piecewise = ".dbn_with_covariates_piecewise",
+		NULL) else NULL
+	if (length(dots) > 0 && !is.null(model_fn) && exists(model_fn, mode = "function")) {
+		known <- names(formals(get(model_fn)))
+		if (!is.null(cov_fn) && exists(cov_fn, mode = "function")) {
+			known <- unique(c(known, names(formals(get(cov_fn)))))
+		}
+		# `blocks` is consumed by dbn() itself for the piecewise model;
+		# `covariates`, `actor_effects`, and `time_varying_beta` are
+		# consumed for the dynamic covariate path
+		unknown <- setdiff(names(dots),
+			c(known, "blocks", "covariates", "actor_effects",
+				"time_varying_beta"))
+		unknown <- unknown[nzchar(unknown)]
+		if (length(unknown) > 0) {
+			cli::cli_warn(c(
+				"Ignoring {length(unknown)} argument{?s} not used by the {.val {model}} model: {.arg {unknown}}.",
+				"i" = "Check for a typo or an argument meant for a different model."
+			))
+			# drop the unknown args before forwarding. Without this, partial
+			# matching in the callee can resolve an unknown arg to a real
+			# formal -- e.g. `ar1` partial-matches both `ar1_alpha` and `ar1_B`
+			# in `dbn_lowrank`, crashing with
+			# "argument N matches multiple formal arguments".
+			dots[unknown] <- NULL
+		}
+	}
+
+	.fit_t0 <- proc.time()[["elapsed"]]
+	# use the filtered `dots` rather than `...` so dropped-unknown arguments
+	# do not partial-match a formal in the callee (see comment above).
+	.base_args <- list(Y = Y, family = family, nscan = nscan, burn = burn,
+		odens = odens, verbose = verbose, symmetric = symmetric)
+	# drop covariates from dots: it is passed explicitly to .dbn_with_covariates
+	# in the dynamic branch below and is not a formal of any other model fn
+	dots$covariates <- NULL
 	results <- switch(model,
-		static = dbn_static(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
-		dynamic = dbn_dynamic(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, sampler = sampler, ...),
-		lowrank = dbn_lowrank(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
-		hmm = dbn_hmm(Y, family = family, nscan = nscan, burn = burn, odens = odens, verbose = verbose, symmetric = symmetric, ...),
-		piecewise = {
+		static = if (uses_covariate_path) {
+			do.call(.dbn_with_covariates_static, c(
+				list(Y = Y, covariates = covariates),
+				.base_args[!names(.base_args) %in% "Y"], dots
+			))
+		} else {
+			do.call(dbn_static, c(.base_args, dots))
+		},
+		dynamic = if (uses_covariate_path) {
+			do.call(.dbn_with_covariates, c(
+				list(Y = Y, covariates = covariates),
+				.base_args[!names(.base_args) %in% "Y"],
+				dots
+			))
+		} else {
+			do.call(dbn_dynamic, c(.base_args, list(sampler = sampler), dots))
+		},
+		lowrank = if (uses_covariate_path) {
+			do.call(.dbn_with_covariates_lowrank, c(
+				list(Y = Y, covariates = covariates),
+				.base_args[!names(.base_args) %in% "Y"], dots
+			))
+		} else {
+			do.call(dbn_lowrank, c(.base_args, dots))
+		},
+		hmm = if (uses_covariate_path) {
+			do.call(.dbn_with_covariates_hmm, c(
+				list(Y = Y, covariates = covariates),
+				.base_args[!names(.base_args) %in% "Y"], dots
+			))
+		} else {
+			do.call(dbn_hmm, c(.base_args, dots))
+		},
+		piecewise = if (uses_covariate_path) {
+			# resolve blocks (including blocks = "auto") *before* dispatch so
+			# the covariate driver receives an integer / numeric specification
+			blocks_cov <- dots$blocks
+			if (is.null(blocks_cov)) {
+				cli::cli_abort(c(
+					"Piecewise model requires {.arg blocks} parameter.",
+					"i" = "Use {.code blocks = 4} for 4 equal blocks,",
+					"i" = "or {.code blocks = c(25, 50, 75)} for custom boundaries,",
+					"i" = "or {.code blocks = \"auto\"} for automatic selection."
+				))
+			}
+			if (is.character(blocks_cov) && length(blocks_cov) == 1L && blocks_cov == "auto") {
+				if (isTRUE(verbose > 0)) cli::cli_h2("Automatic Block Selection")
+				auto_K_result <- select_K_auto(Y, family = family,
+											   K_min = dots$K_min %||% 1L,
+											   K_max = dots$K_max %||% NULL,
+											   verbose = (verbose > 0))
+				# select_K_auto returns length-1 boundaries for K=1 which
+				# parse_blocks misreads as K = Tt; use the integer K directly
+				blocks_cov <- if (auto_K_result$selected_K == 1L) 1L else
+					auto_K_result$selected_boundaries
+				Tt_auto <- dim(Y)[4]
+				n_blocks_auto <- if (length(blocks_cov) == 1L) blocks_cov else
+					length(unique(blocks_cov[blocks_cov >= 1 & blocks_cov <= Tt_auto]))
+				if (n_blocks_auto >= Tt_auto - 1L) {
+					fallback_k <- max(2L, min(4L, Tt_auto %/% 4L))
+					cli::cli_warn(c(
+						"Automatic block selection returned a degenerate segmentation ({n_blocks_auto} blocks for {Tt_auto} time points).",
+						"i" = "Falling back to {fallback_k} equal blocks; set {.arg blocks} explicitly for a considered segmentation."
+					))
+					blocks_cov <- fallback_k
+				}
+			}
+			do.call(.dbn_with_covariates_piecewise, c(
+				list(Y = Y, covariates = covariates, blocks = blocks_cov),
+				.base_args[!names(.base_args) %in% "Y"],
+				dots[!names(dots) %in% c("blocks", "K_min", "K_max")]
+			))
+		} else {
 			blocks <- dots$blocks
 			if (is.null(blocks)) {
 				cli::cli_abort(c(
@@ -291,7 +716,23 @@ dbn <- function(data,
 											   K_min = dots$K_min %||% 1L,
 											   K_max = dots$K_max %||% NULL,
 											   verbose = (verbose > 0))
-				blocks <- auto_K_result$selected_boundaries
+				# select_K_auto returns length-1 boundaries for K=1 which
+				# parse_blocks misreads as K = Tt; use the integer K directly
+				blocks <- if (auto_K_result$selected_K == 1L) 1L else
+					auto_K_result$selected_boundaries
+				# guard against a degenerate auto-segmentation (one block per
+				# time point is maximally overfit and not a useful default)
+				Tt_auto <- dim(Y)[4]
+				n_blocks_auto <- if (length(blocks) == 1L) blocks else
+					length(unique(blocks[blocks >= 1 & blocks <= Tt_auto]))
+				if (n_blocks_auto >= Tt_auto - 1L) {
+					fallback_k <- max(2L, min(4L, Tt_auto %/% 4L))
+					cli::cli_warn(c(
+						"Automatic block selection returned a degenerate segmentation ({n_blocks_auto} blocks for {Tt_auto} time points).",
+						"i" = "Falling back to {fallback_k} equal blocks; set {.arg blocks} explicitly for a considered segmentation."
+					))
+					blocks <- fallback_k
+				}
 			}
 
 			# filter out blocks parameter from dots
@@ -312,7 +753,56 @@ dbn <- function(data,
 	)
 
 	results$model <- model
-	class(results) <- "dbn"
+
+	# record wall-clock fit time
+	runtime_sec <- round(proc.time()[["elapsed"]] - .fit_t0, 2)
+	if (is.null(results$meta)) results$meta <- list()
+	results$meta$runtime_sec <- runtime_sec
+
+	# preserve covariate-fit subclass; the default "dbn" class is the base
+	prior_class <- class(results)
+	class(results) <- if ("dbn_covariates_fit" %in% prior_class) {
+		c("dbn_covariates_fit", "dbn")
+	} else {
+		"dbn"
+	}
+
+	# flag posterior variance chains pinned at the safe-IG ceiling (1e8) and
+	# locally explosive posterior-mean operators. These are post-fit
+	# DIAGNOSTICS; failing to compute them shouldn't kill the fit the user
+	# just paid for. But silent failure also hides genuine bugs in the
+	# diagnostics themselves, so surface the error class via cli_warn.
+	tryCatch(.warn_variance_saturation(results), error = function(e) {
+		# different models store scalars in different slots
+		var_hint <- if (identical(results$model, "static") ||
+		                identical(results$model, "piecewise")) {
+			"{.code fit$params}"
+		} else {
+			"{.code fit$sigma2}, {.code fit$tau_A2} etc."
+		}
+		cli::cli_warn(c(
+			"Could not run the variance-saturation diagnostic on this fit.",
+			"x" = "{conditionMessage(e)}",
+			"i" = paste0("The fit itself is fine; you can inspect ", var_hint, " directly.")
+		))
+	})
+	tryCatch(.warn_operator_stability(results), error = function(e) {
+		cli::cli_warn(c(
+			"Could not run the operator-stability diagnostic on this fit.",
+			"x" = "{conditionMessage(e)}",
+			"i" = "Check stability manually with {.fun dbn_operator} on {.code fit}."
+		))
+	})
+
+	# mirror the symmetric flag to a top-level slot so downstream code
+	# can branch on isTRUE(fit$symmetric) without reaching into fit$dims.
+	if (is.null(results$symmetric)) {
+		results$symmetric <- isTRUE(results$dims$is_symmetric)
+	}
+
+	# attach actor / time dimnames from the original Y onto the operator
+	# arrays and the latent state so accessors return labeled output
+	results <- .attach_actor_names(results)
 
 	return(results)
 	####
@@ -321,7 +811,21 @@ dbn <- function(data,
 ####
 #' Static DBN MCMC
 #'
-#' @description Fits DBN model with fixed sender/receiver effects
+#' @description Fits a DBN with operators that do not vary over time
+#'   (\eqn{A_t = A}, \eqn{B_t = B}). Good for small panels, short
+#'   time series, and as a fast baseline. For the broader model
+#'   structure (the deviation-form bilinear AR, priors, and the
+#'   identifiability anchor \eqn{A_0 = B_0 = I}), see
+#'   [dbn-package].
+#'
+#' @details The static model has the Tucker decomposition
+#'   \eqn{\Theta_t = M + A (\Theta_{t-1} - M) B^T + \varepsilon_t} with
+#'   constant \eqn{A} and \eqn{B}. When \code{symmetric = TRUE} the
+#'   sampler enforces \eqn{B = A} and a symmetric \eqn{M} by averaging
+#'   the corresponding Tucker factor with its transpose after each
+#'   update. Use [dbn_dynamic()] when sender or receiver influence
+#'   evolves over time.
+#'
 #' @param Y Data array (nodes x nodes x relations x time)
 #' @param family Character string specifying the data family/distribution:
 #'   - "ordinal": Ordinal data (ordered categories). Data should be positive integers.
@@ -331,26 +835,66 @@ dbn <- function(data,
 #' @param burn Burn-in for the Markov chain
 #' @param odens Output density for the Markov chain
 #' @param seed Random seed for reproducibility
-#' @param verbose Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.
+#' @param verbose Logical or numeric. If TRUE the progress bar is updated on every iteration (its display rate is throttled by the terminal); if numeric `n`, the bar is updated every n-th iteration; FALSE suppresses all progress output.
 #' @param previous Previous dbn_static results to continue from (optional)
 #' @param init List of initial values for parameters: B, s2, t2, g2, M, Z (optional)
-#' @param symmetric Logical. If TRUE, store symmetric flag in output dims. Default: FALSE.
-#' @return List containing MCMC results
+#' @param symmetric Logical. If TRUE, enforce a symmetric (undirected) operator: averages each Tucker factor with its transpose at every update and forces a symmetric baseline mean M. Requires a unipartite square network (n_row == n_col). Default: FALSE.
+#' @param a_sig,b_sig Shape and rate of the inverse-gamma prior on the
+#'   process variance (default 1, 1).
+#' @param a_g,b_g Shape and rate of the inverse-gamma prior on the
+#'   baseline-mean variance (default 0.5, 0.5).
+#' @return A list with class `dbn`. The static fit stores its factor draws
+#'   under a single name, `B`, as a length-3 list -- one Tucker factor per
+#'   mode -- rather than as separate `A` (senders) and `B` (receivers) matrices:
+#'   \describe{
+#'     \item{`B[[1]]`}{Sender factor draws, dimension `[n_row, n_row, draws]`.
+#'       This is the static analogue of `A` in the dynamic model; static fits
+#'       have no top-level `fit$A` field.}
+#'     \item{`B[[2]]`}{Receiver factor draws, dimension `[n_col, n_col, draws]`.}
+#'     \item{`B[[3]]`}{Relation factor draws, dimension `[p, p, draws]`.}
+#'   }
+#'   This layout reflects the static model's symmetric Tucker decomposition
+#'   (all three modes are treated uniformly). For the per-mode access pattern
+#'   that the dynamic model exposes (`fit$A` for senders, `fit$B` for
+#'   receivers), use `fit$B[[1]]` and `fit$B[[2]]` respectively.
 #' @seealso \code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
 #' @examples
 #' \donttest{
 #' sim <- simulate_static_dbn(n = 8, time = 5, seed = 1)
 #' fit <- dbn_static(sim$Y, nscan = 200, burn = 100, verbose = FALSE)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 					   nscan = 10000, burn = 1000, odens = 1,
-					   seed = 6886, verbose = TRUE,
+					   seed = NULL, verbose = TRUE,
 					   previous = NULL, init = NULL,
-					   symmetric = FALSE) {
+					   symmetric = FALSE,
+					   a_sig = 1, b_sig = 1,
+					   a_g = 0.5, b_g = 0.5) {
 
 	# set up family and preprocess data
 	family <- match.arg(family)
+	# symmetric static: require unipartite (n_row == n_col), enforce symmetric
+	# tucker factor B[[1]] and symmetric baseline mean M by symmetrizing after
+	# each update. This is the static analog of `dbn_dynamic(symmetric = TRUE)`.
+	if (isTRUE(symmetric) && length(dim(Y)) >= 2L && dim(Y)[1] != dim(Y)[2]) {
+		cli::cli_abort(c(
+			"{.code symmetric = TRUE} requires a unipartite (square) network.",
+			"x" = "Got data with shape {.val {paste(dim(Y), collapse = 'x')}}.",
+			"i" = "Symmetric static is undefined for bipartite networks."
+		))
+	}
+	# validate verbose: accept logical or non-negative integer; reject strings.
+	if (!is.logical(verbose) && !is.numeric(verbose)) {
+		cli::cli_abort(c(
+			"{.arg verbose} must be {.code TRUE}/{.code FALSE} or a non-negative integer.",
+			"x" = "Got {.cls {class(verbose)[1]}} {.val {verbose}}."
+		))
+	}
+	if (is.numeric(verbose) && (length(verbose) != 1L || !is.finite(verbose) || verbose < 0)) {
+		cli::cli_abort("{.arg verbose} must be a single non-negative number, got {.val {verbose}}.")
+	}
 	if (isTRUE(verbose)) verbose <- 100L
 	if (isFALSE(verbose)) verbose <- 0L
 	FAM <- switch(family,
@@ -359,7 +903,8 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		binary = family_binary()
 	)
 
-	set.seed(seed)
+	.dbn_restore_seed <- .use_seed_locally(seed)
+	on.exit(.dbn_restore_seed(), add = TRUE)
 
 	pre <- shared_preprocess(Y, family = family)
 	Z <- pre$Z
@@ -390,8 +935,25 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 	d <- c(n_row, n_col, p)
 	####
 
-	# initialize parameters (warm-start from previous fit if available)
+	# initialize parameters (warm-start from previous fit if available).
+	# refuse a cross-model warm-start directively: continuing a dynamic /
+	# piecewise / hmm / lowrank fit under model = "static" would hand the
+	# C++ sampler operator slots it cannot consume.
 	if (!is.null(previous)) {
+		if (!inherits(previous, "dbn")) {
+			cli::cli_abort(c(
+				"{.arg previous} must be a {.cls dbn} fit.",
+				"x" = "Got {.cls {class(previous)[1]}}."
+			))
+		}
+		prev_model <- previous$model %||% NA_character_
+		if (!is.na(prev_model) && !identical(prev_model, "static")) {
+			cli::cli_abort(c(
+				"Cross-model warm-start is not supported.",
+				"x" = "{.arg previous} was fit with {.code model = {.val {prev_model}}}, but you are now requesting {.code model = \"static\"}.",
+				"i" = "Refit the new model from scratch, or continue with the same model type."
+			))
+		}
 		s2 <- tail(previous$draws$pars$s2, 1)
 		t2 <- tail(previous$draws$pars$t2, 1)
 		g2 <- tail(previous$draws$pars$g2, 1)
@@ -402,10 +964,32 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 			mat
 		})
 	} else {
-		s2 <- 1
-		t2 <- 1
-		g2 <- max(0.1, mean(M^2, na.rm = TRUE))
-		B <- list(diag(n_row), diag(n_col), diag(p))
+		# validate prior hyperparameters
+		for (nm in c("a_sig", "b_sig", "a_g", "b_g")) {
+			v <- get(nm)
+			if (length(v) != 1L || !is.numeric(v) || !is.finite(v) || v <= 0)
+				cli::cli_abort("{.arg {nm}} must be a positive finite scalar.")
+		}
+		# smart init via ALS warm-start when init = "smart" (default if NULL)
+		init_mode <- if (is.character(init) && length(init) == 1L) init else "smart"
+		if (identical(init_mode, "smart") || is.null(init)) {
+			init_pkg <- .dbn_smart_init(Y, family = FAM$name, model = "static",
+				symmetric = symmetric, Tt = Tt, n_row = n_row, n_col = n_col,
+				p = p, verbose = (is.numeric(verbose) && verbose > 1))
+			# pick a single A0, B0 from the time-tiled ALS cube
+			A0 <- init_pkg$A_init[, , 1L]
+			B0 <- init_pkg$B_init[, , 1L]
+			B <- list(A0, B0, diag(p))
+			s2 <- init_pkg$sigma2_init
+			t2 <- init_pkg$tauA2_init
+			g2 <- init_pkg$g2_init
+			M  <- init_pkg$M_init
+		} else {
+			s2 <- 1
+			t2 <- 1
+			g2 <- max(0.1, mean(M^2, na.rm = TRUE))
+			B <- list(diag(n_row), diag(n_col), diag(p))
+		}
 	}
 	####
 
@@ -484,8 +1068,18 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		} else {
 			B[[1]] <- update_B_static(Z_cube, M, s2, t2, n_row, n_col, p, Tt)
 		}
+		# symmetric static: enforce the symmetric tucker decomposition.
+		# B[[1]] (sender) is made symmetric by averaging with its transpose;
+		# B[[2]] (receiver) is tied to B[[1]] so the dispatcher promise
+		# "B = A" actually holds at the factor level, not just on B[[1]].
+		if (isTRUE(symmetric)) {
+			B[[1]] <- 0.5 * (B[[1]] + t(B[[1]]))
+			if (length(B) >= 2L) B[[2]] <- B[[1]]
+		}
 
-		# update t2 (B precision)
+		# update t2 (B / Tucker-factor precision). prior is IG(0.5, 0.5);
+		# we leave this hardcoded because t2 controls the operator factor
+		# variance separately from the observation-error variance s2
 		sse <- compute_diagonal_sse(B, K)
 		t2 <- safe_rinv_gamma((sum(d) + 1) / 2, (sse + 1) / 2)
 		if (static_do_timing) stiming$b_update <- stiming$b_update + (proc.time()[[3]] - .t0)
@@ -540,23 +1134,27 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		if (static_do_timing) stiming$z_update <- stiming$z_update + (proc.time()[[3]] - .t0)
 		####
 
-		# update baseline mean M
+		# update baseline mean M every iteration: prior code only updated every
+		# 5th iteration for non-ordinal as a perf optimization, but that left
+		# `confint(fit)$M` with lo == hi == mean (each kept sample is a copy of
+		# the most-recent update). Every-iter update restores posterior diversity.
 		if (static_do_timing) .t0 <- proc.time()[[3]]
-		if (FAM$name == "ordinal" || iter %% 5 == 0) {
-			if (FAM$name != "ordinal") {
-				Z_flat <- array(Z, c(n_row, n_col, p * Tt))
-			}
-			Z_flat_mat <- matrix(Z_flat, nrow = nc, ncol = p * Tt)
-
-			if (is_large_network) {
-				M <- compute_M_static_blocked(Z_flat_mat, n_row, n_col, p, Tt)
-			} else {
-				M <- compute_M_static(Z_flat_mat, n_row, n_col, p, Tt)
-			}
-
-			M_sum_sq <- sum(M^2, na.rm = TRUE)
-			g2 <- (1 + M_sum_sq) / (2 * rgamma(1, shape = (1 + nc * p) / 2, rate = 1))
+		if (FAM$name != "ordinal") {
+			Z_flat <- array(Z, c(n_row, n_col, p * Tt))
 		}
+		Z_flat_mat <- matrix(Z_flat, nrow = nc, ncol = p * Tt)
+		if (is_large_network) {
+			M <- compute_M_static_blocked(Z_flat_mat, n_row, n_col, p, Tt)
+		} else {
+			M <- compute_M_static(Z_flat_mat, n_row, n_col, p, Tt)
+		}
+		# symmetric static: enforce M[,,r] symmetric per relation.
+		if (isTRUE(symmetric)) {
+			for (r in seq_len(p)) M[, , r] <- 0.5 * (M[, , r] + t(M[, , r]))
+		}
+		M_sum_sq <- sum(M^2, na.rm = TRUE)
+		g2 <- (2 * b_g + M_sum_sq) /
+			(2 * rgamma(1, shape = (2 * a_g + nc * p) / 2, rate = 1))
 		if (static_do_timing) stiming$m_update <- stiming$m_update + (proc.time()[[3]] - .t0)
 		####
 
@@ -568,7 +1166,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 			} else {
 				rss <- compute_rss_static(Z, M, n_row, n_col, p, Tt)
 			}
-			s2 <- safe_rinv_gamma(1 + nc * p * Tt / 2, 1 + rss / 2)
+			s2 <- safe_rinv_gamma(a_sig + nc * p * Tt / 2, b_sig + rss / 2)
 		} else {
 			s2 <- 1
 		}
@@ -682,7 +1280,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 		Y = Y,
 		R = R,
 		dims = list(m = n_row, n_row = n_row, n_col = n_col, p = p, n = n,
-					 is_bipartite = is_bipartite, is_symmetric = symmetric),
+					 Tt = Tt, is_bipartite = is_bipartite, is_symmetric = symmetric),
 		settings = list(
 			nscan = nscan,
 			burn = burn,
@@ -694,7 +1292,8 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 			dims = list(m = n_row, n_row = n_row, n_col = n_col, p = p, Tt = Tt,
 						is_bipartite = is_bipartite, is_symmetric = symmetric),
 			draws = n_keep,
-			settings = list(nscan = nscan, burn = burn, odens = odens)
+			settings = list(nscan = nscan, burn = burn, odens = odens),
+			Omega = pre$Omega
 		),
 		params = param_samples,
 		M = M,
@@ -725,7 +1324,23 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 ####
 #' Dynamic DBN MCMC
 #'
-#' @description Fits DBN model with time-varying sender/receiver effects
+#' @description Fits a DBN with time-varying operators \eqn{A_t}, \eqn{B_t}
+#'   under a Gaussian random-walk prior anchored at the identity
+#'   (\eqn{A_0 = B_0 = I}, see [dbn-package] for the full prior /
+#'   identifiability story). Use [dbn_static()] for time-invariant
+#'   operators, or [dbn_piecewise()] when the operator is constant
+#'   within known regimes.
+#'
+#' @details The deviation-form bilinear AR is
+#'   \eqn{\Theta_t = M + A_t (\Theta_{t-1} - M) B_t^T + \varepsilon_t},
+#'   with \eqn{A_t = A_{t-1} + \varepsilon^A_t} and
+#'   \eqn{\varepsilon^A_t \sim N(0, \tau_A^2 I)} (and analogously for
+#'   \eqn{B_t}). The \eqn{A_0 = B_0 = I} anchor resolves the
+#'   \eqn{(A_t, B_t) \to (c A_t, c^{-1} B_t)} scale ambiguity; under
+#'   \code{symmetric = TRUE} the sampler enforces \eqn{B_t = A_t} and a
+#'   symmetric \eqn{A_t} at every iteration. See [actor_embedding()] and
+#'   [compute_irf()] for downstream summaries.
+#'
 #' @param Y Data array (nodes x nodes x relations x time)
 #' @param family Character string specifying the data family/distribution:
 #'   - "ordinal": Ordinal data (ordered categories). Data should be positive integers.
@@ -737,7 +1352,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 #' @param ar1 Use AR(1) dynamics instead of random walk (default: FALSE)
 #' @param update_rho Update AR coefficients (default: FALSE)
 #' @param seed Random seed
-#' @param verbose Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.
+#' @param verbose Logical or numeric. If TRUE the progress bar is updated on every iteration (its display rate is throttled by the terminal); if numeric `n`, the bar is updated every n-th iteration; FALSE suppresses all progress output.
 #' @param time_thin Save every nth time point to reduce memory (default: NULL = auto)
 #' @param store_z Whether to store Z draws (default: NULL = auto based on memory)
 #' @param previous Previous dbn_dynamic results to continue from (optional)
@@ -756,7 +1371,27 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 #' @param kappa_Abar2 Per-entry prior variance on `Abar` when
 #'   `lambda_diag > 0` (default: 0.5).
 #' @param tau_A_fixed If non-NULL, hold `tau_A^2` fixed at this value and
-#'   skip the conjugate IG update. Only used when `symmetric = TRUE`.
+#'   skip the conjugate IG update. Honored on both the symmetric and the
+#'   asymmetric specifications.
+#' @param tau_B_fixed If non-NULL, hold `tau_B^2` fixed at this value and
+#'   skip the conjugate IG update. Asymmetric specification only; ignored
+#'   when `symmetric = TRUE` (where `tau_B^2 = tau_A^2` by construction).
+#' @param a_tau,b_tau Shape and rate of the inverse-gamma prior on the
+#'   random-walk innovation variances `tau_A^2` (and `tau_B^2` in the
+#'   asymmetric specification), default 0.5 each, a weakly informative prior.
+#'   Exposed for prior-sensitivity analysis; applies to both the symmetric and
+#'   asymmetric specifications.
+#' @param a_sig,b_sig Shape and rate of the inverse-gamma prior on the
+#'   process variance `sigma^2` (default 2, 2). Exposed for prior-sensitivity
+#'   analysis.
+#' @param a_sig_obs,b_sig_obs Shape and rate of the inverse-gamma prior on
+#'   the observation variance `sigma^2_obs` (Gaussian family only). `NULL`
+#'   (default) reuses the process-variance prior `a_sig`, `b_sig`.
+#' @param a_g,b_g Shape and rate of the inverse-gamma prior on the baseline
+#'   mean variance `g^2` (default 2, 2).
+#' @param sampler Sampler choice. `"auto"` (default) picks the best
+#'   sampler for the model; `"approx"` forces the FFBS path; `"exact"`
+#'   forces the exact PCG path where available.
 #' @param kappa_A2 If non-NULL, decouple the row-1 prior variance from
 #'   `tau_A^2` by setting each row's `A_1` prior variance to this value.
 #'   NULL (default) ties the prior to `tau_A^2`.
@@ -766,6 +1401,19 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 #' @param rho_max_rejects Per-row resampling attempts before leaving the
 #'   row unchanged for this sweep (default: 50). Only used when
 #'   `rho_max > 0`.
+#' @param shrink_rho Contractivity prior on the operator, on by default. The
+#'   per-time `A_t`, `B_t` are under-identified (one transition informs each
+#'   slice), and the random-walk prior does not bound their spectral radius,
+#'   so impulse responses and forecasts can drift into the explosive region.
+#'   `shrink_rho` adds a Gaussian ridge prior that pulls each operator slice
+#'   toward zero, keeping the spectral radius contractive and multi-step
+#'   propagation stable. It defaults to `0.9`; smaller values shrink harder,
+#'   and `shrink_rho = NULL` disables it entirely (recovering the raw
+#'   random-walk prior). The realized spectral radius sits at or (for short
+#'   panels) well below `shrink_rho`, since the random-walk coupling shares
+#'   the same precision. This regularizes the magnitude of the operator; to
+#'   recover its structure, pool transitions with `model = "piecewise"` or
+#'   `model = "lowrank"`.
 #' @param keep Optional character vector of draw-indexed components to retain
 #'   in the returned object, controlling its size on disk and in memory.
 #'   Recognized: `"Theta"` (latent-state draws -- by far the largest
@@ -780,6 +1428,7 @@ dbn_static <- function(Y, family = c("ordinal", "gaussian", "binary"),
 #' sim <- simulate_dynamic_dbn(n = 6, time = 5, seed = 1)
 #' fit <- dbn_dynamic(sim$Y, nscan = 200, burn = 100, verbose = FALSE)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 dbn_dynamic <- function(Y,
 						family = c("ordinal", "gaussian", "binary"),
@@ -788,7 +1437,7 @@ dbn_dynamic <- function(Y,
 						odens = 1,
 						ar1 = FALSE,
 						update_rho = FALSE,
-						seed = 6886,
+						seed = NULL,
 						verbose = TRUE,
 						time_thin = NULL,
 						store_z = NULL,
@@ -799,24 +1448,73 @@ dbn_dynamic <- function(Y,
 						phi_diag = 0.999,
 						kappa_Abar2 = 0.5,
 						tau_A_fixed = NULL,
+						tau_B_fixed = NULL,
+						a_tau = 0.5,
+						b_tau = 0.5,
+						a_sig = 2,
+						b_sig = 2,
+						a_sig_obs = NULL,
+						b_sig_obs = NULL,
+						a_g = 2,
+						b_g = 2,
 						kappa_A2 = NULL,
 						rho_max = NULL,
 						rho_max_rejects = 50L,
+						shrink_rho = 0.9,
 						keep = NULL,
 						sampler = "auto") {
 
 	# set up family and preprocess data
-	set.seed(seed)
+	.dbn_restore_seed <- .use_seed_locally(seed)
+	on.exit(.dbn_restore_seed(), add = TRUE)
 	family <- match.arg(family)
+	# validate verbose: accept logical or non-negative integer; reject strings.
+	if (!is.logical(verbose) && !is.numeric(verbose)) {
+		cli::cli_abort(c(
+			"{.arg verbose} must be {.code TRUE}/{.code FALSE} or a non-negative integer.",
+			"x" = "Got {.cls {class(verbose)[1]}} {.val {verbose}}."
+		))
+	}
+	if (is.numeric(verbose) && (length(verbose) != 1L || !is.finite(verbose) || verbose < 0)) {
+		cli::cli_abort("{.arg verbose} must be a single non-negative number, got {.val {verbose}}.")
+	}
 	if (isTRUE(verbose)) verbose <- 100L
 	if (isFALSE(verbose)) verbose <- 0L
+	# validate ar1 / update_rho coupling. ar1 must be a single logical;
+	# numeric values are rejected so a typo like 0.8 cannot silently coerce
+	# to TRUE. ar1 = TRUE with update_rho = FALSE pins rho at zero, which is
+	# the random-walk default; auto-promote update_rho when ar1 = TRUE so the
+	# caller's request is honoured (explicit update_rho = FALSE opts out).
+	if (!is.logical(ar1) || length(ar1) != 1L || is.na(ar1)) {
+		cli::cli_abort(c(
+			"{.arg ar1} must be a single logical (TRUE or FALSE).",
+			"x" = "Got {.val {ar1}}.",
+			"i" = "For a fixed persistence value, fit with {.code ar1 = TRUE} and inspect {.code fit$rhoA}."
+		))
+	}
+	if (ar1 && !update_rho) {
+		ar1_call <- match.call()
+		# only promote when the user did not pass `update_rho` explicitly
+		if (!"update_rho" %in% names(ar1_call)) {
+			update_rho <- TRUE
+			if (verbose > 0) cli::cli_inform(c(
+				"i" = "{.code ar1 = TRUE} requires {.code update_rho = TRUE} to actually estimate persistence -- promoting automatically.",
+				"i" = "Pass {.code update_rho = FALSE} explicitly to pin rho at 0 (equivalent to {.code ar1 = FALSE})."
+			))
+		} else {
+			cli::cli_warn(c(
+				"{.code ar1 = TRUE} with {.code update_rho = FALSE} pins rhoA = rhoB = 0; this is identical to the random-walk default ({.code ar1 = FALSE}).",
+				"i" = "Drop {.code update_rho = FALSE} (or set it to {.val TRUE}) to actually estimate AR(1) persistence."
+			))
+		}
+	}
 	# capture the user-facing `keep` argument under a distinct name: the
 	# sampler reuses the bare name `keep` internally for the vector of
 	# retained MCMC iteration indices.
 	keep_components <- NULL
 	if (!is.null(keep)) {
 		keep_components <- as.character(keep)
-		valid_keep <- c("Theta", "A", "B", "M", "Z")
+		valid_keep <- c("Theta", "A", "B", "M", "Z", "draws")
 		bad <- setdiff(keep_components, valid_keep)
 		if (length(bad) > 0) {
 			cli::cli_abort(c(
@@ -841,10 +1539,37 @@ dbn_dynamic <- function(Y,
 			cli::cli_inform("i" = "Sampler {.val \"approx\"} (symmetric FFBS) not yet implemented; using exact PCG.")
 			sampler_resolved <- "exact"
 		}
+		# exact PCG is implemented only for the symmetric specification;
+		# fall back rather than crash in the asymmetric exact path
+		if (sampler == "exact" && !symmetric) {
+			cli::cli_warn(c(
+				"Exact PCG is not yet implemented for asymmetric (directed) models.",
+				"i" = "Falling back to the approximate FFBS sampler.",
+				"i" = "Use {.code symmetric = TRUE} for exact PCG, or {.code sampler = \"auto\"}."
+			))
+			sampler_resolved <- "approx"
+		}
 	}
 
 	if (dim(Y)[4] < 2) {
 		cli::cli_abort("Dynamic model requires at least 2 time points. Use {.code model = \"static\"} for cross-sectional data.")
+	}
+	# reject single-actor "networks": the operator A_t collapses to a
+	# 1x1 scalar with no edge structure to estimate
+	if (dim(Y)[1] < 2 || dim(Y)[2] < 2) {
+		cli::cli_abort(c(
+			"Dynamic model requires at least 2 actors on each side.",
+			"x" = "Got data with dim {.val {paste(dim(Y), collapse = 'x')}}.",
+			"i" = "A single-actor network has no edge structure; the bilinear operator is a 1x1 scalar."
+		))
+	}
+
+	# the IG(a_tau, b_tau) prior on the random-walk innovation variance now
+	# applies to both the symmetric and asymmetric specifications
+	if (length(a_tau) != 1 || !is.numeric(a_tau) || !is.finite(a_tau) ||
+		a_tau <= 0 || length(b_tau) != 1 || !is.numeric(b_tau) ||
+		!is.finite(b_tau) || b_tau <= 0) {
+		cli::cli_abort("{.arg a_tau} and {.arg b_tau} must be positive finite scalars.")
 	}
 
 	# small binary networks can be numerically unstable
@@ -876,16 +1601,33 @@ dbn_dynamic <- function(Y,
 	# symmetric = TRUE the package activates the unipartite-square sampler
 	# (matrix-free PCG on the symmetric, zero-diagonal latent state and
 	# per-entry M-H on the symmetric operator).
+	# tau_A_fixed / tau_B_fixed apply to both the symmetric and asymmetric
+	# paths; validate up front and honor them at the tau update site below.
+	if (!is.null(tau_A_fixed)) {
+		if (length(tau_A_fixed) != 1 || !is.numeric(tau_A_fixed) ||
+			!is.finite(tau_A_fixed) || tau_A_fixed <= 0) {
+			cli::cli_abort("{.arg tau_A_fixed} must be a single positive finite value.")
+		}
+	}
+	if (!is.null(tau_B_fixed)) {
+		if (length(tau_B_fixed) != 1 || !is.numeric(tau_B_fixed) ||
+			!is.finite(tau_B_fixed) || tau_B_fixed <= 0) {
+			cli::cli_abort("{.arg tau_B_fixed} must be a single positive finite value.")
+		}
+		if (isTRUE(symmetric)) {
+			cli::cli_warn(c(
+				"{.arg tau_B_fixed} is ignored when {.code symmetric = TRUE}.",
+				"i" = "Under the symmetric specification {.code tau_B^2 = tau_A^2}; pass {.arg tau_A_fixed} instead."
+			))
+		}
+	}
 	if (symmetric) {
 		if (n_row != n_col || p != 1) {
 			cli::cli_abort("symmetric = TRUE requires unipartite square data (n_row == n_col, p == 1).")
 		}
-		if (!is.null(tau_A_fixed)) {
-			if (length(tau_A_fixed) != 1 || !is.numeric(tau_A_fixed) ||
-				!is.finite(tau_A_fixed) || tau_A_fixed <= 0) {
-				cli::cli_abort("{.arg tau_A_fixed} must be a single positive finite value.")
-			}
-		}
+		# directed-asymmetry warning has been moved up into dbn() so it
+		# fires for every model (piecewise / hmm / static), not just dynamic.
+		# the dispatcher always sees Y first.
 		if (length(lambda_diag) != 1 || !is.numeric(lambda_diag) ||
 			!is.finite(lambda_diag) || lambda_diag < 0) {
 			cli::cli_abort("{.arg lambda_diag} must be a non-negative finite scalar.")
@@ -911,6 +1653,15 @@ dbn_dynamic <- function(Y,
 				!is.finite(rho_max) || rho_max <= 0) {
 				cli::cli_abort("{.arg rho_max} must be a positive finite scalar (or NULL).")
 			}
+		}
+	}
+	# shrink_rho governs the directed (asymmetric) operator only; validate it
+	# on every path. under symmetric = TRUE it is a no-op (that path uses
+	# kappa_A2).
+	if (!is.null(shrink_rho)) {
+		if (length(shrink_rho) != 1 || !is.numeric(shrink_rho) ||
+			!is.finite(shrink_rho) || shrink_rho <= 0 || shrink_rho > 1) {
+			cli::cli_abort("{.arg shrink_rho} must be a scalar in (0, 1] (or NULL).")
 		}
 	}
 	####
@@ -973,8 +1724,23 @@ dbn_dynamic <- function(Y,
 	R_4d <- matrix(R, nrow = nc, ncol = p * Tt)
 	####
 
-	# initialize parameters (warm-start from previous fit if available)
+	# initialize parameters (warm-start from previous fit if available).
+	# refuse a cross-model warm-start directively.
 	if (!is.null(previous)) {
+		if (!inherits(previous, "dbn")) {
+			cli::cli_abort(c(
+				"{.arg previous} must be a {.cls dbn} fit.",
+				"x" = "Got {.cls {class(previous)[1]}}."
+			))
+		}
+		prev_model <- previous$model %||% NA_character_
+		if (!is.na(prev_model) && !identical(prev_model, "dynamic")) {
+			cli::cli_abort(c(
+				"Cross-model warm-start is not supported.",
+				"x" = "{.arg previous} was fit with {.code model = {.val {prev_model}}}, but you are now requesting {.code model = \"dynamic\"}.",
+				"i" = "Refit the new model from scratch, or continue with the same model type."
+			))
+		}
 		if (is.null(previous$A) || is.null(previous$B) || is.null(previous$sigma2)) {
 			cli::cli_abort("{.arg previous} must be results from {.fun dbn_dynamic}.")
 		}
@@ -991,7 +1757,9 @@ dbn_dynamic <- function(Y,
 				Theta_all <- array(0, dim = c(n_row, n_col, p, Tt))
 				for (i in 1:min(length(time_indices), n_time_stored)) {
 					if (time_indices[i] <= Tt) {
-						Theta_all[,,,time_indices[i]] <- previous$Theta[,,,i,last_theta_idx]
+						slice <- previous$Theta[,,,i,last_theta_idx, drop = FALSE]
+						dim(slice) <- c(n_row, n_col, p)
+						Theta_all[,,,time_indices[i]] <- slice
 					}
 				}
 				for (t in 1:Tt) {
@@ -1000,12 +1768,15 @@ dbn_dynamic <- function(Y,
 						nearest_idx <- which.min(abs(available_times - t))
 						nearest_stored <- nearest_idx
 						if (nearest_stored <= n_time_stored) {
-							Theta_all[,,,t] <- previous$Theta[,,,nearest_stored,last_theta_idx]
+							slice <- previous$Theta[,,,nearest_stored,last_theta_idx, drop = FALSE]
+							dim(slice) <- c(n_row, n_col, p)
+							Theta_all[,,,t] <- slice
 						}
 					}
 				}
 			} else {
-				Theta_all <- previous$Theta[,,,1:Tt,last_theta_idx]
+				Theta_all <- previous$Theta[,,,1:Tt,last_theta_idx, drop = FALSE]
+				dim(Theta_all) <- c(n_row, n_col, p, Tt)
 			}
 		} else {
 			Theta_all <- pre$Theta
@@ -1049,16 +1820,33 @@ dbn_dynamic <- function(Y,
 		}
 	} else {
 		Theta_all <- pre$Theta
-		Aarray <- array(0, dim = c(n_row, n_row, Tt))
-		Barray <- array(0, dim = c(n_col, n_col, Tt))
-		for (t in 1:Tt) {
-			Aarray[, , t] <- diag(n_row)
-			Barray[, , t] <- diag(n_col)
+		# smart init: a fast ALS warm-start gives initial A_t / B_t / M /
+		# variance components close to the posterior mode. defaults to
+		# enabled; falls back to identity init if ALS fails or `init = "default"`
+		init_mode <- if (is.character(init) && length(init) == 1L) init else "smart"
+		if (identical(init_mode, "smart") || is.null(init)) {
+			init_pkg <- .dbn_smart_init(Y, family = FAM$name, model = "dynamic",
+				symmetric = symmetric, Tt = Tt, n_row = n_row, n_col = n_col,
+				p = p, verbose = (is.numeric(verbose) && verbose > 1))
+			Aarray <- init_pkg$A_init
+			Barray <- init_pkg$B_init
+			sigma2     <- init_pkg$sigma2_init
+			sigma2_obs <- FAM$init_pars$sigma2_obs %||% init_pkg$sigma2_obs_init
+			tauA2      <- init_pkg$tauA2_init
+			tauB2      <- init_pkg$tauB2_init
+			g2         <- init_pkg$g2_init
+		} else {
+			Aarray <- array(0, dim = c(n_row, n_row, Tt))
+			Barray <- array(0, dim = c(n_col, n_col, Tt))
+			for (t in 1:Tt) {
+				Aarray[, , t] <- diag(n_row)
+				Barray[, , t] <- diag(n_col)
+			}
+			sigma2 <- 1
+			sigma2_obs <- FAM$init_pars$sigma2_obs %||% 1
+			tauA2 <- tauB2 <- 1
+			g2 <- 1
 		}
-		sigma2 <- 1
-		sigma2_obs <- FAM$init_pars$sigma2_obs %||% 1
-		tauA2 <- tauB2 <- 1
-		g2 <- 1
 		rhoA <- rhoB <- 0
 	}
 
@@ -1132,14 +1920,26 @@ dbn_dynamic <- function(Y,
 	rhoA_store <- rhoB_store <- if (ar1) numeric(n_keep) else NULL
 
 	keep_id <- 0
-	a_sig <- b_sig <- 2
-	a_g <- b_g <- 2
+	# user-supplied IG hyperparams; default sig_obs to sig if not specified
+	for (nm in c("a_sig", "b_sig", "a_g", "b_g")) {
+		v <- get(nm)
+		if (length(v) != 1L || !is.numeric(v) || !is.finite(v) || v <= 0)
+			cli::cli_abort("{.arg {nm}} must be a positive finite scalar.")
+	}
+	if (is.null(a_sig_obs)) a_sig_obs <- a_sig
+	if (is.null(b_sig_obs)) b_sig_obs <- b_sig
+	for (nm in c("a_sig_obs", "b_sig_obs")) {
+		v <- get(nm)
+		if (length(v) != 1L || !is.numeric(v) || !is.finite(v) || v <= 0)
+			cli::cli_abort("{.arg {nm}} must be a positive finite scalar.")
+	}
 	eye_nr <- diag(n_row)
 	eye_nc <- diag(n_col)
 
 	if (is_large_network) {
-		shape_tauA <- (1 + n_row * n_row * (Tt - 1)) / 2
-		shape_tauB <- (1 + n_col * n_col * (Tt - 1)) / 2
+		# IG(a_tau, b_tau) prior; default a_tau = 0.5 gives the 2*0.5 = 1 term
+		shape_tauA <- (2 * a_tau + n_row * n_row * (Tt - 1)) / 2
+		shape_tauB <- (2 * a_tau + n_col * n_col * (Tt - 1)) / 2
 		shape_sigma_proc <- (a_sig + nc * (Tt - 1) * p) / 2.0
 		shape_sigma_obs <- (1.0 + nc * Tt * p) / 2.0
 	}
@@ -1175,6 +1975,12 @@ dbn_dynamic <- function(Y,
 							 tau_update = 0, var_update = 0, rho_update = 0, storage = 0)
 		timing_iters <- 0L
 	}
+
+	# contractivity ridge precision on A_t, B_t. per-entry prior variance
+	# shrink_rho^2 / n gives a prior operator spectral radius near shrink_rho
+	# (circular law); pass the reciprocal to c++. null shrink_rho = off.
+	kappaA_inv <- if (is.null(shrink_rho)) 0 else n_row / (shrink_rho^2)
+	kappaB_inv <- if (is.null(shrink_rho)) 0 else n_col / (shrink_rho^2)
 
 	# main MCMC loop
 	for (g in 1:n_iter) {
@@ -1212,7 +2018,7 @@ dbn_dynamic <- function(Y,
 
 		# update baseline mean M and g2
 		if (do_timing) .t0 <- proc.time()[[3]]
-		mu_result <- update_mu_dynamic(Z_4d, Theta_4d, g2, a_g, b_g, n_row, n_col, p, Tt)
+		mu_result <- update_mu_dynamic(Z_4d, Theta_4d, M, g2, a_g, b_g, n_row, n_col, p, Tt)
 		M <- mu_result$M
 		g2 <- mu_result$g2
 		# under symmetric specification, project M onto the symmetric
@@ -1237,13 +2043,13 @@ dbn_dynamic <- function(Y,
 			Y_3d <- array(Z_4d[, 1:Tt, drop = FALSE], dim = c(n_row, n_col, Tt))
 			M_2d <- matrix(M[, , 1], n_row, n_col)
 			if (sampler_resolved == "exact") {
-				# Exact PCG sampler (default for symmetric)
+				# exact PCG sampler (default for symmetric)
 				Theta_3d <- theta_pcg_sampler_cpp(Y_3d, M_2d, Aarray, sigma2, sigma2_obs, pairs_mat)
 			} else {
-				# Approximate FFBS sampler (symmetric FFBS with B_arr = A_arr)
+				# approximate FFBS sampler (symmetric FFBS with B_arr = A_arr)
 				Barray_tmp <- Aarray  # Set B = A for symmetric case
 				Theta_cube_ffbs <- batch_ffbs_all_relations(Z_4d, M, Aarray, Barray_tmp, sigma2, n_row, n_col, p, Tt)
-				# Theta_cube_ffbs is n_row*n_col x p*Tt, extract first relation (p=1)
+				# theta_cube_ffbs is n_row*n_col x p*Tt, extract first relation (p=1)
 				Theta_3d <- array(Theta_cube_ffbs, dim = c(n_row, n_col, Tt))
 			}
 			Theta_all <- array(0, dim = c(n_row, n_col, p, Tt))
@@ -1295,7 +2101,7 @@ dbn_dynamic <- function(Y,
 
 			# 3. tau_A^2 via conjugate IG over unique upper-triangle
 			# innovations (random walk when lambda_diag = 0; AR(1) around
-			# Abar when lambda_diag > 0). skip when tau_A_fixed is set.
+			# abar when lambda_diag > 0). skip when tau_A_fixed is set.
 			if (do_timing) .t0 <- proc.time()[[3]]
 			if (is.null(tau_A_fixed)) {
 				innov_ss_sym <- 0
@@ -1313,8 +2119,10 @@ dbn_dynamic <- function(Y,
 					}
 				}
 				n_unique_per_t <- n_row * (n_row + 1L) / 2L
-				shape_post_tauA <- (1 + n_unique_per_t * (Tt - 1)) / 2
-				tauA2 <- safe_rinv_gamma(shape_post_tauA, (1 + innov_ss_sym) / 2)
+				# IG(a_tau, b_tau) prior; written so the default a_tau = b_tau =
+				# 0.5 reproduces the original (1 + .)/2 expressions exactly.
+				shape_post_tauA <- (2 * a_tau + n_unique_per_t * (Tt - 1)) / 2
+				tauA2 <- safe_rinv_gamma(shape_post_tauA, (2 * b_tau + innov_ss_sym) / 2)
 			}
 			tauB2 <- tauA2
 			if (do_timing) timing_accum$tau_update <- timing_accum$tau_update + (proc.time()[[3]] - .t0)
@@ -1342,19 +2150,17 @@ dbn_dynamic <- function(Y,
 			# asymmetric (general directed) path: exact PCG or approximate FFBS for Theta
 			# and row-wise updates for A and B.
 
-			# Theta sampling: exact PCG or approximate FFBS
+			# theta sampling: exact PCG or approximate FFBS
 			if (do_timing) .t0 <- proc.time()[[3]]
 			if (sampler_resolved == "exact") {
-				# Exact asymmetric PCG sampler
-				Theta_full_4d <- batch_pcg_asym_all_relations(Z_4d, Y, M, Aarray, Barray, sigma2, sigma2_obs,
-				                                               n_row, n_col, p, Tt)
-				Theta_cube <- matrix(Theta_full_4d, nrow = nc, ncol = p * Tt)
-				if (g %in% keep) {
-					Theta_all <- Theta_full_4d
-				}
-				if (do_timing) timing_accum$pcg <- timing_accum$pcg + (proc.time()[[3]] - .t0)
+				# exact asymmetric PCG is on the roadmap but not yet implemented;
+				# the symmetric path has the exact PCG sampler today.
+				cli::cli_abort(c(
+					"{.code sampler = \"exact\"} is not yet available for asymmetric dynamic fits.",
+					"i" = "Use {.code sampler = \"approx\"} (default for asymmetric), or set {.code symmetric = TRUE} to get the exact PCG sampler."
+				))
 			} else {
-				# Approximate FFBS sampler
+				# approximate FFBS sampler
 				if (is_large_network && max(n_row, n_col) > 100) {
 					Theta_cube <- batch_ffbs_all_relations_blocked(Z_4d, M, Aarray, Barray, sigma2, n_row, n_col, p, Tt)
 				} else {
@@ -1367,44 +2173,56 @@ dbn_dynamic <- function(Y,
 			}
 			Theta_4d <- matrix(Theta_cube, nrow = nc, ncol = p * Tt)
 
-			# update A and B matrices
+			# prior_kind = "rw" is the random-walk prior anchored at
+			# A_0 = B_0 = I (default). pass options(dbn.prior_kind = "iid")
+			# for the iid alternative. validate so a typo errors loudly
+			# instead of silently falling through.
+			prior_kind <- getOption("dbn.prior_kind", "rw")
+			if (!identical(prior_kind, "rw") && !identical(prior_kind, "iid")) {
+				cli::cli_abort(c(
+					"{.code getOption(\"dbn.prior_kind\")} must be {.val rw} or {.val iid}, got {.val {prior_kind}}.",
+					"i" = "Reset with {.code options(dbn.prior_kind = \"rw\")} (default) or {.val iid}."
+				))
+			}
 			if (do_timing) .t0 <- proc.time()[[3]]
 			if (is_large_network && max(n_row, n_col) > 100) {
 				AB_result <- update_AB_batch_large(
 					Theta_4d, Aarray, Barray,
 					sigma2, tauA2, tauB2,
 					ar1, rhoA, rhoB,
-					n_row, n_col, p, Tt
+					n_row, n_col, p, Tt,
+					prior_kind = prior_kind,
+					kappaA_inv = kappaA_inv, kappaB_inv = kappaB_inv
 				)
 			} else {
 				AB_result <- update_AB_batch_extended(
 					Theta_4d, Aarray, Barray,
 					sigma2, tauA2, tauB2,
 					ar1, rhoA, rhoB,
-					n_row, n_col, p, Tt
+					n_row, n_col, p, Tt,
+					prior_kind = prior_kind,
+					kappaA_inv = kappaA_inv, kappaB_inv = kappaB_inv
 				)
 			}
 			Aarray <- AB_result$Aarray
 			Barray <- AB_result$Barray
 			if (do_timing) timing_accum$ab_update <- timing_accum$ab_update + (proc.time()[[3]] - .t0)
 
-			# scale renormalization: the asymmetric model is scale-ambiguous.
-			# (A_t, B_t) and (c A_t, c^-1 B_t) give the same W_t, Theta_t, and
-			# likelihood; tau_A^2 and tau_B^2 are identified only through
-			# their product. Unpinned, the A-vs-B scale random-walks until a
-			# matrix overflows (the silent-death failure mode). Rebalancing A
-			# and B to a common RMS each iteration fixes that non-identified
-			# direction and leaves every scale-invariant quantity (W_t,
-			# coupling, leverage, rank probabilities) unchanged; the tau
-			# update below redraws tau_A^2, tau_B^2 consistent with the
-			# rebalanced matrices.
-			if (all(is.finite(Aarray)) && all(is.finite(Barray))) {
-				rmsA <- sqrt(mean(Aarray^2))
-				rmsB <- sqrt(mean(Barray^2))
-				if (is.finite(rmsA) && is.finite(rmsB) && rmsA > 0 && rmsB > 0) {
-					c_bal  <- sqrt(rmsB / rmsA)
-					Aarray <- Aarray * c_bal
-					Barray <- Barray / c_bal
+			# scale renormalization: the asymmetric model has a (A_t, B_t) ->
+			# (c A_t, c^-1 B_t) scale ambiguity. under the rw prior (default),
+			# the A_0 = B_0 = I anchor pins this scale (the prior penalty on
+			# A_1 - I is not invariant under rescaling), so the rebalancer is
+			# skipped. under the iid prior the anchor carries no probabilistic
+			# weight, so the rebalancer runs to prevent overflow.
+			if (!identical(prior_kind, "rw")) {
+				if (all(is.finite(Aarray)) && all(is.finite(Barray))) {
+					rmsA <- sqrt(mean(Aarray^2))
+					rmsB <- sqrt(mean(Barray^2))
+					if (is.finite(rmsA) && is.finite(rmsB) && rmsA > 0 && rmsB > 0) {
+						c_bal  <- sqrt(rmsB / rmsA)
+						Aarray <- Aarray * c_bal
+						Barray <- Barray / c_bal
+					}
 				}
 			}
 
@@ -1425,26 +2243,45 @@ dbn_dynamic <- function(Y,
 
 			# update innovation variances tauA2, tauB2
 			if (do_timing) .t0 <- proc.time()[[3]]
+			# IG(a_tau, b_tau) prior on tauA2/tauB2; the default a_tau = b_tau
+			# = 0.5 reproduces the original (1 + .)/2 expressions exactly
 			if (ar1) {
 				innovA_ss <- compute_ar1_innovation_ss_cpp(Aarray, rhoA, n_row, Tt)
 				innovB_ss <- compute_ar1_innovation_ss_cpp(Barray, rhoB, n_col, Tt)
 				if (is_large_network) {
-					tauA2 <- safe_rinv_gamma(shape_tauA, (1 + innovA_ss)/2)
-					tauB2 <- safe_rinv_gamma(shape_tauB, (1 + innovB_ss)/2)
+					tauA2 <- safe_rinv_gamma(shape_tauA, (2 * b_tau + innovA_ss)/2)
+					tauB2 <- safe_rinv_gamma(shape_tauB, (2 * b_tau + innovB_ss)/2)
 				} else {
-					tauA2 <- safe_rinv_gamma((1 + n_row * n_row * (Tt-1))/2, (1 + innovA_ss)/2)
-					tauB2 <- safe_rinv_gamma((1 + n_col * n_col * (Tt-1))/2, (1 + innovB_ss)/2)
+					tauA2 <- safe_rinv_gamma((2 * a_tau + n_row * n_row * (Tt-1))/2, (2 * b_tau + innovA_ss)/2)
+					tauB2 <- safe_rinv_gamma((2 * a_tau + n_col * n_col * (Tt-1))/2, (2 * b_tau + innovB_ss)/2)
 				}
 			} else {
-				A_sum <- compute_deviation_sum(Aarray, n_row, Tt)
-				B_sum <- compute_deviation_sum(Barray, n_col, Tt)
-				if (is_large_network) {
-					tauA2 <- safe_rinv_gamma(shape_tauA, (1 + A_sum)/2)
-					tauB2 <- safe_rinv_gamma(shape_tauB, (1 + B_sum)/2)
+				# tau update sufficient statistic depends on the prior:
+				#   "rw"  : sum_{t=1..T-1} ||A_t - A_{t-1}||_F^2 (rw innovations).
+				#           reuse compute_ar1_innovation_ss_cpp with rho = 1.0;
+				#           the formula then becomes ||A_t - A_{t-1}||^2.
+				#   "iid" : sum_{t=1..T-1} ||A_t||_F^2 (iid sufficient statistic).
+				if (identical(prior_kind, "rw")) {
+					A_sum <- compute_ar1_innovation_ss_cpp(Aarray, 1.0, n_row, Tt)
+					B_sum <- compute_ar1_innovation_ss_cpp(Barray, 1.0, n_col, Tt)
 				} else {
-					tauA2 <- safe_rinv_gamma((1 + n_row * n_row * (Tt-1))/2, (1 + A_sum)/2)
-					tauB2 <- safe_rinv_gamma((1 + n_col * n_col * (Tt-1))/2, (1 + B_sum)/2)
+					A_sum <- compute_deviation_sum(Aarray, n_row, Tt)
+					B_sum <- compute_deviation_sum(Barray, n_col, Tt)
 				}
+				if (is_large_network) {
+					tauA2 <- safe_rinv_gamma(shape_tauA, (2 * b_tau + A_sum)/2)
+					tauB2 <- safe_rinv_gamma(shape_tauB, (2 * b_tau + B_sum)/2)
+				} else {
+					tauA2 <- safe_rinv_gamma((2 * a_tau + n_row * n_row * (Tt-1))/2, (2 * b_tau + A_sum)/2)
+					tauB2 <- safe_rinv_gamma((2 * a_tau + n_col * n_col * (Tt-1))/2, (2 * b_tau + B_sum)/2)
+				}
+			}
+			# honor tau_A_fixed / tau_B_fixed on the asymmetric and AR(1)
+			# branches. the symmetric path applies tau_A_fixed before the
+			# loop and forces tauB2 = tauA2 inside its own tau branch.
+			if (!isTRUE(symmetric)) {
+				if (!is.null(tau_A_fixed)) tauA2 <- tau_A_fixed
+				if (!is.null(tau_B_fixed)) tauB2 <- tau_B_fixed
 			}
 			if (do_timing) timing_accum$tau_update <- timing_accum$tau_update + (proc.time()[[3]] - .t0)
 
@@ -1460,7 +2297,8 @@ dbn_dynamic <- function(Y,
 
 				if (FAM$name == "gaussian") {
 					obs_rss <- compute_gaussian_obs_residuals_dynamic_cpp(Z_4d, Theta_4d, M, n_row, n_col, p, Tt)
-					sigma2_obs <- (1 + obs_rss / 2) / rgamma(1, shape = (1 + nc * Tt * p) / 2, rate = 1)
+					sigma2_obs <- (b_sig_obs + obs_rss / 2) /
+						rgamma(1, shape = (a_sig_obs + nc * Tt * p) / 2, rate = 1)
 				}
 			} else {
 				var_result <- update_variances_dynamic(
@@ -1641,6 +2479,7 @@ dbn_dynamic <- function(Y,
 			odens = odens,
 			time_thin = time_thin,
 			store_z = store_z,
+			shrink_rho = shrink_rho,
 			draws = n_keep
 		),
 		meta = list(
@@ -1652,6 +2491,7 @@ dbn_dynamic <- function(Y,
 			sampler_requested = sampler,
 			sampler_used = if (sampler_resolved == "exact") "pcg" else "ffbs",
 			uncertainty_available = TRUE,
+			Omega = pre$Omega,
 			approximation_note = if (sampler_resolved == "ffbs" && !symmetric)
 			                     "Asymmetric FFBS approximates row covariance propagation."
 			                     else NULL
@@ -1735,6 +2575,12 @@ dbn_dynamic <- function(Y,
 		if (!("B" %in% keep_components)) {
 			out$B <- NULL
 			if (!is.null(out$draws$misc)) out$draws$misc$B <- NULL
+		}
+		# also drop the bulky $draws bundle unless explicitly requested.
+		# this is the slot that holds pars + misc + theta + z; it is the
+		# largest storage component after Theta itself
+		if (!("draws" %in% keep_components)) {
+			out$draws <- NULL
 		}
 	}
 

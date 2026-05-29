@@ -4,7 +4,14 @@
 \alias{posterior_predict_dbn}
 \title{Generate Posterior Predictive Samples}
 \usage{
-posterior_predict_dbn(fit, draws = 100, seed = NULL, draw_indices = NULL)
+posterior_predict_dbn(
+  fit,
+  draws = 100,
+  seed = NULL,
+  draw_indices = NULL,
+  simplify = FALSE,
+  ...
+)
 }
 \arguments{
 \item{fit}{A dbn model fit object (output from \code{\link[=dbn]{dbn()}})}
@@ -16,6 +23,13 @@ posterior_predict_dbn(fit, draws = 100, seed = NULL, draw_indices = NULL)
 \item{draw_indices}{Optional integer vector of specific posterior draw
 indices to use. When supplied, overrides \code{draws} (number replicated is
 set to \code{length(draw_indices)}).}
+
+\item{simplify}{Logical. If \code{TRUE}, collapse the list of replicated
+arrays into a single array with the draw axis appended. Default
+\code{FALSE}.}
+
+\item{...}{Reserved for forward compatibility (e.g. \code{ndraws} from
+\code{brms}-style callers).}
 }
 \value{
 A list of replicated data arrays, each with the same dimensions
@@ -37,4 +51,7 @@ ppd <- posterior_predict_dbn(fit, draws = 5)
 }
 \seealso{
 \code{\link{plot_ppc_ecdf}}, \code{\link{plot_ppc_density}}, \code{\link{param_summary}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

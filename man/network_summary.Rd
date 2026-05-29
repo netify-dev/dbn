@@ -38,3 +38,6 @@ ns <- network_summary(fit)
 \seealso{
 \code{\link{edge_prob}}, \code{\link{theta_summary}}, \code{\link{param_summary}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

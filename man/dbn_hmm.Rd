@@ -12,7 +12,7 @@ dbn_hmm(
   burn = 1000,
   odens = 1,
   delta = rep(1, R),
-  seed = 6886,
+  seed = NULL,
   verbose = TRUE,
   time_thin = 1,
   previous = NULL,
@@ -64,4 +64,7 @@ fit <- dbn_hmm(sim$Y, R = 2, nscan = 200, burn = 100, verbose = FALSE)
 }
 \seealso{
 \code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

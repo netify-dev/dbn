@@ -64,16 +64,28 @@ static arma::vec thread_safe_mvnrnd(const arma::vec& mu, const arma::mat& Sigma,
     return mu + arma::sqrt(arma::abs(S.diag())) % z;
 }
 
-// initialize per-thread RNG engines seeded from R's RNG
-// must be called from the main thread before any parallel region
-static std::vector<std::mt19937_64> init_thread_rngs(int n_threads) {
+// initialize n_units deterministic RNG engines derived from R's RNG.
+// must be called from the main thread before any parallel region.
+//
+// IMPORTANT: this consumes R's RNG exactly ONCE (one R::runif() call) and then
+// derives every per-unit RNG seed from that single base via SplitMix64. The
+// caller should pass `n_units = number of independent draws to make` (e.g.
+// n_row for an A-row update), NOT the OpenMP thread count -- then index into
+// the returned vector with the LOOP variable (i, k, ...) so each independent
+// draw uses its OWN deterministic RNG regardless of which thread happens to
+// run it. Earlier versions keyed the RNG by `omp_get_thread_num()`, which
+// silently rerouted the RNG stream when `set_dbn_threads()` changed.
+static std::vector<std::mt19937_64> init_thread_rngs(int n_units) {
     std::vector<std::mt19937_64> rngs;
-    rngs.reserve(n_threads);
-    for (int i = 0; i < n_threads; i++) {
-        // seed each thread from R's RNG
-        uint64_t seed = static_cast<uint64_t>(R::runif(0.0, 1.0) * 4294967296.0);
-        seed ^= static_cast<uint64_t>(i + 1) * 2654435761ULL;
-        rngs.emplace_back(seed);
+    rngs.reserve(n_units);
+    uint64_t base = static_cast<uint64_t>(R::runif(0.0, 1.0) * 4294967296.0);
+    for (int i = 0; i < n_units; i++) {
+        // SplitMix64 mix of (base, unit_id): deterministic, well-distributed
+        uint64_t z = base + static_cast<uint64_t>(i + 1) * 0x9E3779B97F4A7C15ULL;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+        z = z ^ (z >> 31);
+        rngs.emplace_back(z);
     }
     return rngs;
 }
@@ -240,6 +252,7 @@ List precompute_time_indices(const List& IR, int n_row, int n_col, int p, int Tt
 // [[Rcpp::export]]
 List update_mu_dynamic(const arma::mat& Z_4d,
                               const arma::mat& Theta_4d,
+                              const arma::cube& M_prev,
                               double g2,
                               double a_g, double b_g,
                               int n_row, int n_col, int p, int Tt) {
@@ -257,6 +270,11 @@ List update_mu_dynamic(const arma::mat& Z_4d,
             int col_idx = j * Tt + t;
             sum_diff += col_as_mat(Z_4d, col_idx, n_row, n_col) - col_as_mat(Theta_4d, col_idx, n_row, n_col);
         }
+        // M is the long-run baseline of Theta in the model
+        // Theta_t = M + A_t (Theta_{t-1} - M) B_t' + noise. Identifying M
+        // separately from Theta requires the bilinear-residual conditional,
+        // which is not implemented here -- instead Theta absorbs the baseline
+        // and M shrinks toward the prior mean (0). See known limitations.
 
         // compute posterior mean
         arma::mat mu_hat = mu_var * sum_diff;
@@ -318,7 +336,30 @@ arma::cube batch_ffbs_all_relations(const arma::mat& Z_4d,
     return Theta_4d_out;
 }
 
-// A/B update for networks
+// A/B update for networks (asymmetric / directed path).
+//
+// Three prior modes are supported, selected by `prior_kind`:
+//   "rw"  (default): random-walk prior anchored at identity.
+//        A_0 = I (pinned), A_t = A_{t-1} + eps_A_t, eps_A_t ~ N(0, tauA2 I).
+//        Same for B. The anchor at t=0 resolves the (A, B) -> (cA, c^-1 B)
+//        scale ambiguity that broke prior RW attempts -- without the anchor,
+//        the chain drifts in scale and tauA2 blows up.
+//   "iid" (legacy): iid zero-mean prior A_t ~ N(0, tauA2 I), independent across t.
+//        Use only for backward compatibility; tau_A^2 is then a coarse
+//        flexibility scale, not an innovation variance.
+//   "ar1" (existing): AR(1) with persistence rho around zero.
+//        A_t = rho * A_{t-1} + eps, eps ~ N(0, tauA2 I). Activated via the
+//        legacy `ar1 = TRUE` boolean for backward compatibility.
+//
+// On top of any of the above, an optional contractivity (ridge) prior
+// A_t ~ N(0, 1/kappaA_inv I) shrinks each operator slice toward zero,
+// softly bounding its spectral radius. kappaA_inv = kappaB_inv = 0 (default)
+// leaves behaviour unchanged. The per-time operator is under-identified
+// (one transition feeds each A_t, B_t), so without this the random-walk
+// prior lets the spectral radius drift into the explosive region; the ridge
+// only adds to the posterior precision (mean target is zero), so it is a
+// pure pull toward contractivity and changes no other code path.
+//
 // A is n_row x n_row (sender dynamics), B is n_col x n_col (receiver dynamics)
 //' @keywords internal
 //' @noRd
@@ -328,7 +369,9 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
                     const arma::cube& Barray_old,
                     double sigma2, double tauA2, double tauB2,
                     bool ar1, double rhoA, double rhoB,
-                    int n_row, int n_col, int p, int Tt) {
+                    int n_row, int n_col, int p, int Tt,
+                    std::string prior_kind = "rw",
+                    double kappaA_inv = 0.0, double kappaB_inv = 0.0) {
     int nc = n_row * n_col;
     arma::cube Aarray(n_row, n_row, Tt);
     arma::cube Barray(n_col, n_col, Tt);
@@ -349,11 +392,17 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
 #else
     int n_threads_A = 1;
 #endif
-    auto rngs_A = init_thread_rngs(n_threads_A);
+    auto rngs_A = init_thread_rngs(n_row);
 
     // A_private[i] holds row i's sampled values across time
     std::vector<arma::mat> A_private(n_row, arma::mat(n_row, Tt, arma::fill::zeros));
 
+    // Prior precision multipliers on inv_tauA2 per t:
+    //   iid / ar1: 1 for every t
+    //   rw       : 2 for interior t (two RW neighbors), 1 for t = Tt-1 (last,
+    //              only A_{T-1} -- A_T conditional reduces to 1-sided).
+    //              t=1 is interior because A_0 = I is the other RW neighbor.
+    bool use_rw = (prior_kind == "rw") && !ar1;
     // F_t = (Theta_{t-1} * B_t^T)^T stacked across relations is independent
     // of the row index i, so we precompute it (and V_t = (F'F/sigma2 + I/tau)^-1)
     // once per t and share across all i. F'F and the inverse were previously
@@ -370,7 +419,12 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
             F_t.rows(base_idx, base_idx + n_col - 1) =
                 (Theta_prev * Barray_old.slice(t).t()).t();
         }
-        arma::mat V_inv = inv_sigma2 * (F_t.t() * F_t) + inv_tauA2 * eye_nr;
+        // Prior precision multiplier: under RW, t < Tt-1 has 2 neighbors so
+        // precision is 2/tau^2; t = Tt-1 has only 1 (the previous slice) so
+        // precision is 1/tau^2. Under iid / ar1 (legacy), always 1/tau^2.
+        double prior_prec_mult = 1.0;
+        if (use_rw && t < Tt - 1) prior_prec_mult = 2.0;
+        arma::mat V_inv = inv_sigma2 * (F_t.t() * F_t) + (prior_prec_mult * inv_tauA2 + kappaA_inv) * eye_nr;
         arma::mat V_t = safe_inv_sympd(V_inv);
         V_t = 0.5 * (V_t + V_t.t());
         F_t_cache[t] = std::move(F_t);
@@ -396,13 +450,42 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
 
             const arma::mat& F_t = F_t_cache[t];
             const arma::mat& V_t = V_t_cache[t];
+            // Data contribution to posterior mean (common to all priors).
             arma::vec m_post = V_t * (inv_sigma2 * (F_t.t() * y_it));
 
-            if(ar1 && t > 1) {
+            if (use_rw) {
+                // RW prior contribution. Read previous neighbor:
+                //   t == 1: A_0 = I, so neighbor_prev = row i of I (zero vector
+                //           with a 1 in position i)
+                //   t  > 1: A_{t-1, i, :} from this iteration's just-sampled
+                //           A_private[i].col(t-1)
+                arma::vec neighbor_prev(n_row, arma::fill::zeros);
+                if (t == 1) {
+                    neighbor_prev(i) = 1.0;  // row i of identity
+                } else {
+                    neighbor_prev = A_private[i].col(t - 1);
+                }
+                if (t < Tt - 1) {
+                    // Interior: prior conditional has two neighbors. Read
+                    // A_{t+1, i, :} from `Aarray_old` -- this is the previous-
+                    // iteration snapshot (the local A_private buffer holds
+                    // only this iteration's per-row results and hasn't been
+                    // assembled into a full cube yet). Valid Gibbs ordering:
+                    // backward neighbor is current-iter (Gauss-Seidel),
+                    // forward neighbor is prev-iter (Jacobi).
+                    arma::vec neighbor_next = Aarray_old.slice(t + 1).row(i).t();
+                    m_post += V_t * (inv_tauA2 * (neighbor_prev + neighbor_next));
+                } else {
+                    // Last (t == Tt - 1): only previous neighbor.
+                    m_post += V_t * (inv_tauA2 * neighbor_prev);
+                }
+            } else if (ar1 && t > 1) {
                 m_post += (rhoA * inv_tauA2) * (V_t * A_private[i].col(t - 1));
             }
+            // Legacy iid prior: zero-mean prior contribution (no addition to
+            // m_post). Reached when prior_kind == "iid" and ar1 == FALSE.
 
-            arma::vec a_new = thread_safe_mvnrnd(m_post, V_t, rngs_A[tid]);
+            arma::vec a_new = thread_safe_mvnrnd(m_post, V_t, rngs_A[i]);
             A_private[i].col(t) = a_new;
         }
     }
@@ -422,7 +505,7 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
 #else
     int n_threads_B = 1;
 #endif
-    auto rngs_B = init_thread_rngs(n_threads_B);
+    auto rngs_B = init_thread_rngs(n_col);
 
     std::vector<arma::mat> B_private(n_col, arma::mat(n_col, Tt, arma::fill::zeros));
 
@@ -437,7 +520,9 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
             arma::mat Theta_prev = col_as_mat(Theta_4d, col_idx_prev, n_row, n_col);
             F_t.rows(base_idx, base_idx + n_row - 1) = Aarray.slice(t) * Theta_prev;
         }
-        arma::mat V_inv = inv_sigma2 * (F_t.t() * F_t) + inv_tauB2 * eye_nc;
+        double prior_prec_mult_B = 1.0;
+        if (use_rw && t < Tt - 1) prior_prec_mult_B = 2.0;
+        arma::mat V_inv = inv_sigma2 * (F_t.t() * F_t) + (prior_prec_mult_B * inv_tauB2 + kappaB_inv) * eye_nc;
         arma::mat V_t = safe_inv_sympd(V_inv);
         V_t = 0.5 * (V_t + V_t.t());
         FB_t_cache[t] = std::move(F_t);
@@ -465,11 +550,26 @@ List update_AB_batch_extended(const arma::mat& Theta_4d,
             const arma::mat& V_t = VB_t_cache[t];
             arma::vec m_post = V_t * (inv_sigma2 * (F_t.t() * y_kt));
 
-            if(ar1 && t > 1) {
+            if (use_rw) {
+                // B_0 = I anchor. For column k of B at t = 1, neighbor_prev =
+                // col k of I (one-hot vector with 1 at position k).
+                arma::vec neighbor_prev(n_col, arma::fill::zeros);
+                if (t == 1) {
+                    neighbor_prev(k) = 1.0;
+                } else {
+                    neighbor_prev = B_private[k].col(t - 1);
+                }
+                if (t < Tt - 1) {
+                    arma::vec neighbor_next = Barray_old.slice(t + 1).col(k);
+                    m_post += V_t * (inv_tauB2 * (neighbor_prev + neighbor_next));
+                } else {
+                    m_post += V_t * (inv_tauB2 * neighbor_prev);
+                }
+            } else if (ar1 && t > 1) {
                 m_post += (rhoB * inv_tauB2) * (V_t * B_private[k].col(t - 1));
             }
 
-            arma::vec b_new = thread_safe_mvnrnd(m_post, V_t, rngs_B[tid]);
+            arma::vec b_new = thread_safe_mvnrnd(m_post, V_t, rngs_B[k]);
             B_private[k].col(t) = b_new;
         }
     }
@@ -639,7 +739,10 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
                           const arma::cube& Barray_old,
                           double sigma2, double tauA2, double tauB2,
                           bool ar1, double rhoA, double rhoB,
-                          int n_row, int n_col, int p, int Tt) {
+                          int n_row, int n_col, int p, int Tt,
+                          std::string prior_kind = "rw",
+                          double kappaA_inv = 0.0, double kappaB_inv = 0.0) {
+    bool use_rw = (prior_kind == "rw") && !ar1;
     int nc = n_row * n_col;
     arma::cube Aarray(n_row, n_row, Tt);
     arma::cube Barray(n_col, n_col, Tt);
@@ -659,7 +762,7 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
 #else
     int n_threads_A = 1;
 #endif
-    auto rngs_A = init_thread_rngs(n_threads_A);
+    auto rngs_A = init_thread_rngs(n_row);
 
     std::vector<arma::mat> A_private(n_row, arma::mat(n_row, Tt, arma::fill::zeros));
 
@@ -687,21 +790,31 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
             }
 
             // direct symmetric-PD inverse of the precision matrix.
-            // a Woodbury form is only an asymptotic win when (p*n_col) <<
-            // n_row, which never happens in current production callers; the
-            // earlier branched form had an algebra error (extra tauA2 factor),
-            // so we use the direct path unconditionally.
-            arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauA2 * eye_nr;
+            double prior_prec_mult = (use_rw && t < Tt - 1) ? 2.0 : 1.0;
+            arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + (prior_prec_mult * inv_tauA2 + kappaA_inv) * eye_nr;
             V_local = safe_inv_sympd(V_inv);
 
             V_local = 0.5 * (V_local + V_local.t());
             arma::vec m_post = V_local * (inv_sigma2 * (F_local.t() * y_local));
 
-            if(ar1 && t > 1) {
+            if (use_rw) {
+                arma::vec neighbor_prev(n_row, arma::fill::zeros);
+                if (t == 1) {
+                    neighbor_prev(i) = 1.0;
+                } else {
+                    neighbor_prev = A_private[i].col(t - 1);
+                }
+                if (t < Tt - 1) {
+                    arma::vec neighbor_next = Aarray_old.slice(t + 1).row(i).t();
+                    m_post += V_local * (inv_tauA2 * (neighbor_prev + neighbor_next));
+                } else {
+                    m_post += V_local * (inv_tauA2 * neighbor_prev);
+                }
+            } else if (ar1 && t > 1) {
                 m_post += (rhoA * inv_tauA2) * (V_local * A_private[i].col(t - 1));
             }
 
-            arma::vec a_new = thread_safe_mvnrnd(m_post, V_local, rngs_A[tid]);
+            arma::vec a_new = thread_safe_mvnrnd(m_post, V_local, rngs_A[i]);
             A_private[i].col(t) = a_new;
         }
     }
@@ -719,7 +832,7 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
 #else
     int n_threads_B = 1;
 #endif
-    auto rngs_B = init_thread_rngs(n_threads_B);
+    auto rngs_B = init_thread_rngs(n_col);
 
     std::vector<arma::mat> B_private(n_col, arma::mat(n_col, Tt, arma::fill::zeros));
 
@@ -746,17 +859,31 @@ List update_AB_batch_large(const arma::mat& Theta_4d,
             }
 
             // direct symmetric-PD inverse (see comment in A update above).
-            arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + inv_tauB2 * eye_nc;
+            double prior_prec_mult_B = (use_rw && t < Tt - 1) ? 2.0 : 1.0;
+            arma::mat V_inv = inv_sigma2 * (F_local.t() * F_local) + (prior_prec_mult_B * inv_tauB2 + kappaB_inv) * eye_nc;
             V_local = safe_inv_sympd(V_inv);
 
             V_local = 0.5 * (V_local + V_local.t());
             arma::vec m_post = V_local * (inv_sigma2 * (F_local.t() * y_local));
 
-            if(ar1 && t > 1) {
+            if (use_rw) {
+                arma::vec neighbor_prev(n_col, arma::fill::zeros);
+                if (t == 1) {
+                    neighbor_prev(k) = 1.0;
+                } else {
+                    neighbor_prev = B_private[k].col(t - 1);
+                }
+                if (t < Tt - 1) {
+                    arma::vec neighbor_next = Barray_old.slice(t + 1).col(k);
+                    m_post += V_local * (inv_tauB2 * (neighbor_prev + neighbor_next));
+                } else {
+                    m_post += V_local * (inv_tauB2 * neighbor_prev);
+                }
+            } else if (ar1 && t > 1) {
                 m_post += (rhoB * inv_tauB2) * (V_local * B_private[k].col(t - 1));
             }
 
-            arma::vec b_new = thread_safe_mvnrnd(m_post, V_local, rngs_B[tid]);
+            arma::vec b_new = thread_safe_mvnrnd(m_post, V_local, rngs_B[k]);
             B_private[k].col(t) = b_new;
         }
     }

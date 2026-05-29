@@ -19,4 +19,9 @@ List of posterior mean arrays
 \description{
 Extract posterior means in tidy format
 }
-\keyword{internal}
+\seealso{
+\code{\link[=tidy_dbn_lowrank]{tidy_dbn_lowrank()}}, \code{\link[=param_summary]{param_summary()}}, \code{\link[=theta_summary]{theta_summary()}}
+}
+\author{
+Tosin Salau and Shahryar Minhas
+}

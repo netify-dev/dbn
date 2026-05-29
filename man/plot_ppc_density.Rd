@@ -34,3 +34,6 @@ if (requireNamespace("ggplot2", quietly = TRUE)) plot_ppc_density(fit, ppd, Y_ob
 \seealso{
 \code{\link{posterior_predict_dbn}}, \code{\link{plot_ppc_ecdf}}, \code{\link{param_summary}}
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

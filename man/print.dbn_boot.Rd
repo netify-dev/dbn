@@ -7,7 +7,7 @@
 \method{print}{dbn_boot}(x, digits = max(3L, getOption("digits") - 3L), ...)
 }
 \arguments{
-\item{x}{A \code{dbn_boot} object from \code{\link[=dbn_explore_bootstrap]{dbn_explore_bootstrap()}}.}
+\item{x}{A \code{dbn_boot} object from dbn_als(bootstrap = R).}
 
 \item{digits}{Number of significant digits.}
 
@@ -18,4 +18,7 @@ Invisibly returns the \code{dbn_boot} object.
 }
 \description{
 Print Bootstrap Results for ALS
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }

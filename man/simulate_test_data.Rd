@@ -30,3 +30,6 @@ str(Y)
 \seealso{
 \code{\link{dbn}} for model fitting, \code{\link{simulate_static_dbn}} for full simulation with true parameters
 }
+\author{
+Tosin Salau and Shahryar Minhas
+}

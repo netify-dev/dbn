@@ -41,7 +41,7 @@ sim <- simulate_dynamic_dbn(n = 6, p = 1, time = 8, seed = 1)
 n <- dim(sim$A)[1]; Tt <- dim(sim$A)[3]
 M_true <- matrix(0, n, n)  # simulator centers Theta at zero
 Theta_true_3d <- array(sim$Theta[, , 1, ], c(n, n, Tt))
-truth_gain <- dbn:::forecast_gain_truth(sim$Y, sim$A,
+truth_gain <- forecast_gain_truth(sim$Y, sim$A,
   Theta_true_3d, M_true,
   window = 5:8)
 truth_gain

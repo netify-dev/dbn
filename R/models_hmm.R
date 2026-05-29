@@ -23,6 +23,7 @@
 #' sim <- simulate_hmm_dbn(n = 8, time = 10, R = 2, seed = 1)
 #' fit <- dbn_hmm(sim$Y, R = 2, nscan = 200, burn = 100, verbose = FALSE)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 ####
 dbn_hmm <- function(Y,
@@ -32,7 +33,7 @@ dbn_hmm <- function(Y,
 					burn = 1000,
 					odens = 1,
 					delta = rep(1, R),
-					seed = 6886,
+					seed = NULL,
 					verbose = TRUE,
 					time_thin = 1,
 					previous = NULL,
@@ -54,6 +55,31 @@ dbn_hmm <- function(Y,
 	# need at least 2 time points
 	if (dim(Y)[4] < 2) {
 		cli::cli_abort("HMM model requires at least 2 time points. Use {.code model = \"static\"} for cross-sectional data.")
+	}
+
+	# R (number of regimes) must be a single positive whole number. R = 1 is
+	# a degenerate single-regime model but is supported; R <= 0 is invalid
+	# and otherwise crashes in the compiled regime sampler.
+	if (length(R) != 1L || !is.numeric(R) || !is.finite(R) ||
+	    R != round(R) || R < 1) {
+		cli::cli_abort(c(
+			"{.arg R} (number of HMM regimes) must be a single positive whole number.",
+			"x" = "Got {.val {R}}.",
+			"i" = "Use {.code R = 2} or more for regime switching, or {.code model = \"dynamic\"} for a time-varying model."
+		))
+	}
+	R <- as.integer(R)
+
+	# bipartite networks are not supported for HMM; check this before the
+	# edge-case scan below, whose compiled helper assumes a square network
+	# and otherwise crashes with a raw Armadillo out-of-bounds error
+	if (dim(Y)[1] != dim(Y)[2]) {
+		cli::cli_abort(c(
+			"HMM model does not yet support bipartite (rectangular) networks.",
+			"i" = "Your data has {dim(Y)[1]} senders and {dim(Y)[2]} receivers.",
+			"i" = "Use {.code model = \"dynamic\"} for bipartite networks (full coverage of binary/ordinal/gaussian).",
+			"i" = "Bipartite HMM is on the roadmap; the existing C++ assumes square A_r."
+		))
 	}
 
 	# check for zero variance and infinite values
@@ -101,7 +127,8 @@ dbn_hmm <- function(Y,
 
 	# preprocessing
 
-	set.seed(seed)
+	.dbn_restore_seed <- .use_seed_locally(seed)
+	on.exit(.dbn_restore_seed(), add = TRUE)
 
 	pre <- shared_preprocess(Y, family = family)
 	dims <- pre$dims
@@ -112,12 +139,14 @@ dbn_hmm <- function(Y,
 	p <- dims$p
 	Tt <- dims$Tt
 
-	# bipartite networks not yet supported for HMM
+	# bipartite networks not yet supported for HMM (architectural -- the C++
+	# forward / backward algorithms assume square A_r per regime). On the
+	# roadmap.
 	if (is_bipartite) {
 		cli::cli_abort(c(
 			"HMM model does not yet support bipartite (rectangular) networks.",
 			"i" = "Your data has {n_row} senders and {n_col} receivers.",
-			"i" = "Use {.code model = \"dynamic\"} for bipartite networks."
+			"i" = "Use {.code model = \"dynamic\"} for bipartite networks (full coverage of binary/ordinal/gaussian)."
 		))
 	}
 
@@ -203,9 +232,19 @@ dbn_hmm <- function(Y,
 			}
 
 			if (any(is.finite(Y_early_clean))) {
+				# k-means is just an initial regime assignment; falling back
+				# to random assignment is fine if kmeans struggles on
+				# degenerate input, but warn so the user knows it happened
+				# (a "random-init" HMM is qualitatively different from a
+				# kmeans-init one and may signal degenerate early data).
 				km <- tryCatch({
 					kmeans(t(Y_early_clean), centers = R, nstart = 10, iter.max = 50)
 				}, error = function(e) {
+					cli::cli_warn(c(
+						"K-means failed to initialize HMM regime assignments; falling back to random.",
+						"x" = "{conditionMessage(e)}",
+						"i" = "If this fires often, the early time points may be degenerate (constant or nearly so)."
+					))
 					list(cluster = sample(R, ncol(Y_early_clean), replace = TRUE))
 				})
 
@@ -384,7 +423,15 @@ dbn_hmm <- function(Y,
 				B_list[[r]] <- diag(n_col) + matrix(rnorm(n_col * n_col, 0, sqrt(tau_B2 / 10)), n_col, n_col)
 			}
 		}
-		if (symmetric) for (r in 1:R) B_list[[r]] <- A_list[[r]]
+		# symmetric: average A_r with its transpose first (so A_r = A_r^T),
+		# then tie B_r = A_r. matches the dispatcher promise that both
+		# constraints hold (not just the tie).
+		if (symmetric) {
+			for (r in 1:R) {
+				A_list[[r]] <- 0.5 * (A_list[[r]] + t(A_list[[r]]))
+				B_list[[r]] <- A_list[[r]]
+			}
+		}
 
 		# hyperparameters pooled across regimes
 
@@ -547,10 +594,12 @@ dbn_hmm <- function(Y,
 		meta = meta,
 		family = FAM,
 		model = "hmm",
+		R = R,
 		S = Ssave,
 		A = Asave_array,
 		B = Bsave_array,
 		Pi = Pisave,
+		Pi_mean = if (length(Pisave) > 0L) Reduce(`+`, Pisave) / length(Pisave) else NULL,
 		pi0 = pi0,
 		sigma2_proc = sigmasave,
 		tau_A2 = tau_A_save,
@@ -613,7 +662,7 @@ step_ll <- function(A, B, Theta_prev, Theta_curr, sigma2_proc) {
 	# residual from bilinear prediction A * Theta_{t-1} * B'
 	resid <- Theta_curr - bilinear_step(A, Theta_prev, B)
 
-	# Gaussian log-likelihood
+	# gaussian log-likelihood
 	-0.5 * sum(resid^2) / sigma2_proc - 0.5 * length(resid) * log(2 * pi * sigma2_proc)
 }
 

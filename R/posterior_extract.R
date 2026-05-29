@@ -25,8 +25,18 @@ NULL
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' ts <- theta_slice(fit, time = 1)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 theta_slice <- function(fit, draws = NULL, i = NULL, j = NULL, rel = NULL, time = NULL) {
+
+	# bootstrap-expand ALS+bootstrap fits on demand so the per-draw indexing
+	# below sees R replicates of Theta (varying across draws), not the single
+	# point estimate that lives on the unexpanded fit.
+	su <- fit$meta$sampler_used
+	is_als <- !is.null(su) && su %in% c("als", "als_tv", "als_piecewise")
+	if (is_als && !is.null(fit$bootstrap) && !isTRUE(fit$meta$bootstrap_expanded)) {
+		fit <- .bootstrap_expand(fit)
+	}
 
 	# find theta draws - different models store them differently
 	theta_draws <- NULL
@@ -35,10 +45,24 @@ theta_slice <- function(fit, draws = NULL, i = NULL, j = NULL, rel = NULL, time 
 	} else if (!is.null(fit$draws$misc$Theta)) {
 		# piecewise model stores at draws$misc$Theta
 		theta_draws <- fit$draws$misc$Theta
+	} else if (!is.null(fit$Theta) && length(dim(fit$Theta)) == 5L &&
+	           dim(fit$Theta)[5] >= 2L) {
+		# bootstrap-expanded ALS fit: top-level Theta is [n_row, n_col, p, Tt, R].
+		# split along the last axis into a list so the per-draw indexing below
+		# works uniformly across MCMC, piecewise, and ALS+bootstrap.
+		d <- dim(fit$Theta)
+		theta_draws <- lapply(seq_len(d[5]), function(s) {
+			arr <- fit$Theta[, , , , s, drop = FALSE]
+			dim(arr) <- d[1:4]
+			arr
+		})
 	}
 
 	if (is.null(theta_draws)) {
-		warning("Model fit does not contain theta draws")
+		cli::cli_warn(c(
+			"Model fit does not contain theta draws.",
+			"i" = "ALS point-estimate fits have no Theta uncertainty; refit with {.code bootstrap = N} or use {.fun dbn} for MCMC."
+		))
 		return(NULL)
 	}
 
@@ -95,6 +119,7 @@ theta_slice <- function(fit, draws = NULL, i = NULL, j = NULL, rel = NULL, time 
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' ts <- theta_summary(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 theta_summary <- function(fit, fun = mean,
 						  draws = NULL, i = NULL, j = NULL,
@@ -274,6 +299,7 @@ theta_summary <- function(fit, fun = mean,
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' ps <- param_summary(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 param_summary <- function(fit, probs = c(0.025, 0.5, 0.975)) {
 	if (!is.null(fit$draws$pars)) {
@@ -299,7 +325,7 @@ param_summary <- function(fit, probs = c(0.025, 0.5, 0.975)) {
 	}
 
 	if (is.null(pars)) {
-		warning("No scalar parameters found in model fit")
+		cli::cli_warn("No scalar parameters found in model fit.")
 		return(NULL)
 	}
 
@@ -312,6 +338,77 @@ param_summary <- function(fit, probs = c(0.025, 0.5, 0.975)) {
 	quants$mean <- apply(pars, 2, mean, na.rm = TRUE)
 	quants$sd <- apply(pars, 2, sd, na.rm = TRUE)
 	quants <- quants[, c("parameter", "mean", "sd", quant_names)]
+
+	# mark NA in two cases where the scalar param columns carry no uncertainty:
+	#  - point-estimate fit (ALS without bootstrap): one pseudo-draw
+	#  - bootstrap ALS fit: bootstrap gives A/B/M draws but no scalar-param
+	#    draws (sigma2 is recomputed once from the point estimate), so the
+	#    quantile columns would collapse to the same value
+	source <- fit$meta$uncertainty_source %||% NA_character_
+	is_point <- isFALSE(fit$meta$uncertainty_available)
+	is_bootstrap <- identical(source, "bootstrap")
+	if (is_point || is_bootstrap) {
+		quants$sd <- NA_real_
+		for (qn in quant_names) quants[[qn]] <- NA_real_
+		attr(quants, "uncertainty_available") <- FALSE
+		attr(quants, "approximation_note") <- if (is_bootstrap) {
+			"Bootstrap covers A, B, M only; scalar parameters (sigma2, ...) have no bootstrap draws. Operator A/B/M CIs are appended below."
+		} else {
+			fit$meta$approximation_note %||% "Point estimate only -- no posterior uncertainty."
+		}
+	}
+
+	# if bootstrap is available, append a summary block for A, B, M derived
+	# from the bootstrap samples themselves. We summarise as mean ||A_t||_F
+	# (Frobenius norm of each operator slice) since per-entry tables would
+	# be impractically long for typical n, T. Per-entry CIs are still in
+	# fit$bootstrap$ci_A_lo / ci_A_hi for users who want them.
+	if (is_bootstrap && !is.null(fit$bootstrap) &&
+		inherits(fit$bootstrap, "dbn_boot")) {
+		boot <- fit$bootstrap
+		.norm_summary <- function(coefs, name, target_dims) {
+			if (is.null(coefs)) return(NULL)
+			# coefs is [R, n*n] (static) or [R, n_row, n_col, T-1] (TV)
+			if (length(dim(coefs)) == 2L) {
+				# static: each row is vec(A_b); one norm per replicate
+				norms <- sqrt(rowSums(coefs^2))
+				qs <- quantile(norms, probs = probs, na.rm = TRUE)
+				data.frame(parameter = paste0("||", name, "||_F (Frobenius)"),
+					mean = mean(norms, na.rm = TRUE), sd = sd(norms, na.rm = TRUE),
+					setNames(as.list(qs), quant_names),
+					stringsAsFactors = FALSE)
+			} else if (length(dim(coefs)) == 4L) {
+				# TV: [R, n_row, n_col, T-1] -> norm per (rep, t), then summarize
+				# return one row per t with the marginal across replicates
+				R_dim <- dim(coefs)[1]; Tm1 <- dim(coefs)[4]
+				rows <- vector("list", Tm1)
+				for (t_idx in 1:Tm1) {
+					norms_t <- sqrt(apply(coefs[, , , t_idx]^2, 1, sum))
+					qs <- quantile(norms_t, probs = probs, na.rm = TRUE)
+					rows[[t_idx]] <- data.frame(
+						parameter = sprintf("||%s_t||_F (t=%d)", name, t_idx + 1L),
+						mean = mean(norms_t, na.rm = TRUE),
+						sd = sd(norms_t, na.rm = TRUE),
+						setNames(as.list(qs), quant_names),
+						stringsAsFactors = FALSE)
+				}
+				do.call(rbind, rows)
+			} else NULL
+		}
+		ops_df <- do.call(rbind, list(
+			.norm_summary(boot$coefs_A, "A"),
+			.norm_summary(boot$coefs_B, "B"),
+			if (!is.null(boot$coefs_M)) .norm_summary(boot$coefs_M, "M") else NULL
+		))
+		if (!is.null(ops_df) && nrow(ops_df) > 0L) {
+			ops_df <- ops_df[, c("parameter", "mean", "sd", quant_names)]
+			quants <- rbind(quants, ops_df)
+			rownames(quants) <- NULL
+			attr(quants, "approximation_note") <-
+				paste(attr(quants, "approximation_note"),
+				      "Operator norms (and per-t CIs for TV-ALS) shown via bootstrap.")
+		}
+	}
 
 	quants
 }
@@ -343,10 +440,11 @@ param_summary <- function(fit, probs = c(0.025, 0.5, 0.975)) {
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' ls <- latent_summary(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 latent_summary <- function(fit, fun = mean, draws = NULL, rel = NULL, chunk = 20) {
 	if (is.null(fit$draws$misc$M) && is.null(fit$M)) {
-		warning("No M arrays found in model fit")
+		cli::cli_warn("No M arrays found in model fit.")
 		return(NULL)
 	}
 
@@ -403,8 +501,12 @@ latent_summary <- function(fit, fun = mean, draws = NULL, rel = NULL, chunk = 20
 				df <- as.data.frame.table(res, responseName = "value")
 			},
 			error = function(e) {
-				warning("Failed to convert array to data frame: ", e$message)
-				df <- NULL
+				cli::cli_warn(c(
+					"Could not convert a derived-quantity array to a data frame; skipping this chunk.",
+					"x" = "{conditionMessage(e)}",
+					"i" = "Inspect the raw output of your {.arg fun} -- it may be returning unexpected dimensions."
+				))
+				df <<- NULL
 			}
 		)
 
@@ -494,6 +596,7 @@ latent_summary <- function(fit, fun = mean, draws = NULL, rel = NULL, chunk = 20
 #' fit <- dbn(sim$Y, model = "hmm", R = 2, nscan = 200, burn = 100, verbose = FALSE)
 #' rp <- regime_probs(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 regime_probs <- function(fit) {
 	if (fit$model != "hmm") {
@@ -523,7 +626,18 @@ regime_probs <- function(fit) {
 
 	probs <- matrix(0, nrow = Tt, ncol = R)
 	colnames(probs) <- paste0("Regime", 1:R)
-	rownames(probs) <- paste0("Time", 1:Tt)
+	# preserve user-supplied time labels when available. explicit length
+	# guard replaces the prior tryCatch that swallowed index-out-of-bounds
+	user_time_labels <- if (!is.null(fit$Y) &&
+	                        is.array(fit$Y) &&
+	                        length(dim(fit$Y)) >= 4L) {
+		dimnames(fit$Y)[[4]]
+	} else NULL
+	if (!is.null(user_time_labels) && length(user_time_labels) == Tt) {
+		rownames(probs) <- user_time_labels
+	} else {
+		rownames(probs) <- paste0("Time", 1:Tt)
+	}
 
 	for (r in 1:R) {
 		probs[, r] <- rowMeans(S_mat == r)
@@ -556,10 +670,11 @@ regime_probs <- function(fit) {
 #' dd <- derive_draws(fit, function(d) sum(d$theta^2))
 #' length(dd)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 derive_draws <- function(fit, fun, draws = NULL, chunk = 20, name = "derived") {
 	if (is.null(fit$draws)) {
-		warning("Model fit does not contain posterior draws in expected format")
+		cli::cli_warn("Model fit does not contain posterior draws in expected format.")
 		return(NULL)
 	}
 
@@ -578,7 +693,7 @@ derive_draws <- function(fit, fun, draws = NULL, chunk = 20, name = "derived") {
 			n_draws <- length(fit$draws$misc$B)
 		}
 		if (n_draws == 0) {
-			warning("Could not determine number of draws")
+			cli::cli_warn("Could not determine number of draws.")
 			return(NULL)
 		}
 		draws <- seq_len(n_draws)
@@ -623,6 +738,7 @@ derive_draws <- function(fit, fun, draws = NULL, chunk = 20, name = "derived") {
 #' Print method for derived quantities
 #' @param x An object of class "dbn_derived"
 #' @param ... Additional arguments (currently unused)
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 print.dbn_derived <- function(x, ...) {
 	name <- attr(x, "name")
@@ -655,11 +771,37 @@ print.dbn_derived <- function(x, ...) {
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' tc <- theta_credible(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 theta_credible <- function(fit, probs = c(0.05, 0.5, 0.95),
 						   i = NULL, j = NULL, rel = 1, time = NULL) {
-	if (is.null(fit$draws$theta)) {
-		warning("Model fit does not contain theta draws")
+	# bootstrap-expand ALS+bootstrap fits on demand.
+	su <- fit$meta$sampler_used
+	is_als <- !is.null(su) && su %in% c("als", "als_tv", "als_piecewise")
+	if (is_als && !is.null(fit$bootstrap) && !isTRUE(fit$meta$bootstrap_expanded)) {
+		fit <- .bootstrap_expand(fit)
+	}
+	# look for theta draws in priority order: MCMC dynamic, piecewise, then
+	# ALS+bootstrap (where the bootstrap-expanded fit carries a 5D Theta).
+	theta_draws <- fit$draws$theta
+	if (is.null(theta_draws) && !is.null(fit$draws$misc$Theta)) {
+		theta_draws <- fit$draws$misc$Theta
+	}
+	if (is.null(theta_draws) && !is.null(fit$Theta) &&
+	    length(dim(fit$Theta)) == 5L && dim(fit$Theta)[5] >= 2L) {
+		d <- dim(fit$Theta)
+		theta_draws <- lapply(seq_len(d[5]), function(s) {
+			arr <- fit$Theta[, , , , s, drop = FALSE]
+			dim(arr) <- d[1:4]
+			arr
+		})
+	}
+	if (is.null(theta_draws)) {
+		cli::cli_warn(c(
+			"Model fit does not contain theta draws.",
+			"i" = "ALS point-estimate fits without bootstrap have no Theta uncertainty.",
+			"i" = "Refit with {.code dbn_als(..., bootstrap = N)} or use {.fun dbn} for MCMC."
+		))
 		return(NULL)
 	}
 
@@ -674,7 +816,7 @@ theta_credible <- function(fit, probs = c(0.05, 0.5, 0.95),
 		time <- seq_len(time_dim)
 	}
 
-	n_draws <- length(fit$draws$theta)
+	n_draws <- length(theta_draws)
 	grid <- expand.grid(i = i, j = j, time = time)
 	n_cells <- nrow(grid)
 
@@ -687,7 +829,7 @@ theta_credible <- function(fit, probs = c(0.05, 0.5, 0.95),
 		ii <- grid$i[k]
 		jj <- grid$j[k]
 		tt <- grid$time[k]
-		vals <- vapply(fit$draws$theta, function(th) th[ii, jj, rel, tt],
+		vals <- vapply(theta_draws, function(th) th[ii, jj, rel, tt],
 					   numeric(1))
 		q <- quantile(vals, probs = probs, na.rm = TRUE)
 		res_mean[k]  <- mean(vals, na.rm = TRUE)
@@ -727,27 +869,43 @@ theta_credible <- function(fit, probs = c(0.05, 0.5, 0.95),
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' ns <- network_summary(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 network_summary <- function(fit, stat = c("mean", "density", "strength"),
 							rel = 1, time = NULL) {
-	stat <- match.arg(stat)
-
-	if (is.null(fit$draws$theta)) {
-		warning("Model fit does not contain theta draws")
-		return(NULL)
+	# the function name reads like a data-array descriptive helper, but
+	# it actually requires a fitted dbn object; refuse directively on a
+	# raw array rather than crashing inside fit$meta$dims access.
+	if (!inherits(fit, "dbn")) {
+		cli::cli_abort(c(
+			"{.fun network_summary} computes posterior summaries of a fitted dbn model; it does NOT operate on raw data arrays.",
+			"x" = "Got {.cls {class(fit)[1]}}.",
+			"i" = "For data-array descriptives, use {.fn stat_density}, {.fn stat_reciprocity}, or {.fn stat_transitivity} on individual slices."
+		))
 	}
+	stat <- match.arg(stat)
 
 	dims <- if (!is.null(fit$meta$dims)) fit$meta$dims else fit$dims
 	n_row <- dims$n_row
 	n_col <- dims$n_col
 	is_bipartite <- isTRUE(dims$is_bipartite)
 
+	# under auto time-thinning, fit$Theta / fit$draws$theta hold only the kept
+	# slices (length(fit$time_kept)), not the full Tt. defaulting `time` to
+	# 1..Tt would index out-of-bounds; the natural default is the stored
+	# slice count. when the user passes their own `time`, treat the values
+	# as stored-slice indices (1..length(time_kept)).
+	tk <- fit$time_kept
+	n_stored <- if (!is.null(tk)) length(tk) else dims$Tt
 	if (is.null(time)) {
-		time_dim <- dims$Tt
-		time <- seq_len(time_dim)
+		time <- seq_len(n_stored)
+	} else if (any(time > n_stored)) {
+		cli::cli_abort(c(
+			"{.arg time} index {.val {max(time)}} exceeds the number of stored slices ({n_stored}).",
+			"i" = "Under {.code time_thin = {fit$time_thin %||% 1}}, only {.val {n_stored}} of {.val {dims$Tt}} time points are stored.",
+			"i" = "Indices in {.arg time} are STORED-slice indices, 1..{n_stored}."
+		))
 	}
-
-	n_draws <- length(fit$draws$theta)
 
 	stat_fn <- switch(stat,
 		mean = function(mat) mean(mat, na.rm = TRUE),
@@ -757,20 +915,122 @@ network_summary <- function(fit, stat = c("mean", "density", "strength"),
 
 	result <- data.frame(time = time, mean = NA_real_,
 						 lower = NA_real_, upper = NA_real_)
-
-	for (ti in seq_along(time)) {
-		tt <- time[ti]
-		vals <- vapply(fit$draws$theta, function(th) {
-			mat <- th[, , rel, tt]
-			if (!is_bipartite) diag(mat) <- NA
-			stat_fn(mat)
-		}, numeric(1))
-		result$mean[ti]  <- mean(vals)
-		result$lower[ti] <- quantile(vals, 0.05)
-		result$upper[ti] <- quantile(vals, 0.95)
+	# propagate the user's time-axis labels from dimnames(fit$Y)[[4]] when
+	# present, indexing via fit$time_kept under auto-time-thinning.
+	if (!is.null(fit$Y) && length(dim(fit$Y)) == 4L) {
+		t_names <- dimnames(fit$Y)[[4]]
+		if (!is.null(t_names)) {
+			result$time_label <- if (!is.null(tk) && length(tk) >= max(time))
+				t_names[tk[time]] else if (length(t_names) >= max(time))
+				t_names[time] else NA_character_
+		}
 	}
 
-	result
+	# path 1: MCMC fit with theta draws
+	if (!is.null(fit$draws$theta) && length(fit$draws$theta) > 1L) {
+		for (ti in seq_along(time)) {
+			tt <- time[ti]
+			vals <- vapply(fit$draws$theta, function(th) {
+				mat <- th[, , rel, tt]
+				if (!is_bipartite) diag(mat) <- NA
+				stat_fn(mat)
+			}, numeric(1))
+			result$mean[ti]  <- mean(vals)
+			result$lower[ti] <- quantile(vals, 0.05)
+			result$upper[ti] <- quantile(vals, 0.95)
+		}
+		return(result)
+	}
+
+	# path 2: ALS fit (point estimate or bootstrap). Use fitted Theta (one-step
+	# prediction) as the point estimate; if a bootstrap is attached we compute
+	# theta per replicate using each replicate's (A_b, B_b) and then compute
+	# the statistic per replicate, giving honest intervals.
+	su <- fit$meta$sampler_used
+	is_als <- !is.null(su) && su %in% c("als", "als_tv", "als_piecewise")
+	if (is_als) {
+		Theta_point <- fit$Theta
+		if (is.null(Theta_point) || length(dim(Theta_point)) < 4L) {
+			cli::cli_warn(c(
+				"{.fun network_summary} couldn't find {.code fit$Theta} on this ALS fit.",
+				"i" = "Returning {.code NULL}; refit and ensure Theta is not dropped via {.arg keep}."
+			))
+			return(NULL)
+		}
+		has_boot <- !is.null(fit$bootstrap) && inherits(fit$bootstrap, "dbn_boot")
+		# build per-replicate operators if bootstrap is available
+		coefs_A <- if (has_boot) fit$bootstrap$coefs_A else NULL
+		coefs_B <- if (has_boot) fit$bootstrap$coefs_B else NULL
+		is_tv_boot <- has_boot && length(dim(coefs_A)) == 4L
+		# Y and M for recomputing Phi
+		Y <- fit$Y; Y_f <- Y; Y_f[is.na(Y_f)] <- 0
+		M_point <- if (is.array(fit$M) && length(dim(fit$M)) == 4L)
+			fit$M[, , , 1, drop = FALSE] else fit$M
+		dim(M_point) <- c(n_row, n_col, dim(fit$M)[3])
+
+		.theta_at_t <- function(A_t, B_t, tt) {
+			if (tt == 1L) {
+				return(M_point[, , rel] + Y_f[, , rel, 1] - M_point[, , rel])
+			}
+			Phi_prev <- Y_f[, , rel, tt - 1L] - M_point[, , rel]
+			Phi_prev[is.na(Phi_prev)] <- 0
+			M_point[, , rel] + A_t %*% Phi_prev %*% t(B_t)
+		}
+
+		for (ti in seq_along(time)) {
+			tt <- time[ti]
+			if (has_boot && !is.null(coefs_A)) {
+				if (is_tv_boot) {
+					Rrep <- dim(coefs_A)[1]
+					vals <- numeric(Rrep)
+					for (s in seq_len(Rrep)) {
+						# coefs_A[s,,,t_idx] where t_idx = tt-1 (since coefs start at t=2)
+						t_idx <- max(1L, tt - 1L)
+						A_s <- coefs_A[s, , , min(t_idx, dim(coefs_A)[4])]
+						B_s <- coefs_B[s, , , min(t_idx, dim(coefs_B)[4])]
+						theta_s <- .theta_at_t(A_s, B_s, tt)
+						if (!is_bipartite) diag(theta_s) <- NA
+						vals[s] <- stat_fn(theta_s)
+					}
+				} else {
+					# static bootstrap: each replicate's A,B is constant in time
+					Rrep <- nrow(coefs_A)
+					vals <- numeric(Rrep)
+					for (s in seq_len(Rrep)) {
+						A_s <- matrix(coefs_A[s, ], n_row, n_row)
+						B_s <- matrix(coefs_B[s, ], n_col, n_col)
+						theta_s <- .theta_at_t(A_s, B_s, tt)
+						if (!is_bipartite) diag(theta_s) <- NA
+						vals[s] <- stat_fn(theta_s)
+					}
+				}
+				result$mean[ti]  <- mean(vals, na.rm = TRUE)
+				result$lower[ti] <- quantile(vals, 0.05, na.rm = TRUE)
+				result$upper[ti] <- quantile(vals, 0.95, na.rm = TRUE)
+			} else {
+				mat <- Theta_point[, , rel, tt, 1]
+				if (!is_bipartite) diag(mat) <- NA
+				v <- stat_fn(mat)
+				result$mean[ti] <- v
+				result$lower[ti] <- NA_real_
+				result$upper[ti] <- NA_real_
+			}
+		}
+		if (!has_boot) {
+			cli::cli_inform(c(
+				"i" = "{.fun network_summary} on an ALS fit without bootstrap returns point estimates only (lower/upper are NA).",
+				"i" = "Refit with {.code dbn_als(..., bootstrap = N)} to get intervals."
+			))
+		}
+		return(result)
+	}
+
+	# path 3: nothing usable
+	cli::cli_warn(c(
+		"{.fun network_summary} couldn't find theta draws or a usable ALS Theta on this fit.",
+		"i" = "Returning {.code NULL}."
+	))
+	NULL
 }
 ####
 
@@ -791,10 +1051,31 @@ network_summary <- function(fit, stat = c("mean", "density", "strength"),
 #' fit <- dbn(sim$Y, model = "dynamic", nscan = 200, burn = 100, verbose = FALSE)
 #' ep <- edge_prob(fit)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
 edge_prob <- function(fit, threshold = 0, rel = 1, time = NULL) {
-	if (is.null(fit$draws$theta)) {
-		warning("Model fit does not contain theta draws")
+	# bootstrap-expand ALS+bootstrap fits on demand.
+	su <- fit$meta$sampler_used
+	is_als <- !is.null(su) && su %in% c("als", "als_tv", "als_piecewise")
+	if (is_als && !is.null(fit$bootstrap) && !isTRUE(fit$meta$bootstrap_expanded)) {
+		fit <- .bootstrap_expand(fit)
+	}
+	# look for theta draws in priority order: MCMC dynamic, piecewise, then
+	# ALS+bootstrap (5D top-level Theta).
+	theta_draws <- fit$draws$theta
+	if (is.null(theta_draws) && !is.null(fit$draws$misc$Theta)) {
+		theta_draws <- fit$draws$misc$Theta
+	}
+	use_5d <- FALSE
+	if (is.null(theta_draws) && !is.null(fit$Theta) &&
+	    length(dim(fit$Theta)) == 5L && dim(fit$Theta)[5] >= 2L) {
+		use_5d <- TRUE
+	}
+	if (is.null(theta_draws) && !use_5d) {
+		cli::cli_warn(c(
+			"Model fit does not contain theta draws.",
+			"i" = "Refit with {.code dbn_als(..., bootstrap = N)} or use {.fun dbn} for MCMC."
+		))
 		return(NULL)
 	}
 
@@ -807,11 +1088,17 @@ edge_prob <- function(fit, threshold = 0, rel = 1, time = NULL) {
 		time <- time_dim
 	}
 
-	n_draws <- length(fit$draws$theta)
 	prob_mat <- matrix(0, n_row, n_col)
-
-	for (s in seq_len(n_draws)) {
-		prob_mat <- prob_mat + (fit$draws$theta[[s]][, , rel, time] > threshold)
+	if (use_5d) {
+		n_draws <- dim(fit$Theta)[5]
+		for (s in seq_len(n_draws)) {
+			prob_mat <- prob_mat + (fit$Theta[, , rel, time, s] > threshold)
+		}
+	} else {
+		n_draws <- length(theta_draws)
+		for (s in seq_len(n_draws)) {
+			prob_mat <- prob_mat + (theta_draws[[s]][, , rel, time] > threshold)
+		}
 	}
 	prob_mat <- prob_mat / n_draws
 

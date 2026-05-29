@@ -6,11 +6,13 @@
 #' ordinal / rank likelihood it uses log score.
 #'
 #' For each posterior draw m and each time t in window E:
-#'   - predicted Y under the dynamic model is M + A_t Theta_{t-1} A_t'
-#'   - predicted Y under the baseline is M alone
+#'   - predicted Theta under the dynamic model is
+#'     `M + A_t (Theta_{t-1} - M) B_t'` (the one-step state prediction
+#'     under the bilinear AR; the FFBS sampler centers the state on M);
+#'   - predicted Theta under the baseline is M alone.
 #' Per-dyad gain at (i, j, t):
 #'   G_{ij,t}^{(m)} = (Y_{ij,t} - M_{ij}^{(m)})^2
-#'                    - (Y_{ij,t} - M_{ij}^{(m)} - (A_t^{(m)} Theta_{t-1}^{(m)} A_t^{(m)'})_{ij})^2
+#'                    - (Y_{ij,t} - pred_dyn_{ij,t}^{(m)})^2
 #' Per-actor gain (Gaussian, MSE-form):
 #'   G_i^{(m)}(E) = sum_{t in E} sum_{j != i} G_{ij,t}^{(m)}
 #'
@@ -25,6 +27,9 @@
 #' @param window Integer vector of time points to sum over. Defaults to
 #'   all t >= 2 (forecast gain is undefined at t = 1).
 #' @param relation Index of the relation (p dimension) to use. Default 1.
+#' @param ... Reserved. Passing `H = ...` here triggers a directive
+#'   pointer to `predict(fit, H = ...)` instead, since `forecast_gain()`
+#'   is an in-sample predictive-gain measure, not a multi-step forecast.
 #' @return A list with `per_actor` (n x M matrix of per-draw gains,
 #'   summed over `window`), `summary` (a data frame with mean, sd,
 #'   q025, q500, q975 per actor), and `attrs` (window, relation, n
@@ -38,13 +43,56 @@
 #' fg <- forecast_gain(fit, sim$Y, window = 8:10, relation = 1)
 #' head(fg$summary)
 #' }
+#' @author Tosin Salau and Shahryar Minhas
 #' @export
-forecast_gain <- function(fit, Y, window = NULL, relation = 1L) {
+forecast_gain <- function(fit, Y = NULL, window = NULL, relation = 1L, ...) {
+	# catch the common confusion: `forecast_gain` is IN-SAMPLE predictive
+	# gain over a chosen window, not multi-step forecasting. Users who reach
+	# for an `H = ...` argument want `predict(fit, H = ...)`.
+	extra <- list(...)
+	if ("H" %in% names(extra) || "horizon" %in% names(extra)) {
+		cli::cli_abort(c(
+			"{.fun forecast_gain} does not take an {.arg H} (horizon) argument.",
+			"i" = "It compares one-step in-sample predictions against a static baseline over {.arg window}.",
+			"i" = "For multi-step forecasts use {.code predict(fit, H = N)} instead."
+		))
+	}
+	if (length(extra) > 0L) {
+		cli::cli_warn(c(
+			"Ignoring {length(extra)} unrecognized argument{?s} to {.fun forecast_gain}: {.arg {names(extra)}}.",
+			"i" = "Allowed arguments: {.arg fit}, {.arg Y}, {.arg window}, {.arg relation}."
+		))
+	}
+	# refuse on non-gaussian families: prediction is on the latent gaussian
+	# scale while Y is on the observed scale ({0,1} or ordinal category),
+	# so squared-difference loss against raw Y is meaningless.
+	fam_name <- if (is.list(fit$family)) fit$family$name else fit$family
+	if (!is.null(fam_name) && !identical(fam_name, "gaussian")) {
+		cli::cli_abort(c(
+			"{.fun forecast_gain} currently supports only {.code family = \"gaussian\"} fits.",
+			"x" = "This fit has {.code family = \"{fam_name}\"}.",
+			"i" = "The squared-error gain compares predictions on the latent scale to observations on the {fam_name} scale, which is not a meaningful target.",
+			"i" = "For binary / ordinal in-sample predictive checks, use {.fun posterior_predict_dbn} and {.fun plot_ppc_density} / {.fun plot_ppc_ecdf}."
+		))
+	}
+	# default Y to the data stored on the fit
+	if (is.null(Y)) {
+		if (is.null(fit$Y)) {
+			cli::cli_abort(c(
+				"{.arg Y} is required and {.code fit$Y} was not stored on this fit.",
+				"i" = "Pass the original data array explicitly."
+			))
+		}
+		Y <- fit$Y
+	}
 	n_row <- dim(Y)[1]
 	n_col <- dim(Y)[2]
 	if (n_row != n_col) {
-		stop("forecast_gain currently supports unipartite networks ",
-			"(n_row == n_col).")
+		cli::cli_abort(c(
+			"{.fun forecast_gain} currently supports unipartite (square) networks.",
+			"x" = "Got dimensions {.val {n_row}} x {.val {n_col}}.",
+			"i" = "Compute per-actor in/out gain manually via {.fun predict} for bipartite cases."
+		))
 	}
 	Tt <- dim(Y)[4]
 	if (is.null(window)) window <- seq(2L, Tt)
@@ -53,6 +101,7 @@ forecast_gain <- function(fit, Y, window = NULL, relation = 1L) {
 	}
 
 	A_keep <- simplify2array(fit$A)  # n x n x Tt x M
+	B_keep <- simplify2array(fit$B)  # n x n x Tt x M
 	if (length(dim(A_keep)) != 4) {
 		stop("fit$A must be coercible to a 4D array (n x n x Tt x M)")
 	}
@@ -75,8 +124,11 @@ forecast_gain <- function(fit, Y, window = NULL, relation = 1L) {
 		M_m <- M_keep[, , relation, m]
 		for (t in window) {
 			A_t  <- A_keep[, , t, m]
+			B_t  <- B_keep[, , t, m]
 			Th_p <- Theta_keep[, , relation, t - 1, m]
-			pred_dyn <- M_m + A_t %*% Th_p %*% t(A_t)
+			# bilinear-AR one-step prediction:
+			# E[Theta_t | Theta_{t-1}, M, A, B] = M + A_t (Theta_{t-1} - M) B_t'
+			pred_dyn <- M_m + A_t %*% (Th_p - M_m) %*% t(B_t)
 			# enforce diag(Y) = 0 convention: zero the diagonal
 			diag(pred_dyn) <- 0
 			diag(M_m) <- 0
@@ -91,13 +143,15 @@ forecast_gain <- function(fit, Y, window = NULL, relation = 1L) {
 		}
 	}
 
+	# na.rm = TRUE on summaries: NA observations in Y propagate to
+	# per_actor rows for actors absent in any window time-point.
 	summary_df <- data.frame(
 		actor   = seq_len(n_row),
-		mean    = rowMeans(per_actor),
-		sd      = apply(per_actor, 1, sd),
-		q025    = apply(per_actor, 1, quantile, probs = 0.025),
-		q500    = apply(per_actor, 1, quantile, probs = 0.5),
-		q975    = apply(per_actor, 1, quantile, probs = 0.975)
+		mean    = rowMeans(per_actor, na.rm = TRUE),
+		sd      = apply(per_actor, 1, sd, na.rm = TRUE),
+		q025    = apply(per_actor, 1, quantile, probs = 0.025, na.rm = TRUE),
+		q500    = apply(per_actor, 1, quantile, probs = 0.5, na.rm = TRUE),
+		q975    = apply(per_actor, 1, quantile, probs = 0.975, na.rm = TRUE)
 	)
 
 	list(
@@ -127,14 +181,32 @@ forecast_gain <- function(fit, Y, window = NULL, relation = 1L) {
 #' n <- dim(sim$A)[1]; Tt <- dim(sim$A)[3]
 #' M_true <- matrix(0, n, n)  # simulator centers Theta at zero
 #' Theta_true_3d <- array(sim$Theta[, , 1, ], c(n, n, Tt))
-#' truth_gain <- dbn:::forecast_gain_truth(sim$Y, sim$A,
+#' truth_gain <- forecast_gain_truth(sim$Y, sim$A,
 #'   Theta_true_3d, M_true,
 #'   window = 5:8)
 #' truth_gain
 #' }
+#' @export
 #' @keywords internal
 forecast_gain_truth <- function(Y, A_true, Theta_true, M_true,
 	window = NULL, relation = 1L) {
+	# validate required inputs upfront with cli messages; without these,
+	# NULL inputs trip a cryptic base-R seq() error several lines down.
+	for (nm in c("Y", "A_true", "Theta_true", "M_true")) {
+		val <- get(nm)
+		if (is.null(val)) {
+			cli::cli_abort(c(
+				"{.arg {nm}} must not be NULL.",
+				"i" = "{.fn forecast_gain_truth} needs all four ground-truth arrays: {.var Y}, {.var A_true}, {.var Theta_true}, {.var M_true}."
+			))
+		}
+	}
+	if (is.null(dim(Y)) || length(dim(Y)) != 4L) {
+		cli::cli_abort(c(
+			"{.arg Y} must be a 4D array [n_row, n_col, p, time].",
+			"x" = "Got {.cls {class(Y)[1]}} with dim {.val {if (is.null(dim(Y))) length(Y) else paste(dim(Y), collapse = 'x')}}."
+		))
+	}
 	n <- dim(Y)[1]
 	Tt <- dim(Y)[4]
 	if (is.null(window)) window <- seq(2L, Tt)
@@ -144,7 +216,8 @@ forecast_gain_truth <- function(Y, A_true, Theta_true, M_true,
 	for (t in window) {
 		A_t  <- A_true[, , t]
 		Th_p <- Theta_true[, , t - 1]
-		pred_dyn <- M_mat + A_t %*% Th_p %*% t(A_t)
+		# match the corrected forecast_gain() formula: deviation-form prediction
+		pred_dyn <- M_mat + A_t %*% (Th_p - M_mat) %*% t(A_t)
 		diag(pred_dyn) <- 0
 		resid_base <- Y_rel[, , t] - M_mat
 		resid_dyn  <- Y_rel[, , t] - pred_dyn

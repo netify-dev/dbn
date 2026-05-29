@@ -4,7 +4,13 @@
 \alias{predict_hmm}
 \title{Predict from HMM-DBN Fit}
 \usage{
-predict_hmm(object, H = 1, draws = 100, summary = c("mean", "none"))
+predict_hmm(
+  object,
+  H = 1,
+  draws = 100,
+  summary = c("mean", "none"),
+  seed = NULL
+)
 }
 \arguments{
 \item{object}{A dbn object with model="hmm"}

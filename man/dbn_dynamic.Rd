@@ -12,7 +12,7 @@ dbn_dynamic(
   odens = 1,
   ar1 = FALSE,
   update_rho = FALSE,
-  seed = 6886,
+  seed = NULL,
   verbose = TRUE,
   time_thin = NULL,
   store_z = NULL,
@@ -23,9 +23,19 @@ dbn_dynamic(
   phi_diag = 0.999,
   kappa_Abar2 = 0.5,
   tau_A_fixed = NULL,
+  tau_B_fixed = NULL,
+  a_tau = 0.5,
+  b_tau = 0.5,
+  a_sig = 2,
+  b_sig = 2,
+  a_sig_obs = NULL,
+  b_sig_obs = NULL,
+  a_g = 2,
+  b_g = 2,
   kappa_A2 = NULL,
   rho_max = NULL,
   rho_max_rejects = 50L,
+  shrink_rho = 0.9,
   keep = NULL,
   sampler = "auto"
 )
@@ -52,7 +62,7 @@ dbn_dynamic(
 
 \item{seed}{Random seed}
 
-\item{verbose}{Logical or numeric. TRUE prints every 100 iterations, numeric prints every n iterations, FALSE suppresses output.}
+\item{verbose}{Logical or numeric. If TRUE the progress bar is updated on every iteration (its display rate is throttled by the terminal); if numeric \code{n}, the bar is updated every n-th iteration; FALSE suppresses all progress output.}
 
 \item{time_thin}{Save every nth time point to reduce memory (default: NULL = auto)}
 
@@ -80,7 +90,29 @@ stationary AR(1) on \code{Delta_t}. Only used when \code{symmetric = TRUE}.}
 \code{lambda_diag > 0} (default: 0.5).}
 
 \item{tau_A_fixed}{If non-NULL, hold \code{tau_A^2} fixed at this value and
-skip the conjugate IG update. Only used when \code{symmetric = TRUE}.}
+skip the conjugate IG update. Honored on both the symmetric and the
+asymmetric specifications.}
+
+\item{tau_B_fixed}{If non-NULL, hold \code{tau_B^2} fixed at this value and
+skip the conjugate IG update. Asymmetric specification only; ignored
+when \code{symmetric = TRUE} (where \code{tau_B^2 = tau_A^2} by construction).}
+
+\item{a_tau, b_tau}{Shape and rate of the inverse-gamma prior on the
+random-walk innovation variances \code{tau_A^2} (and \code{tau_B^2} in the
+asymmetric specification), default 0.5 each, a weakly informative prior.
+Exposed for prior-sensitivity analysis; applies to both the symmetric and
+asymmetric specifications.}
+
+\item{a_sig, b_sig}{Shape and rate of the inverse-gamma prior on the
+process variance \code{sigma^2} (default 2, 2). Exposed for prior-sensitivity
+analysis.}
+
+\item{a_sig_obs, b_sig_obs}{Shape and rate of the inverse-gamma prior on
+the observation variance \verb{sigma^2_obs} (Gaussian family only). \code{NULL}
+(default) reuses the process-variance prior \code{a_sig}, \code{b_sig}.}
+
+\item{a_g, b_g}{Shape and rate of the inverse-gamma prior on the baseline
+mean variance \code{g^2} (default 2, 2).}
 
 \item{kappa_A2}{If non-NULL, decouple the row-1 prior variance from
 \code{tau_A^2} by setting each row's \code{A_1} prior variance to this value.
@@ -94,6 +126,20 @@ via row-trajectory rejection sampling in the suffstat path. NULL
 row unchanged for this sweep (default: 50). Only used when
 \code{rho_max > 0}.}
 
+\item{shrink_rho}{Contractivity prior on the operator, on by default. The
+per-time \code{A_t}, \code{B_t} are under-identified (one transition informs each
+slice), and the random-walk prior does not bound their spectral radius,
+so impulse responses and forecasts can drift into the explosive region.
+\code{shrink_rho} adds a Gaussian ridge prior that pulls each operator slice
+toward zero, keeping the spectral radius contractive and multi-step
+propagation stable. It defaults to \code{0.9}; smaller values shrink harder,
+and \code{shrink_rho = NULL} disables it entirely (recovering the raw
+random-walk prior). The realized spectral radius sits at or (for short
+panels) well below \code{shrink_rho}, since the random-walk coupling shares
+the same precision. This regularizes the magnitude of the operator; to
+recover its structure, pool transitions with \code{model = "piecewise"} or
+\code{model = "lowrank"}.}
+
 \item{keep}{Optional character vector of draw-indexed components to retain
 in the returned object, controlling its size on disk and in memory.
 Recognized: \code{"Theta"} (latent-state draws -- by far the largest
@@ -101,12 +147,32 @@ component), \code{"A"}, \code{"B"}, \code{"M"}, \code{"Z"}. \code{NULL} (default
 Coupling, leverage, and rank-probability analysis need only \code{A}, \code{B},
 and \code{M}; passing \code{keep = c("A", "B", "M")} drops the latent-state draws
 and substantially shrinks the saved object. See \code{\link[=estimate_memory]{estimate_memory()}}.}
+
+\item{sampler}{Sampler choice. \code{"auto"} (default) picks the best
+sampler for the model; \code{"approx"} forces the FFBS path; \code{"exact"}
+forces the exact PCG path where available.}
 }
 \value{
 List containing MCMC results
 }
 \description{
-Fits DBN model with time-varying sender/receiver effects
+Fits a DBN with time-varying operators \eqn{A_t}, \eqn{B_t}
+under a Gaussian random-walk prior anchored at the identity
+(\eqn{A_0 = B_0 = I}, see \link{dbn-package} for the full prior /
+identifiability story). Use \code{\link[=dbn_static]{dbn_static()}} for time-invariant
+operators, or \code{\link[=dbn_piecewise]{dbn_piecewise()}} when the operator is constant
+within known regimes.
+}
+\details{
+The deviation-form bilinear AR is
+\eqn{\Theta_t = M + A_t (\Theta_{t-1} - M) B_t^T + \varepsilon_t},
+with \eqn{A_t = A_{t-1} + \varepsilon^A_t} and
+\eqn{\varepsilon^A_t \sim N(0, \tau_A^2 I)} (and analogously for
+\eqn{B_t}). The \eqn{A_0 = B_0 = I} anchor resolves the
+\eqn{(A_t, B_t) \to (c A_t, c^{-1} B_t)} scale ambiguity; under
+\code{symmetric = TRUE} the sampler enforces \eqn{B_t = A_t} and a
+symmetric \eqn{A_t} at every iteration. See \code{\link[=actor_embedding]{actor_embedding()}} and
+\code{\link[=compute_irf]{compute_irf()}} for downstream summaries.
 }
 \examples{
 \donttest{
@@ -116,4 +182,7 @@ fit <- dbn_dynamic(sim$Y, nscan = 200, burn = 100, verbose = FALSE)
 }
 \seealso{
 \code{\link{dbn}} for the main dispatcher, \code{\link{param_summary}} for posterior summaries
+}
+\author{
+Tosin Salau and Shahryar Minhas
 }
